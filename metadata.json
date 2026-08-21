@@ -1,0 +1,6 @@
+{
+  "name": "MajorI.A - Velora Matrix AI Assistant",
+  "description": "Assistant IA Cyberpunk Velora x Matrix MajorI.A avec Chat, Mémoire neuronale, Favoris, Rappels intelligents, Kanban cybernétique et calendrier matriciel.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
