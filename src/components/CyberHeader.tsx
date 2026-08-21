@@ -83,7 +83,7 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
     }
   };
 
-  const effectiveEnergy = typeof energyPercent === 'number' ? Math.max(0, Math.min(100, energyPercent)) : 80;
+  const effectiveEnergy = typeof energyPercent === 'number' ? Math.max(0, energyPercent) : 100;
 
   const renderBatteryIcon = () => {
     if (effectiveEnergy <= 10) return <BatteryWarning className="w-4 h-4 text-rose-400 animate-pulse" />;

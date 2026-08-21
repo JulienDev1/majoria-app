@@ -298,7 +298,22 @@ app.post('/api/supabase/use-credit', async (req: Request, res: Response) => {
 
   // 2. Server Store fallback (for testing/local execution)
   if (serverStore.userCredits[effectiveUserId] === undefined) {
-    serverStore.userCredits[effectiveUserId] = 30;
+    // If user has active subscription, initialize with plan energy
+    const sub = serverStore.subscriptions[effectiveUserId];
+    if (sub && sub.status === 'active') {
+      const plan = PLAN_DEFINITIONS[sub.planId] || PLAN_DEFINITIONS.basic;
+      serverStore.userCredits[effectiveUserId] = plan.energy || 100;
+    } else {
+      serverStore.userCredits[effectiveUserId] = 30;
+    }
+  }
+
+  // If user has active subscription, ensure credits are never exhausted
+  const sub = serverStore.subscriptions[effectiveUserId];
+  if (sub && sub.status === 'active') {
+    if (serverStore.userCredits[effectiveUserId] <= 0) {
+      serverStore.userCredits[effectiveUserId] = 100;
+    }
   }
 
   if (serverStore.userCredits[effectiveUserId] <= 0) {
@@ -314,11 +329,30 @@ app.get('/api/supabase/credits', async (req: Request, res: Response) => {
   const { userId } = req.query || {};
   const effectiveUserId = (userId && String(userId).trim()) || 'user_default';
 
+  // Check active subscription first
+  const sub = serverStore.subscriptions[effectiveUserId];
+
   if (serverSupabase) {
     try {
+      // Check user_subscriptions table first
+      const { data: subRow } = await serverSupabase
+        .from('user_subscriptions')
+        .select('*')
+        .eq('user_id', effectiveUserId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (subRow && (subRow.status === 'active' || subRow.status === 'trialing')) {
+        const plan = PLAN_DEFINITIONS[subRow.plan_id] || PLAN_DEFINITIONS.basic;
+        const targetEnergy = plan.energy || 100;
+        return res.json({ balance: targetEnergy });
+      }
+
       const { data, error } = await serverSupabase.rpc('get_credits', { user_id: effectiveUserId });
       if (!error && typeof data === 'number') {
-        return res.json({ balance: data });
+        const effective = (sub && sub.status === 'active' && data < 100) ? 100 : data;
+        return res.json({ balance: effective });
       }
       // Table check
       const { data: row } = await serverSupabase
@@ -328,15 +362,45 @@ app.get('/api/supabase/credits', async (req: Request, res: Response) => {
         .maybeSingle();
 
       if (row && typeof row.credits === 'number') {
-        return res.json({ balance: row.credits });
+        const effective = (sub && sub.status === 'active' && row.credits < 100) ? 100 : row.credits;
+        return res.json({ balance: effective });
       }
     } catch {}
   }
 
+  if (sub && sub.status === 'active') {
+    const plan = PLAN_DEFINITIONS[sub.planId] || PLAN_DEFINITIONS.basic;
+    const targetEnergy = plan.energy || 100;
+    serverStore.userCredits[effectiveUserId] = Math.max(serverStore.userCredits[effectiveUserId] || 0, targetEnergy);
+    return res.json({ balance: serverStore.userCredits[effectiveUserId] });
+  }
+
   if (serverStore.userCredits[effectiveUserId] === undefined) {
-    serverStore.userCredits[effectiveUserId] = 30;
+    serverStore.userCredits[effectiveUserId] = 100;
   }
   return res.json({ balance: serverStore.userCredits[effectiveUserId] });
+});
+
+app.post('/api/supabase/set-credits', async (req: Request, res: Response) => {
+  const credits = Number(req.body?.credits) >= 0 ? Number(req.body.credits) : 100;
+  const { userId } = req.body || {};
+  const effectiveUserId = (userId && String(userId).trim()) || 'user_default';
+
+  if (serverSupabase) {
+    try {
+      await serverSupabase.from('user_credits').upsert(
+        { user_id: effectiveUserId, credits },
+        { onConflict: 'user_id' }
+      );
+    } catch (e) {
+      console.warn('Erreur upsert user_credits server:', e);
+    }
+  }
+
+  serverStore.userCredits[effectiveUserId] = credits;
+  serverStore.credits = credits;
+
+  return res.json({ success: true, balance: credits });
 });
 
 app.post('/api/supabase/recharge', (req: Request, res: Response) => {

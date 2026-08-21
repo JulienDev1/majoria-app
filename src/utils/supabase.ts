@@ -241,10 +241,30 @@ export async function callUseCredit(userId?: string): Promise<UseCreditResult> {
  * Fetch current credit balance without deducting
  */
 export async function getCreditBalance(userId?: string): Promise<number | null> {
+  const effectiveUserId = (userId && userId.trim()) || 
+    (typeof window !== 'undefined' && localStorage.getItem('neo-auth-user')) || 
+    'user_default';
+
+  // 1. Check if user has active subscription saved locally
+  if (typeof window !== 'undefined') {
+    const subSaved = localStorage.getItem(`neo-user-sub-${effectiveUserId}`);
+    if (subSaved) {
+      try {
+        const parsed = JSON.parse(subSaved);
+        if (parsed && (parsed.status === 'active' || parsed.status === 'trialing')) {
+          const target = parsed.planId === 'pro' ? 500 : parsed.planId === 'premium' ? 250 : 100;
+          const current = localStorage.getItem('neo-battery-energy');
+          const val = current !== null ? parseInt(current, 10) : target;
+          return isNaN(val) || val < 100 ? target : val;
+        }
+      } catch {}
+    }
+  }
+
   const client = getSupabaseClient();
   if (client) {
     try {
-      const { data, error } = await client.rpc('get_credits', userId ? { user_id: userId } : {});
+      const { data, error } = await client.rpc('get_credits', { user_id: effectiveUserId });
       if (!error && typeof data === 'number') {
         return data;
       }
@@ -252,7 +272,7 @@ export async function getCreditBalance(userId?: string): Promise<number | null> 
   }
 
   try {
-    const res = await fetch('/api/supabase/credits');
+    const res = await fetch(`/api/supabase/credits?userId=${encodeURIComponent(effectiveUserId)}`);
     if (res.ok) {
       const json = await res.json();
       if (typeof json.balance === 'number') {
@@ -261,6 +281,54 @@ export async function getCreditBalance(userId?: string): Promise<number | null> 
     }
   } catch {}
 
-  const raw = localStorage.getItem('neo-local-credits');
-  return raw !== null ? parseInt(raw, 10) : 50;
+  const raw = typeof window !== 'undefined' ? (localStorage.getItem(`neo-user-credits-${effectiveUserId}`) || localStorage.getItem('neo-battery-energy') || localStorage.getItem('neo-local-credits')) : null;
+  return raw !== null ? parseInt(raw, 10) : 100;
+}
+
+/**
+ * Force update and synchronize credit balance to Supabase, server API, and localStorage
+ */
+export async function syncCreditsToSupabase(userId?: string, newCredits: number = 100): Promise<number> {
+  const effectiveUserId = (userId && userId.trim()) || 
+    (typeof window !== 'undefined' && localStorage.getItem('neo-auth-user')) || 
+    'user_default';
+
+  // 1. Immediately persist to localStorage
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('neo-battery-energy', newCredits.toString());
+    localStorage.setItem('neo-local-credits', newCredits.toString());
+    localStorage.setItem(`neo-user-credits-${effectiveUserId}`, newCredits.toString());
+  }
+
+  // 2. Direct Supabase Client upsert if available
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      await client.from('user_credits').upsert(
+        { user_id: effectiveUserId, credits: newCredits, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id' }
+      );
+    } catch (supErr) {
+      console.warn('Supabase direct credits update failed, falling back to proxy:', supErr);
+    }
+  }
+
+  // 3. Server API Proxy update
+  try {
+    const res = await fetch('/api/supabase/set-credits', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: effectiveUserId, credits: newCredits }),
+    });
+    if (res.ok) {
+      const json = await res.json();
+      if (typeof json.balance === 'number') {
+        return json.balance;
+      }
+    }
+  } catch (apiErr) {
+    console.warn('Server proxy set-credits sync failed:', apiErr);
+  }
+
+  return newCredits;
 }

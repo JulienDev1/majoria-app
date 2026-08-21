@@ -23,7 +23,7 @@ import {
   speakCyberResponse, 
   sanitizeConfidentialText,
 } from './utils/security';
-import { callUseCredit, getCreditBalance } from './utils/supabase';
+import { callUseCredit, getCreditBalance, syncCreditsToSupabase } from './utils/supabase';
 import { fetchUserSubscription } from './utils/stripe';
 import { MilkyWayGalaxy, GalaxyColorScheme } from './components/MilkyWayGalaxy';
 import { CyberHeader } from './components/CyberHeader';
@@ -104,8 +104,24 @@ export default function App() {
 
   // Battery / Consumption & Automatic Monthly Rollover State
   const [energyPercent, setEnergyPercent] = useState<number | null>(() => {
-    const saved = localStorage.getItem('neo-battery-energy');
-    return saved !== null ? parseInt(saved, 10) : 80;
+    if (typeof window !== 'undefined') {
+      const authUser = localStorage.getItem('neo-auth-user');
+      const savedSub = authUser ? localStorage.getItem(`neo-user-sub-${authUser}`) : null;
+      if (savedSub) {
+        try {
+          const parsed = JSON.parse(savedSub);
+          if (parsed && (parsed.status === 'active' || parsed.status === 'trialing')) {
+            const target = parsed.planId === 'pro' ? 500 : parsed.planId === 'premium' ? 250 : 100;
+            const savedEnergy = localStorage.getItem('neo-battery-energy');
+            const num = savedEnergy !== null ? parseInt(savedEnergy, 10) : target;
+            return isNaN(num) || num < 100 ? target : num;
+          }
+        } catch {}
+      }
+      const saved = localStorage.getItem('neo-battery-energy');
+      return saved !== null ? parseInt(saved, 10) : 100;
+    }
+    return 100;
   });
 
   const [rolloverInfo, setRolloverInfo] = useState<RolloverEnergyInfo>(() => {
@@ -267,13 +283,36 @@ export default function App() {
     }
   }, [user, showToast]);
 
-  // Fetch subscription on user load
+  // Fetch subscription on user load and enforce active subscription energy
   useEffect(() => {
     let isMounted = true;
-    if (user?.nom) {
-      fetchUserSubscription(user.nom).then((sub) => {
+    const effectiveUserId = user?.nom || (typeof window !== 'undefined' ? localStorage.getItem('neo-auth-user') : null) || 'user_default';
+
+    if (effectiveUserId) {
+      fetchUserSubscription(effectiveUserId).then((sub) => {
         if (isMounted && sub) {
           setCurrentSubscription(sub);
+
+          // If subscription is active or trialing, guarantee at least 100% energy (or full plan capacity)
+          if (sub.status === 'active' || sub.status === 'trialing') {
+            const targetEnergy = sub.planId === 'pro' ? 500 : sub.planId === 'premium' ? 250 : 100;
+            
+            // 1. Instantly update React state if below target
+            setEnergyPercent((prev) => {
+              if (prev === null || prev < 100) {
+                return targetEnergy;
+              }
+              return Math.max(prev, targetEnergy);
+            });
+
+            // 2. Persist locally
+            localStorage.setItem('neo-battery-energy', targetEnergy.toString());
+            localStorage.setItem('neo-local-credits', targetEnergy.toString());
+            localStorage.setItem(`neo-user-credits-${effectiveUserId}`, targetEnergy.toString());
+
+            // 3. Synchronize to Supabase database and server proxy
+            syncCreditsToSupabase(effectiveUserId, targetEnergy).catch(() => {});
+          }
         }
       }).catch(() => {});
     }
@@ -416,13 +455,26 @@ export default function App() {
       setTaches(safeLoad('neo-taches', []));
     }
 
-    // Load Supabase Energy / Battery
+    // Load Supabase Energy / Battery with Subscription priority
     try {
-      const authUser = localStorage.getItem('neo-auth-user');
-      const balance = await getCreditBalance(authUser || undefined);
-      if (balance !== null && balance >= 0) {
-        setEnergyPercent(balance);
-        localStorage.setItem('neo-battery-energy', balance.toString());
+      const authUser = localStorage.getItem('neo-auth-user') || undefined;
+      const sub = await fetchUserSubscription(authUser);
+      if (sub && (sub.status === 'active' || sub.status === 'trialing')) {
+        setCurrentSubscription(sub);
+        const targetEnergy = sub.planId === 'pro' ? 500 : sub.planId === 'premium' ? 250 : 100;
+        setEnergyPercent((prev) => (prev === null || prev < 100 ? targetEnergy : Math.max(prev, targetEnergy)));
+        localStorage.setItem('neo-battery-energy', targetEnergy.toString());
+        localStorage.setItem('neo-local-credits', targetEnergy.toString());
+        if (authUser) {
+          localStorage.setItem(`neo-user-credits-${authUser}`, targetEnergy.toString());
+        }
+        syncCreditsToSupabase(authUser, targetEnergy).catch(() => {});
+      } else {
+        const balance = await getCreditBalance(authUser);
+        if (balance !== null && balance >= 0) {
+          setEnergyPercent(balance);
+          localStorage.setItem('neo-battery-energy', balance.toString());
+        }
       }
     } catch (err) {
       console.warn('Erreur chargement batterie IA:', err);

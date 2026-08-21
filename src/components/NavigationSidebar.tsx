@@ -71,7 +71,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
   memoireCount,
   rappelsCount,
   tachesCount,
-  energyPercent = 80,
+  energyPercent = 100,
   rolloverPercent = 0,
   onOpenForfaits,
   onOpenMobileBridge,
@@ -171,7 +171,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
     return c.categorie === activeCategory;
   });
 
-  const effectiveEnergy = typeof energyPercent === 'number' ? energyPercent : 80;
+  const effectiveEnergy = typeof energyPercent === 'number' ? energyPercent : 100;
 
   return (
     <>
