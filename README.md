@@ -1,0 +1,2 @@
+# majoria-app
+assistant personnel
