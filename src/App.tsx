@@ -83,6 +83,7 @@ export default function App() {
   });
 
   const [currentSubscription, setCurrentSubscription] = useState<UserSubscription | null>(null);
+  const subscriptionNotifiedRef = useRef<string | null>(null);
 
   const [userProfile, setUserProfile] = useState<UserProfile>(() => {
     const saved = safeLoad<UserProfile>('neo-user-profile', { prenom: '', nom: '' });
@@ -223,16 +224,48 @@ export default function App() {
   };
 
   // Subscription Activation Handler from Stripe Success
-  const handleSubscriptionActivated = (sub: UserSubscription, energyValue?: number) => {
+  const handleSubscriptionActivated = useCallback(async (sub: UserSubscription, energyValue?: number) => {
+    const effectiveUserId = user?.nom || localStorage.getItem('neo-auth-user') || 'user_active';
     setCurrentSubscription(sub);
-    if (user?.nom) {
-      localStorage.setItem(`neo-user-sub-${user.nom}`, JSON.stringify(sub));
+    if (effectiveUserId) {
+      localStorage.setItem(`neo-user-sub-${effectiveUserId}`, JSON.stringify(sub));
     }
+    
+    // Déterminer la nouvelle valeur d'énergie selon le forfait
     const newEnergy = energyValue || (sub.planId === 'pro' ? 500 : sub.planId === 'premium' ? 250 : 100);
+    
+    // 1. Mise à jour synchrone et immédiate de l'état React de la batterie (widgets sidebar & header)
     setEnergyPercent(newEnergy);
     localStorage.setItem('neo-battery-energy', newEnergy.toString());
-    showToast(`✨ Forfait ${sub.planName || sub.planId.toUpperCase()} activé ! Batterie synchronisée à ${newEnergy}%.`, 'success');
-  };
+    localStorage.setItem('neo-local-credits', newEnergy.toString());
+    if (effectiveUserId) {
+      localStorage.setItem(`neo-user-credits-${effectiveUserId}`, newEnergy.toString());
+    }
+
+    // 2. Notification unique protégée contre les doublons
+    const subKey = `${sub.planId}_${sub.status}_${sub.interval || 'month'}`;
+    if (subscriptionNotifiedRef.current !== subKey) {
+      subscriptionNotifiedRef.current = subKey;
+      showToast(`✨ Forfait ${sub.planName || sub.planId.toUpperCase()} activé ! Batterie synchronisée à ${newEnergy}%.`, 'success');
+    }
+
+    // 3. Rafraîchissement global du statut utilisateur et synchronisation Supabase en arrière-plan
+    try {
+      const [freshSub, freshBalance] = await Promise.all([
+        fetchUserSubscription(effectiveUserId),
+        getCreditBalance(effectiveUserId)
+      ]);
+      if (freshSub) {
+        setCurrentSubscription(freshSub);
+      }
+      if (freshBalance !== null && freshBalance > 0) {
+        setEnergyPercent(freshBalance);
+        localStorage.setItem('neo-battery-energy', freshBalance.toString());
+      }
+    } catch (e) {
+      console.warn('Synchronisation post-paiement Supabase:', e);
+    }
+  }, [user, showToast]);
 
   // Fetch subscription on user load
   useEffect(() => {

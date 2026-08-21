@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   CheckCircle2, 
   Sparkles, 
@@ -31,8 +31,13 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
   const [sessionData, setSessionData] = useState<any>(null);
   const [countdown, setCountdown] = useState(5);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  
+  // Ref to strictly guarantee single execution and prevent duplicate toasts/verifications
+  const hasNotified = useRef(false);
 
   useEffect(() => {
+    if (hasNotified.current) return;
+
     // 1. Extract session_id from URL query params
     const urlParams = new URLSearchParams(window.location.search);
     const sessionId = urlParams.get('session_id') || 'cs_test_simulated_success';
@@ -41,6 +46,16 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
     let isMounted = true;
 
     async function processVerification() {
+      if (hasNotified.current) return;
+      hasNotified.current = true;
+
+      // Nettoyer immédiatement l'URL pour supprimer session_id et plan
+      if (typeof window !== 'undefined' && window.history?.replaceState) {
+        try {
+          window.history.replaceState({}, document.title, window.location.pathname);
+        } catch {}
+      }
+
       try {
         playCyberSound('matrix');
         
@@ -48,9 +63,10 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
         const result = await verifyCheckoutSession(sessionId);
 
         if (isMounted) {
+          const energy = result.energyPercent || (result.planId === 'pro' ? 500 : result.planId === 'basic' ? 100 : 250);
           setSessionData({
             planId: result.planId || planParam,
-            energyPercent: result.energyPercent || 250,
+            energyPercent: energy,
             transactionId: sessionId,
             date: new Date().toLocaleDateString('fr-FR', {
               day: 'numeric',
@@ -74,28 +90,28 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
             });
           } catch {}
 
-          // Notify parent app of new active subscription & energy
+          // Notify parent app of new active subscription & energy (Single invocation)
           if (onSubscriptionActivated && result.subscription) {
-            onSubscriptionActivated(result.subscription, result.energyPercent || 250);
+            onSubscriptionActivated(result.subscription, energy);
           } else if (onSubscriptionActivated) {
             onSubscriptionActivated({
               userId: user?.nom || 'user_active',
               planId: (result.planId || planParam) as any,
-              planName: result.planId === 'pro' ? 'Formule Illimitée Pro' : 'Formule Performance',
+              planName: result.planId === 'pro' ? 'Formule Illimitée Pro' : result.planId === 'basic' ? 'Formule Essentielle' : 'Formule Performance',
               status: 'active',
               interval: 'month',
               currentPeriodEnd: new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString()
-            }, result.energyPercent || 250);
+            }, energy);
           }
         }
       } catch (err: any) {
         console.error('Erreur vérification session:', err);
         if (isMounted) {
-          // In case of transient verification error, still allow user access with fallback confirmation
+          const energy = planParam === 'pro' ? 500 : planParam === 'basic' ? 100 : 250;
           setStatus('success');
           setSessionData({
             planId: planParam,
-            energyPercent: 250,
+            energyPercent: energy,
             transactionId: sessionId,
             date: new Date().toLocaleDateString('fr-FR')
           });
@@ -103,9 +119,10 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
             onSubscriptionActivated({
               userId: user?.nom || 'user_active',
               planId: planParam as any,
+              planName: planParam === 'pro' ? 'Formule Illimitée Pro' : planParam === 'basic' ? 'Formule Essentielle' : 'Formule Performance',
               status: 'active',
               interval: 'month'
-            }, 250);
+            }, energy);
           }
         }
       }
