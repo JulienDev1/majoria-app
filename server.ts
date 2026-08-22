@@ -1077,7 +1077,17 @@ function generateLocalFallbackReply(
     } catch {}
   }
 
-  // 9. Specific common topics with rich synthesized answers
+  // 9. Weather queries (direct and natural)
+  if (lower.includes('météo') || lower.includes('quel temps fait') || lower.includes('quel temps fera') || lower.includes('pleuvoir') || lower.includes('temperature') || lower.includes('température')) {
+    if (searchContext?.summaryContext || searchContext?.detailedInfo) {
+      reply = searchContext.detailedInfo || searchContext.summaryContext || '';
+    } else {
+      reply = `Pour obtenir les prévisions météo précises pour demain ou aujourd'hui, précisez votre ville ou région (ex: *« Météo à Paris demain »* ou *« Quel temps fera-t-il à Lyon ce week-end ? »*). Je vous fournirai directement les températures et conditions en temps réel !`;
+    }
+    return { reply, actions };
+  }
+
+  // 10. Specific common topics with rich synthesized answers
   if (lower.includes('ciel est bleu') || lower.includes('pourquoi le ciel est bleu')) {
     reply = `Le ciel apparaît bleu en raison d'un phénomène optique appelé la **diffusion de Rayleigh** :\n\n1. **Spectre de la lumière solaire** : La lumière blanche du Soleil est composée de toutes les couleurs de l'arc-en-ciel, chacune ayant une longueur d'onde différente.\n2. **Diffusion par les molécules d'air** : Lorsque les rayons solaires traversent l'atmosphère terrestre, ils heurtent les molécules de diazote et de dioxygène.\n3. **Dispersion des courtes longueurs d'onde** : Les longueurs d'onde les plus courtes (le bleu et le violet) sont diffusées environ 10 fois plus efficacement dans toutes les directions que les grandes longueurs d'onde (comme le rouge).\n4. **Sensibilité oculaire** : Nos yeux étant beaucoup plus sensibles au bleu qu'au violet, le ciel nous apparaît d'un bleu lumineux.`;
     return { reply, actions };
@@ -1099,21 +1109,21 @@ function generateLocalFallbackReply(
     return { reply, actions };
   }
 
-  // 10. Technical / Code request
+  // 11. Technical / Code request
   if (lower.includes('code') || lower.includes('fonction') || lower.includes('javascript') || lower.includes('typescript') || lower.includes('python') || lower.includes('react') || lower.includes('html') || lower.includes('css')) {
     reply = `Voici une structure de code adaptée pour votre demande concernant **${text}** :\n\n\`\`\`typescript\n// Exemple de solution optimisée\nexport function handleSolution(data: any): { success: boolean; result: any } {\n  try {\n    // Logique de traitement\n    const processed = typeof data === 'string' ? data.trim() : data;\n    return { success: true, result: processed };\n  } catch (error) {\n    console.error('Erreur:', error);\n    return { success: false, result: null };\n  }\n}\n\`\`\`\n\n💡 *Précisez les détails ou paramètres spécifiques si vous souhaitez que j'affine ce code pour un cas d'usage précis.*`;
     return { reply, actions };
   }
 
-  // 11. Encyclopedic / Search Context Grounding if available
+  // 12. Direct Search Context Grounding if available
   if (searchContext && (searchContext.detailedInfo || searchContext.summaryContext)) {
     const info = searchContext.detailedInfo || searchContext.summaryContext;
-    reply = `Voici les informations complètes concernant **${text}** :\n\n${info}\n\n*Pour aller plus loin, vous pouvez consulter les sources et références vérifiées ci-dessous.*`;
+    reply = `${info}`;
     return { reply, actions };
   }
 
-  // 12. General structured analytical fallback
-  reply = `Voici les éléments d'analyse concernant votre demande sur **${text}** :\n\n1. **Définition & Contexte** : Ce sujet aborde des aspects clés qu'il convient d'analyser selon vos objectifs.\n2. **Points essentiels** : N'hésitez pas à préciser un angle d'étude spécifique (explication détaillée, exemple pratique, code ou synthèse de recherche).\n\nJe reste à votre disposition${nameGreeting} pour approfondir n'importe quel point !`;
+  // 13. Direct, natural, and concise answer (NEVER a generic template)
+  reply = `Voici une réponse directe concernant votre demande :\n\nPour **${text}**, précisez si nécessaire votre contexte (lieu, date ou détail souhaité) pour que je vous apporte immédiatement les données exactes.`;
   return { reply, actions };
 }
 
@@ -1160,21 +1170,28 @@ app.post('/api/chat', async (req: Request, res: Response) => {
       ? `L'utilisateur avec qui tu discutes s'appelle "${userName}" (Prénom: "${userProfile?.prenom || ''}"). Salue-le ou adresse-toi à lui naturellement et personnellement quand approprié.`
       : "Adresse-toi à l'utilisateur de manière courtoise et chaleureuse.";
 
-    const systemInstruction = `Tu es MajorI.A, un assistant d'intelligence artificielle hautement performant, intelligent, rapide, précis et courtois.
-Tu es conçu pour répondre avec une grande exactitude aux questions, expliquer des concepts complexes avec clarté, aider à la recherche web, au développement logiciel, à la rédaction et à l'organisation quotidienne.
+    const systemInstruction = `Tu es MajorI.A, un assistant d'intelligence artificielle hautement performant, intelligent, rapide, précis, chaleureux et direct.
+Tu es conçu pour répondre avec une grande exactitude aux questions, expliquer des concepts complexes avec clarté, aider à la recherche web en temps réel, au développement logiciel, à la rédaction et à l'organisation quotidienne.
 ${userGreetingInstruction}
 
-CONSIGNES DE RÉPONSE :
-1. PRÉCISION ET QUALITÉ : Réponds de façon directe, complète, logique et claire. Structure tes réponses avec du Markdown propre (titres, listes à puces, code si pertinent).
-2. TONE CONVERSATIONNEL : Adopte un ton fluide, amical, professionnel et bienveillant. Pas de métaphores robotiques ou de jargon de science-fiction.
-3. GESTION DU CONTEXTE : Prends en compte l'historique de la conversation pour maintenir la cohérence de l'échange.
-4. GESTION DES ACTIONS AUTOMATISÉES :
+CONSIGNES STRICTES DE RÉPONSE ET DE RECHERCHE :
+1. UTILISATION DU GROUNDING & RECHERCHE GOOGLE :
+   Quand une recherche Google est effectuée (grounding), utilise directement et immédiatement les données fraîches et factuelles reçues pour répondre précisément à la question de l'utilisateur (météo, actualités, scores, faits récents, horaires, cours, etc.).
+2. AUCUN TEMPLATE GÉNÉRIQUE NI SCOLAIRE :
+   Pour toute demande d'information factuelle (notamment météo, actualités, faits, horaires, questions du quotidien), réponds directement sans JAMAIS sortir de template générique, abstrait ou scolaire du type "Définition & Contexte", "Points essentiels", "Aspects clés" ou "Selon vos objectifs".
+3. RÉPONSE DIRECTE, NATURELLE ET CONCISE :
+   La réponse doit être directe, vivante, naturelle et concise. Par exemple, pour "quel temps fait-il demain", donne immédiatement les conditions météorologiques concrètes, températures et prévisions claires sans introduction superflue ni bla-bla théorique.
+4. QUALITÉ ET MISE EN FORME :
+   Structure tes réponses avec du Markdown propre et lisible (listes à puces, gras pour les chiffres/mots clés, blocs de code si du code est demandé).
+5. CONTEXTE CONVERSATIONNEL :
+   Prends en compte l'historique de la conversation pour maintenir la cohérence de l'échange.
+6. GESTION DES ACTIONS AUTOMATISÉES :
    Uniquement si l'utilisateur demande explicitement de créer un rappel, une tâche, mémoriser une info ou sauvegarder une note, ajoute à la toute fin de ta réponse un bloc JSON :
    - Rappel : ACTION_JSON:{"actions":[{"type":"reminder","titre":"Appeler Pierre","dateRappel":"2026-08-21","heure":"15:00","priorite":"haute"}]}
    - Tâche : ACTION_JSON:{"actions":[{"type":"task","titre":"Faire les courses","priorite":"normale"}]}
    - Mémoire : ACTION_JSON:{"actions":[{"type":"memory","contenu":"Le code du portail est 4589","importance":3}]}
    - Favori : ACTION_JSON:{"actions":[{"type":"favorite","titre":"Note Importante","contenu":"..."}]}
-   Sinon, réponds normalement et de manière complète sans ajouter ACTION_JSON.`;
+   Sinon, réponds normalement de manière complète et directe sans ajouter ACTION_JSON.`;
 
     let reply = "";
     let actions: any[] = [];
@@ -1187,11 +1204,11 @@ CONSIGNES DE RÉPONSE :
 
     const needSearch = !image && shouldPerformGoogleSearch(message || '');
 
-    // Fast multi-model cascade with strict per-attempt timeouts
+    // Fast multi-model cascade with sufficient grounding timeouts
     const candidateConfigs = [
-      { name: 'gemini-2.5-flash', withSearch: needSearch, timeoutMs: needSearch ? 4000 : 3000 },
-      { name: 'gemini-2.5-flash', withSearch: false, timeoutMs: 3000 },
-      { name: 'gemini-3.7-flash', withSearch: false, timeoutMs: 3000 }
+      { name: 'gemini-3.7-flash', withSearch: needSearch, timeoutMs: needSearch ? 9000 : 5000 },
+      { name: 'gemini-2.5-flash', withSearch: needSearch, timeoutMs: needSearch ? 9000 : 5000 },
+      { name: 'gemini-3.7-flash', withSearch: false, timeoutMs: 5000 }
     ];
 
     for (const candidate of candidateConfigs) {
