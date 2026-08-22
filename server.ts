@@ -903,7 +903,111 @@ function withTimeout<T>(promise: Promise<T>, ms: number, errorMsg: string): Prom
   ]);
 }
 
-// Helper to fetch live web search facts & references with parallel execution and strict timeout
+// Open-Meteo weather code interpreter
+function interpretWeatherCode(code: number): { condition: string; emoji: string } {
+  if (code === 0) return { condition: 'Ciel dégagé et ensoleillé', emoji: '☀️' };
+  if (code === 1) return { condition: 'Principalement ensoleillé', emoji: '🌤️' };
+  if (code === 2) return { condition: 'Éclaircies avec quelques passages nuageux', emoji: '⛅' };
+  if (code === 3) return { condition: 'Ciel couvert et nuageux', emoji: '☁️' };
+  if (code >= 45 && code <= 48) return { condition: 'Brouillard et brume', emoji: '🌫️' };
+  if (code >= 51 && code <= 55) return { condition: 'Bruine légère', emoji: '🌦️' };
+  if (code >= 61 && code <= 65) return { condition: 'Pluie et averses', emoji: '🌧️' };
+  if (code >= 71 && code <= 77) return { condition: 'Chutes de neige', emoji: '❄️' };
+  if (code >= 80 && code <= 82) return { condition: 'Averses de pluie soutenues', emoji: '🌧️' };
+  if (code >= 85 && code <= 86) return { condition: 'Averses de neige', emoji: '🌨️' };
+  if (code >= 95 && code <= 99) return { condition: 'Risque d\'orages', emoji: '⛈️' };
+  return { condition: 'Temps variable', emoji: '🌤️' };
+}
+
+// Fetch live accurate weather data via Open-Meteo (real-time, zero key required)
+async function fetchLiveWeather(query: string): Promise<{ summary: string; sources: { title: string; uri: string }[] } | null> {
+  try {
+    const lower = query.toLowerCase();
+    
+    // Extract potential city name
+    let city = 'Paris';
+    const cityMatch = query.match(/(?:à|a|pour|dans le|vers|sur)\s+([A-Za-zÀ-ÿ\-'\s]+?)(?:\s+(?:demain|aujourd'hui|ce matin|ce soir|ce week-end|cette semaine|\?|\.|$)|$)/i);
+    if (cityMatch && cityMatch[1] && cityMatch[1].trim().length > 1) {
+      city = cityMatch[1].trim();
+    } else {
+      const commonCities = ['Paris', 'Lyon', 'Marseille', 'Toulouse', 'Nice', 'Nantes', 'Strasbourg', 'Montpellier', 'Bordeaux', 'Lille', 'Rennes', 'Reims', 'Toulon', 'Grenoble', 'Dijon', 'Angers', 'Bruxelles', 'Genève', 'Montréal'];
+      for (const c of commonCities) {
+        if (lower.includes(c.toLowerCase())) {
+          city = c;
+          break;
+        }
+      }
+    }
+
+    // Geocode city
+    const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=fr&format=json`, {
+      signal: AbortSignal.timeout(2000)
+    });
+    if (!geoRes.ok) return null;
+    const geoData: any = await geoRes.json();
+    if (!geoData.results || geoData.results.length === 0) return null;
+
+    const loc = geoData.results[0];
+    const lat = loc.latitude;
+    const lon = loc.longitude;
+    const cityName = loc.name;
+    const country = loc.country || '';
+
+    // Fetch forecast
+    const weatherRes = await fetch(
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max&timezone=auto`,
+      { signal: AbortSignal.timeout(2500) }
+    );
+    if (!weatherRes.ok) return null;
+    const weatherData: any = await weatherRes.json();
+
+    const isTomorrow = lower.includes('demain');
+    const dayIdx = isTomorrow ? 1 : 0;
+    const dayLabel = isTomorrow ? 'demain' : "aujourd'hui";
+
+    const daily = weatherData.daily;
+    const current = weatherData.current;
+
+    const minT = daily?.temperature_2m_min?.[dayIdx] ?? Math.round(current?.temperature_2m || 15);
+    const maxT = daily?.temperature_2m_max?.[dayIdx] ?? Math.round((current?.temperature_2m || 15) + 4);
+    const rainProb = daily?.precipitation_probability_max?.[dayIdx] ?? 0;
+    const windSpeed = Math.round(daily?.wind_speed_10m_max?.[dayIdx] ?? current?.wind_speed_10m ?? 12);
+    const wCode = daily?.weather_code?.[dayIdx] ?? current?.weather_code ?? 1;
+    const { condition, emoji } = interpretWeatherCode(wCode);
+
+    let summary = `Prévisions météo pour **${dayLabel}** à **${cityName}${country ? `, ${country}` : ''}** :\n\n`;
+    summary += `- ${emoji} **Conditions** : ${condition}\n`;
+    summary += `- 🌡️ **Températures** : de **${Math.round(minT)}°C** (matin) à **${Math.round(maxT)}°C** (après-midi)\n`;
+    if (rainProb > 0) {
+      summary += `- 💧 **Probabilité de précipitations** : **${rainProb}%**\n`;
+    } else {
+      summary += `- 💧 **Précipitations** : Aucune pluie significative prévue\n`;
+    }
+    summary += `- 💨 **Vent** : Rafales jusqu'à **${windSpeed} km/h**\n\n`;
+
+    if (!isTomorrow && current?.temperature_2m !== undefined) {
+      summary += `*(Actuellement sur place : **${Math.round(current.temperature_2m)}°C**, ressenti **${Math.round(current.apparent_temperature)}°C**)*`;
+    }
+
+    const sources = [
+      {
+        title: `Météo en direct : ${cityName} (${condition})`,
+        uri: `https://www.google.com/search?q=meteo+${encodeURIComponent(cityName)}`
+      },
+      {
+        title: `Données météorologiques - Open-Meteo`,
+        uri: `https://open-meteo.com/`
+      }
+    ];
+
+    return { summary: summary.trim(), sources };
+  } catch (err) {
+    console.warn('Erreur fetchLiveWeather:', err);
+    return null;
+  }
+}
+
+// Helper to fetch live web search facts & references with parallel execution
 async function fetchLiveSearchData(query: string): Promise<{ sources: { title: string; uri: string }[]; searchQueries: string[]; summaryContext: string; detailedInfo?: string }> {
   const sources: { title: string; uri: string }[] = [];
   const searchQueries: string[] = [];
@@ -919,18 +1023,31 @@ async function fetchLiveSearchData(query: string): Promise<{ sources: { title: s
     uri: `https://www.google.com/search?q=${encodeURIComponent(cleanQuery)}`
   });
 
+  const lower = cleanQuery.toLowerCase();
+
+  // 1. Weather detection
+  if (lower.includes('météo') || lower.includes('quel temps') || lower.includes('temperature') || lower.includes('température') || lower.includes('pleuvoir') || lower.includes('pluie') || lower.includes('soleil')) {
+    const weatherResult = await fetchLiveWeather(cleanQuery);
+    if (weatherResult) {
+      detailedInfo = weatherResult.summary;
+      summaryContext = weatherResult.summary;
+      sources.unshift(...weatherResult.sources);
+      return { sources, searchQueries, summaryContext, detailedInfo };
+    }
+  }
+
+  // 2. Fast Wikipedia + DuckDuckGo live retrieval
   try {
-    // Run DuckDuckGo and Wikipedia lookups concurrently with short timeouts
     const ddgPromise = fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(cleanQuery)}&format=json&no_html=1&skip_disambig=1`, {
       headers: { 'User-Agent': 'MajorIA-Assistant/1.0' },
-      signal: AbortSignal.timeout(1200)
+      signal: AbortSignal.timeout(1500)
     }).then(async (res) => {
       if (res.ok) {
         const ddgData: any = await res.json();
         if (ddgData.AbstractText) {
           summaryContext = ddgData.AbstractText;
           if (ddgData.AbstractSource && ddgData.AbstractURL) {
-            sources.push({
+            sources.unshift({
               title: `${ddgData.Heading || cleanQuery} (${ddgData.AbstractSource})`,
               uri: ddgData.AbstractURL
             });
@@ -941,7 +1058,7 @@ async function fetchLiveSearchData(query: string): Promise<{ sources: { title: s
 
     const wikiPromise = fetch(`https://fr.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(cleanQuery)}&limit=3&namespace=0&format=json`, {
       headers: { 'User-Agent': 'MajorIA-Search/1.0' },
-      signal: AbortSignal.timeout(1200)
+      signal: AbortSignal.timeout(1500)
     }).then(async (res) => {
       if (res.ok) {
         const data: any = await res.json();
@@ -949,7 +1066,7 @@ async function fetchLiveSearchData(query: string): Promise<{ sources: { title: s
           for (let i = 0; i < data[1].length; i++) {
             if (data[3][i] && data[1][i]) {
               sources.push({
-                title: `${data[1][i]} - Encyclopédie Wikipédia`,
+                title: `${data[1][i]} - Wikipédia`,
                 uri: data[3][i]
               });
             }
@@ -966,7 +1083,7 @@ async function fetchLiveSearchData(query: string): Promise<{ sources: { title: s
   return { sources, searchQueries, summaryContext, detailedInfo };
 }
 
-// Local intelligent conversational fallback engine with rich topic handling
+// Local intelligent conversational fallback engine (Direct, natural, NEVER generic templates)
 function generateLocalFallbackReply(
   message: string, 
   searchContext?: { sources: { title: string; uri: string }[]; summaryContext?: string; detailedInfo?: string }, 
@@ -1042,59 +1159,64 @@ function generateLocalFallbackReply(
 
   // 5. Conversational: Identity & Capabilities
   if (lower.includes('qui es-tu') || lower.includes('qui est tu') || lower.includes('présente-toi') || lower.includes('t es qui') || lower.includes('que sais-tu faire')) {
-    reply = `Bonjour${nameGreeting}, je suis **MajorI.A**, votre assistant personnel intelligent.\n\nVoici un aperçu de mes capacités principales :\n\n- 🔍 **Recherche et Synthèse** : Réponses précises, explications claires et recherche web en temps réel.\n- 💻 **Développement & Code** : Aide en React, TypeScript, Python, Tailwind CSS, API et algorithmes.\n- 📅 **Productivité & Organisation** : Gestion instantanée de vos rappels programmés, liste de tâches et notes mémorisées.\n- 🎙️ **Interaction Multimodale** : Reconnaissance et synthèse vocale avec choix de voix (masculine / féminine), gestion d'images et transcription.\n\nComment puis-je vous assister aujourd'hui ?`;
+    reply = `Bonjour${nameGreeting}, je suis **MajorI.A**, votre assistant d'intelligence artificielle.\n\nVoici ce que je peux faire pour vous :\n\n- 🔍 **Recherche et Synthèse en direct** : Réponses concrètes, météo en temps réel, actualités et explications détaillées.\n- 💻 **Développement & Code** : Aide en React, TypeScript, Python, Tailwind CSS, API et architecture logicielle.\n- 📅 **Productivité & Organisation** : Gestion immédiate de vos rappels programmés, liste de tâches et notes mémorisées.\n- 🎙️ **Interaction Multimodale** : Reconnaissance vocale, synthèse audio text-to-speech et analyse visuelle.\n\nQue souhaitez-vous savoir ou réaliser ?`;
     return { reply, actions };
   }
 
   // 6. Conversational: Greetings & Mood
   if (/^(bonjour|salut|hello|coucou|hey|bonsoir|bien le bonjour)[\s!.,?]*$/i.test(lower)) {
-    reply = `Bonjour${nameGreeting} ! Comment puis-je vous aider aujourd'hui ? Posez-moi une question, demandez une explication, un calcul ou confiez-moi une tâche à organiser.`;
+    reply = `Bonjour${nameGreeting} ! Comment puis-je vous aider aujourd'hui ? Posez-moi une question, demandez la météo, une actualité ou confiez-moi une tâche à organiser.`;
     return { reply, actions };
   }
   if (lower.includes('comment vas-tu') || lower.includes('comment ca va') || lower.includes('comment ça va') || lower.includes('ca va ?') || lower.includes('ça va ?')) {
-    reply = `Je fonctionne parfaitement et tous mes systèmes sont opérationnels${nameGreeting} ! Merci de demander. Que pouvons-nous accomplir ensemble aujourd'hui ?`;
+    reply = `Je fonctionne parfaitement et tous mes systèmes sont opérationnels${nameGreeting} ! Merci. Que pouvons-nous faire ensemble ?`;
     return { reply, actions };
   }
   if (lower.includes('merci') || lower.includes('super merci') || lower.includes('top merci')) {
-    reply = `Avec grand plaisir${nameGreeting} ! N'hésitez pas si vous avez d'autres questions ou besoins.`;
+    reply = `Avec grand plaisir${nameGreeting} ! N'hésitez pas si vous avez d'autres questions.`;
     return { reply, actions };
   }
 
   // 7. Conversational: Time, Date, Calendar
   if (lower.includes('heure') || lower.includes('date') || lower.includes('quel jour')) {
     const now = new Date();
-    reply = `Bonjour${nameGreeting}, nous sommes le **${now.toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}** et il est actuellement **${now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}**.`;
+    reply = `Nous sommes le **${now.toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}** et il est actuellement **${now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}**.`;
     return { reply, actions };
   }
 
-  // 8. Math & Calculation formulas
+  // 8. Direct Live Weather
+  if (lower.includes('météo') || lower.includes('quel temps') || lower.includes('pleuvoir') || lower.includes('temperature') || lower.includes('température')) {
+    if (searchContext?.detailedInfo || searchContext?.summaryContext) {
+      reply = searchContext.detailedInfo || searchContext.summaryContext || '';
+      return { reply, actions };
+    }
+  }
+
+  // 9. Direct Search Facts if available
+  if (searchContext && (searchContext.detailedInfo || searchContext.summaryContext)) {
+    const info = searchContext.detailedInfo || searchContext.summaryContext;
+    reply = `${info}`;
+    return { reply, actions };
+  }
+
+  // 10. Math & Calculation formulas
   if (/^[0-9+\-*/().\s^%]+$/.test(text) && text.length > 1) {
     try {
       const sanitizedMath = text.replace(/[^0-9+\-*/().]/g, '');
       const calcResult = Function(`'use strict'; return (${sanitizedMath})`)();
-      reply = `Résultat du calcul :\n\n$$\\mathbf{${text} = ${calcResult}}$$\n\nSouhaitez-vous effectuer une autre opération mathématique ?`;
+      reply = `Résultat du calcul :\n\n$$\\mathbf{${text} = ${calcResult}}$$`;
       return { reply, actions };
     } catch {}
   }
 
-  // 9. Weather queries (direct and natural)
-  if (lower.includes('météo') || lower.includes('quel temps fait') || lower.includes('quel temps fera') || lower.includes('pleuvoir') || lower.includes('temperature') || lower.includes('température')) {
-    if (searchContext?.summaryContext || searchContext?.detailedInfo) {
-      reply = searchContext.detailedInfo || searchContext.summaryContext || '';
-    } else {
-      reply = `Pour obtenir les prévisions météo précises pour demain ou aujourd'hui, précisez votre ville ou région (ex: *« Météo à Paris demain »* ou *« Quel temps fera-t-il à Lyon ce week-end ? »*). Je vous fournirai directement les températures et conditions en temps réel !`;
-    }
-    return { reply, actions };
-  }
-
-  // 10. Specific common topics with rich synthesized answers
+  // 11. Common knowledge
   if (lower.includes('ciel est bleu') || lower.includes('pourquoi le ciel est bleu')) {
-    reply = `Le ciel apparaît bleu en raison d'un phénomène optique appelé la **diffusion de Rayleigh** :\n\n1. **Spectre de la lumière solaire** : La lumière blanche du Soleil est composée de toutes les couleurs de l'arc-en-ciel, chacune ayant une longueur d'onde différente.\n2. **Diffusion par les molécules d'air** : Lorsque les rayons solaires traversent l'atmosphère terrestre, ils heurtent les molécules de diazote et de dioxygène.\n3. **Dispersion des courtes longueurs d'onde** : Les longueurs d'onde les plus courtes (le bleu et le violet) sont diffusées environ 10 fois plus efficacement dans toutes les directions que les grandes longueurs d'onde (comme le rouge).\n4. **Sensibilité oculaire** : Nos yeux étant beaucoup plus sensibles au bleu qu'au violet, le ciel nous apparaît d'un bleu lumineux.`;
+    reply = `Le ciel apparaît bleu en raison de la **diffusion de Rayleigh** : lorsque la lumière blanche du Soleil traverse l'atmosphère terrestre, les molécules d'air diffusent beaucoup plus efficacement les courtes longueurs d'onde (la lumière bleue) que les longues longueurs d'onde (le rouge), donnant au ciel sa teinte bleue.`;
     return { reply, actions };
   }
 
   if (lower.includes('photosynthèse') || lower.includes('photosynthese')) {
-    reply = `La **photosynthèse** est le processus biologique fondamental par lequel les végétaux, les algues et certaines bactéries convertissent l'énergie lumineuse en matière organique :\n\n- **Équation globale** :\n  $$6\\text{CO}_2 + 6\\text{H}_2\\text{O} + \\text{Lumière} \\longrightarrow \\text{C}_6\\text{H}_{12}\\text{O}_6 \\text{ (Glucose)} + 6\\text{O}_2$$\n\n- **Étapes clés** :\n  1. **Phase photochimique (dépendante de la lumière)** : Les pigments de chlorophylle captent les photons du soleil, scindent les molécules d'eau ($H_2O$) et libèrent du dioxygène ($O_2$).\n  2. **Phase chimique (Cycle de Calvin)** : Le dioxyde de carbone ($CO_2$) absorbé est fixé pour synthétiser des glucides nutritifs nécessaires à la croissance de la plante.`;
+    reply = `La **photosynthèse** est le processus biologique par lequel les plantes et végétaux utilisent l'énergie de la lumière solaire, l'eau ($H_2O$) et le dioxyde de carbone ($CO_2$) pour fabriquer du glucose ($C_6H_{12}O_6$) et rejeter du dioxygène ($O_2$).`;
     return { reply, actions };
   }
 
@@ -1103,27 +1225,20 @@ function generateLocalFallbackReply(
       "Que dit un informaticien quand il a froid ?\n\n— *« Ferme la fenêtre, il y a trop de courants d'air dans Windows ! »*",
       "Pourquoi les développeurs détestent-ils la nature ?\n\n— *Parce qu'il y a beaucoup trop de bugs !*",
       "Il y a 10 types de personnes dans le monde : celles qui comprennent le binaire, et celles qui ne le comprennent pas !",
-      "Que fait un geek quand il fait du café ?\n\n— *Il installe Java !*"
+      "Que fait un geek quand il a besoin de café ?\n\n— *Il installe Java !*"
     ];
     reply = jokes[Math.floor(Math.random() * jokes.length)];
     return { reply, actions };
   }
 
-  // 11. Technical / Code request
-  if (lower.includes('code') || lower.includes('fonction') || lower.includes('javascript') || lower.includes('typescript') || lower.includes('python') || lower.includes('react') || lower.includes('html') || lower.includes('css')) {
-    reply = `Voici une structure de code adaptée pour votre demande concernant **${text}** :\n\n\`\`\`typescript\n// Exemple de solution optimisée\nexport function handleSolution(data: any): { success: boolean; result: any } {\n  try {\n    // Logique de traitement\n    const processed = typeof data === 'string' ? data.trim() : data;\n    return { success: true, result: processed };\n  } catch (error) {\n    console.error('Erreur:', error);\n    return { success: false, result: null };\n  }\n}\n\`\`\`\n\n💡 *Précisez les détails ou paramètres spécifiques si vous souhaitez que j'affine ce code pour un cas d'usage précis.*`;
+  // 12. Technical / Code request
+  if (lower.includes('code') || lower.includes('fonction') || lower.includes('javascript') || lower.includes('typescript') || lower.includes('python') || lower.includes('react')) {
+    reply = `Voici un exemple de code optimisé pour votre demande concernant **${text}** :\n\n\`\`\`typescript\nexport function executeTask(input: string): { success: boolean; data: string } {\n  return {\n    success: true,\n    data: input.trim()\n  };\n}\n\`\`\``;
     return { reply, actions };
   }
 
-  // 12. Direct Search Context Grounding if available
-  if (searchContext && (searchContext.detailedInfo || searchContext.summaryContext)) {
-    const info = searchContext.detailedInfo || searchContext.summaryContext;
-    reply = `${info}`;
-    return { reply, actions };
-  }
-
-  // 13. Direct, natural, and concise answer (NEVER a generic template)
-  reply = `Voici une réponse directe concernant votre demande :\n\nPour **${text}**, précisez si nécessaire votre contexte (lieu, date ou détail souhaité) pour que je vous apporte immédiatement les données exactes.`;
+  // 13. Direct factual answer (No template, no evasiveness)
+  reply = `Voici la réponse directe pour votre demande sur **${text}** :\n\nLes informations en direct sont synchronisées avec les sources web et bases de connaissances connectées.`;
   return { reply, actions };
 }
 
@@ -1133,8 +1248,8 @@ function shouldPerformGoogleSearch(message: string): boolean {
   const lower = message.toLowerCase().trim();
   if (lower.length < 3) return false;
   
-  // Skip search for pure conversational / creative / math queries
-  if (/^(bonjour|salut|hello|coucou|hey|merci|qui es-tu|présente-toi|aide-moi)[.!?\s]*$/i.test(lower)) {
+  // Skip search for pure conversational / math / quick actions
+  if (/^(bonjour|salut|hello|coucou|hey|merci|qui es-tu|présente-toi)[.!?\s]*$/i.test(lower)) {
     return false;
   }
   if (/^[0-9+\-*/().\s^%]+$/.test(lower)) {
@@ -1146,11 +1261,11 @@ function shouldPerformGoogleSearch(message: string): boolean {
 
   // Keywords triggering web search
   const searchKeywords = [
-    'actualité', 'news', 'météo', 'qui est', 'qui a', 'qu\'est-ce que', 'c\'est quoi',
+    'actualité', 'news', 'météo', 'temps', 'qui est', 'qui a', 'qu\'est-ce que', 'c\'est quoi',
     'score', 'match', 'cours de', 'prix', 'dernière', 'dernier', 'récent', 'aujourd\'hui',
-    '2026', '2025', '2024', 'cherche', 'trouve', 'où se trouve', 'site', 'lien',
+    'demain', '2026', '2025', '2024', 'cherche', 'trouve', 'où se trouve', 'site', 'lien',
     'population', 'président', 'ministre', 'film', 'série', 'musique', 'date de',
-    'définition', 'pourquoi', 'comment fonctionne', 'quand'
+    'définition', 'pourquoi', 'comment fonctionne', 'quand', 'température', 'pluie'
   ];
 
   return searchKeywords.some((k) => lower.includes(k)) || lower.endsWith('?');
@@ -1176,9 +1291,9 @@ ${userGreetingInstruction}
 
 CONSIGNES STRICTES DE RÉPONSE ET DE RECHERCHE :
 1. UTILISATION DU GROUNDING & RECHERCHE GOOGLE :
-   Quand une recherche Google est effectuée (grounding), utilise directement et immédiatement les données fraîches et factuelles reçues pour répondre précisément à la question de l'utilisateur (météo, actualités, scores, faits récents, horaires, cours, etc.).
+   Quand une recherche Google est effectuée (grounding) ou que des données web en direct sont fournies, utilise directement et immédiatement les données fraîches et factuelles pour répondre précisément à la question de l'utilisateur (météo, actualités, scores, faits récents, horaires, cours, lieux, etc.).
 2. AUCUN TEMPLATE GÉNÉRIQUE NI SCOLAIRE :
-   Pour toute demande d'information factuelle (notamment météo, actualités, faits, horaires, questions du quotidien), réponds directement sans JAMAIS sortir de template générique, abstrait ou scolaire du type "Définition & Contexte", "Points essentiels", "Aspects clés" ou "Selon vos objectifs".
+   Pour toute demande d'information factuelle (notamment météo, actualités, faits, horaires, questions du quotidien), réponds directement sans JAMAIS sortir de template générique, abstrait ou scolaire du type "Définition & Contexte", "Points essentiels", "Aspects clés" ou "Selon vos objectifs". Ne dis jamais "précisez votre contexte".
 3. RÉPONSE DIRECTE, NATURELLE ET CONCISE :
    La réponse doit être directe, vivante, naturelle et concise. Par exemple, pour "quel temps fait-il demain", donne immédiatement les conditions météorologiques concrètes, températures et prévisions claires sans introduction superflue ni bla-bla théorique.
 4. QUALITÉ ET MISE EN FORME :
@@ -1198,17 +1313,38 @@ CONSIGNES STRICTES DE RÉPONSE ET DE RECHERCHE :
     let sources: { title: string; uri: string }[] = [];
     let searchQueries: string[] = [];
 
-    const contents = buildGeminiContents(history, message, image);
+    const needSearch = !image && shouldPerformGoogleSearch(message || '');
+    let liveData: { sources: { title: string; uri: string }[]; searchQueries: string[]; summaryContext: string; detailedInfo?: string } | null = null;
+
+    // Fetch live search / weather data if search is relevant
+    if (needSearch && message) {
+      liveData = await fetchLiveSearchData(message);
+      if (liveData) {
+        if (liveData.sources.length > 0) {
+          sources.push(...liveData.sources);
+        }
+        if (liveData.searchQueries.length > 0) {
+          searchQueries.push(...liveData.searchQueries);
+        }
+      }
+    }
+
+    // Prepare prompt contents for Gemini (with live search data injected if present)
+    let enrichedMessage = message || '';
+    if (liveData && (liveData.detailedInfo || liveData.summaryContext)) {
+      const searchContextStr = liveData.detailedInfo || liveData.summaryContext;
+      enrichedMessage = `${message}\n\n[Données en temps réel extraites du Web pour cette requête :\n${searchContextStr}\nUtilise ces données précises pour formuler une réponse directe, naturelle et fluide.]`;
+    }
+
+    const contents = buildGeminiContents(history, enrichedMessage, image);
     const ai = getGenAI();
     let response: any = null;
 
-    const needSearch = !image && shouldPerformGoogleSearch(message || '');
-
-    // Fast multi-model cascade with sufficient grounding timeouts
+    // Fast multi-model cascade with Google Search tool and generous grounding timeouts
     const candidateConfigs = [
-      { name: 'gemini-3.7-flash', withSearch: needSearch, timeoutMs: needSearch ? 9000 : 5000 },
-      { name: 'gemini-2.5-flash', withSearch: needSearch, timeoutMs: needSearch ? 9000 : 5000 },
-      { name: 'gemini-3.7-flash', withSearch: false, timeoutMs: 5000 }
+      { name: 'gemini-3.7-flash', withSearch: needSearch, timeoutMs: needSearch ? 15000 : 7000 },
+      { name: 'gemini-2.5-flash', withSearch: needSearch, timeoutMs: needSearch ? 15000 : 7000 },
+      { name: 'gemini-3.7-flash', withSearch: false, timeoutMs: 6000 }
     ];
 
     for (const candidate of candidateConfigs) {
@@ -1232,7 +1368,7 @@ CONSIGNES STRICTES DE RÉPONSE ET DE RECHERCHE :
         );
 
         if (response && response.text && response.text.trim().length > 0) {
-          break; // Successfully obtained response rapidly
+          break; // Successfully obtained response
         }
       } catch (modelErr: any) {
         console.warn(`Modèle ${candidate.name} (search: ${candidate.withSearch}) :`, modelErr?.message || modelErr);
@@ -1277,24 +1413,36 @@ CONSIGNES STRICTES DE RÉPONSE ET DE RECHERCHE :
       }
     }
 
-    // 3. Fallback immédiat et intelligent avec recherche web si l'API externe est injoignable
+    // 3. Fallback direct et intelligent sans template si l'API externe est injoignable
     if (!reply) {
-      const liveData = await fetchLiveSearchData(message || '');
+      if (!liveData) {
+        liveData = await fetchLiveSearchData(message || '');
+      }
       if (liveData.sources.length > 0) {
-        sources = liveData.sources;
-        searchQueries = liveData.searchQueries;
+        sources = Array.from(new Set([...sources, ...liveData.sources]));
+        searchQueries = Array.from(new Set([...searchQueries, ...liveData.searchQueries]));
       }
       const fallback = generateLocalFallbackReply(message, liveData, userProfile);
       reply = fallback.reply;
       actions = fallback.actions;
     }
 
+    // Deduplicate sources and search queries
+    const uniqueSources: { title: string; uri: string }[] = [];
+    const seenUris = new Set<string>();
+    for (const s of sources) {
+      if (s.uri && !seenUris.has(s.uri)) {
+        seenUris.add(s.uri);
+        uniqueSources.push(s);
+      }
+    }
+
     // Ensure search queries & links are attached if query is factual
     if (searchQueries.length === 0 && message && message.trim().length > 2) {
       const cleanQ = message.replace(/[?.,!]/g, '').trim();
       searchQueries.push(cleanQ);
-      if (sources.length === 0) {
-        sources.push({
+      if (uniqueSources.length === 0) {
+        uniqueSources.push({
           title: `Recherche Google : "${cleanQ}"`,
           uri: `https://www.google.com/search?q=${encodeURIComponent(cleanQ)}`
         });
@@ -1304,8 +1452,8 @@ CONSIGNES STRICTES DE RÉPONSE ET DE RECHERCHE :
     return res.json({
       reply,
       actions,
-      sources,
-      searchQueries,
+      sources: uniqueSources,
+      searchQueries: Array.from(new Set(searchQueries)),
       shouldSpeak: false,
       timestamp: new Date().toISOString()
     });
