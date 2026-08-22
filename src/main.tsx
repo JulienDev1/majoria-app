@@ -28,6 +28,20 @@ if (typeof window !== 'undefined') {
   });
 }
 
+// Automatic Service Worker Registration for PWA
+import { registerSW } from 'virtual:pwa-register';
+if ('serviceWorker' in navigator) {
+  registerSW({
+    immediate: true,
+    onNeedRefresh() {
+      console.log('Majori.A: Nouvelle mise à jour PWA disponible.');
+    },
+    onOfflineReady() {
+      console.log('Majori.A: Application prête pour une utilisation hors-ligne.');
+    },
+  });
+}
+
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
@@ -38,4 +52,3 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 );
-
