@@ -17,6 +17,10 @@ const PORT = Number(process.env.PORT) || 3000;
 
 app.use(express.json({ limit: '10mb' }));
 
+// Servir le dossier public et dist à la racine
+app.use(express.static(path.join(process.cwd(), 'public')));
+app.use(express.static(path.join(process.cwd(), 'dist')));
+
 // Initialize Supabase client if env vars available
 let serverSupabase: SupabaseClient | null = null;
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -1387,8 +1391,8 @@ async function startServer() {
   const http = await import('http');
   const server = http.createServer(app);
 
-  const publicPath = path.resolve(__dirname, 'public');
-  const distPath = path.resolve(__dirname, 'dist');
+  const publicPath = path.join(process.cwd(), 'public');
+  const distPath = path.join(process.cwd(), 'dist');
 
   // 1. Serve static files from 'public' (e.g. /maskable_icon.png, favicon, etc.)
   if (fs.existsSync(publicPath)) {
