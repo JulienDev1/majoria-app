@@ -31,6 +31,7 @@ import { playCyberSound, cleanTextForSpeech, speakCyberResponse } from '../utils
 import { exportItemToPDF } from '../utils/pdfExport';
 import { CyberBrainHead } from './CyberBrainHead';
 import { CameraVideoModal } from './CameraVideoModal';
+import { useLanguage } from '../context/LanguageContext';
 
 interface ChatPanelProps {
   conversation: Conversation | null;
@@ -60,6 +61,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   energyPercent = 80,
   onOpenForfaits,
 }) => {
+  const { t } = useLanguage();
   const [inputText, setInputText] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedImageName, setSelectedImageName] = useState<string | null>(null);
@@ -411,7 +413,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         <div className="flex items-center gap-2 min-w-0">
           <CyberBrainHead size={22} />
           <h2 className="font-bold text-white text-sm sm:text-base truncate">
-            {conversation?.titre || `Discussion avec MajorI.A (${userName})`}
+            {conversation?.titre || `${t('nav.chat')} (${userName})`}
           </h2>
         </div>
 
@@ -425,7 +427,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/[0.05] hover:bg-white/10 border-[0.5px] border-white/15 text-rose-300 text-xs font-semibold transition-all cursor-pointer"
             >
               <Mic className="w-3.5 h-3.5 text-rose-400" />
-              <span className="hidden sm:inline">Dictaphone</span>
+              <span className="hidden sm:inline">{t('nav.transcription')}</span>
             </button>
           )}
 
@@ -434,7 +436,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               playCyberSound('alert');
               onClearConversation();
             }}
-            title="Effacer la discussion"
+            title={t('chat.clearConv')}
             className="p-1.5 rounded-lg bg-white/[0.05] hover:bg-rose-950/60 border-[0.5px] border-white/15 text-slate-300 hover:text-rose-300 transition-all cursor-pointer"
           >
             <Trash2 className="w-4 h-4" />
@@ -451,10 +453,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             </div>
             <div>
               <h3 className="text-lg sm:text-xl font-bold text-white mb-1">
-                Bonjour {userProfile?.prenom ? userProfile.prenom : 'et bienvenue'} !
+                {t('chat.welcome')} {userProfile?.prenom ? userProfile.prenom : ''} !
               </h3>
               <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                Je suis MajorI.A, votre assistant intelligent. Posez-moi une question, dictez vocalement ou téléversez un document.
+                {t('chat.welcomeDesc')}
               </p>
             </div>
 
@@ -645,7 +647,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           <div className="mb-2.5 p-2.5 rounded-xl bg-rose-950/80 border-[0.5px] border-rose-400/50 text-white flex items-center justify-between gap-3 max-w-6xl mx-auto shadow-md backdrop-blur-xl">
             <div className="flex items-center gap-2 text-xs">
               <BatteryWarning className="w-4 h-4 text-rose-400 shrink-0 animate-pulse" />
-              <span>Batterie IA déchargée (0% restant). Rechargez pour débloquer l'envoi.</span>
+              <span>{t('chat.batteryExhausted')}</span>
             </div>
             {onOpenForfaits && (
               <button
@@ -656,7 +658,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 }}
                 className="px-3 py-1 rounded-lg bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 text-white text-xs font-bold shrink-0 border-[0.5px] border-white/20"
               >
-                Recharger
+                {t('chat.recharge')}
               </button>
             )}
           </div>
@@ -675,7 +677,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           <div className="relative flex-1">
             <input
               type="text"
-              placeholder={isDictating ? "Écoute en cours... Parlez maintenant !" : isTranscribingAudio ? "Transcription IA en cours..." : "Écrire à MajorI.A..."}
+              placeholder={isDictating ? t('chat.listening') : isTranscribingAudio ? t('chat.transcribing') : t('chat.inputPlaceholder')}
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               disabled={isLoading || isTranscribingAudio}
@@ -692,7 +694,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             className="h-11 px-3.5 sm:h-12 sm:px-4 rounded-xl bg-sky-600/80 hover:bg-sky-500 backdrop-blur-xl disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold border-[0.5px] border-white/30 transition-all shrink-0 flex items-center justify-center gap-1.5 active:scale-95 shadow-md cursor-pointer"
           >
             <Send className="w-4 h-4" />
-            <span className="hidden sm:inline text-xs font-bold">Envoyer</span>
+            <span className="hidden sm:inline text-xs font-bold">{t('chat.send')}</span>
           </button>
 
           {/* Mic Button */}
@@ -715,7 +717,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               <Mic className="w-4 h-4 text-rose-400" />
             )}
             <span className="text-xs font-semibold">
-              {isTranscribingAudio ? 'Transcription...' : isDictating ? 'Écoute...' : 'Mic'}
+              {isTranscribingAudio ? t('chat.transcribing') : isDictating ? t('chat.listening') : t('chat.mic')}
             </span>
           </button>
 
@@ -731,7 +733,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             className="h-11 px-3 sm:h-12 sm:px-3.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.12] border-[0.5px] border-white/20 text-sky-300 hover:text-white transition-all shrink-0 flex items-center justify-center gap-1.5 active:scale-95 shadow-md cursor-pointer backdrop-blur-xl"
           >
             <Camera className="w-4 h-4 text-sky-300" />
-            <span className="hidden sm:inline text-xs font-semibold">Photo/Vidéo</span>
+            <span className="hidden sm:inline text-xs font-semibold">{t('chat.photoVideo')}</span>
           </button>
         </form>
 

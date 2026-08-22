@@ -20,12 +20,15 @@ import {
   Smartphone,
   Calendar,
   Layers,
-  ArrowRight
+  ArrowRight,
+  Globe
 } from 'lucide-react';
 import { playCyberSound, playAlertSound, speakCyberResponse } from '../utils/security';
 import { GalaxyColorScheme } from './MilkyWayGalaxy';
 import { getSupabaseConfig, saveSupabaseConfig, callUseCredit } from '../utils/supabase';
 import { AlertSound, RolloverEnergyInfo, UserProfile, VoiceGender } from '../types';
+import { useLanguage } from '../context/LanguageContext';
+import { LanguageSelector } from './LanguageSelector';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -84,6 +87,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onUpdateAlertSound,
   onOpenMobileBridge,
 }) => {
+  const { t, language } = useLanguage();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const jsonInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -282,7 +286,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         <div className="flex items-center justify-between pb-3 border-b border-white/10">
           <div className="flex items-center gap-2 font-bold text-white text-base">
             <Settings className="w-5 h-5 text-sky-400" />
-            <span>Paramètres & Personnalisation</span>
+            <span>{t('settings.title')}</span>
           </div>
           <button
             onClick={() => {
@@ -296,22 +300,37 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         <div className="space-y-5 text-xs">
+          {/* Section 0: Multi-language Support */}
+          <div className="p-3.5 rounded-xl bg-white/[0.03] border-[0.5px] border-white/10 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 text-sky-300 font-bold text-sm">
+                <Globe className="w-4 h-4 text-sky-400" />
+                <span>{t('settings.languageTitle')}</span>
+              </label>
+              <span className="text-[11px] text-slate-400">
+                {t('settings.languageDesc')}
+              </span>
+            </div>
+
+            <LanguageSelector variant="settings" />
+          </div>
+
           {/* Section 1: User Profile Customization for Chatbot */}
           <div className="p-3.5 rounded-xl bg-white/[0.03] border-[0.5px] border-white/10 space-y-3">
             <div className="flex items-center justify-between">
               <label className="flex items-center gap-2 text-sky-300 font-bold text-sm">
                 <User className="w-4 h-4 text-sky-400" />
-                <span>Identité & Profil (Utilisé par le Chatbot)</span>
+                <span>{t('settings.identityTitle')}</span>
               </label>
               <span className="text-[11px] text-slate-400">
-                MajorI.A s'adressera à vous personnellement
+                {t('settings.identityDesc')}
               </span>
             </div>
 
             <form onSubmit={handleSaveProfile} className="space-y-2.5">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div>
-                  <label className="block text-slate-300 font-medium mb-1">Prénom :</label>
+                  <label className="block text-slate-300 font-medium mb-1">{t('settings.firstName')} :</label>
                   <input
                     type="text"
                     placeholder="Ex: Julien"
@@ -321,7 +340,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-300 font-medium mb-1">Nom :</label>
+                  <label className="block text-slate-300 font-medium mb-1">{t('settings.lastName')} :</label>
                   <input
                     type="text"
                     placeholder="Ex: Dupont"
@@ -334,20 +353,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
               <div className="flex items-center justify-between pt-1">
                 <div className="text-[11px] text-slate-400 italic">
-                  {prenom ? `Prévisualisation : "Bonjour ${prenom} !"` : "Saisissez votre prénom pour personnaliser l'accueil"}
+                  {prenom ? `${t('settings.preview')} : "Bonjour ${prenom} !"` : t('settings.previewPrompt')}
                 </div>
                 <button
                   type="submit"
                   className="px-3.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs border-[0.5px] border-white/30 transition-all cursor-pointer"
                 >
-                  Enregistrer le profil
+                  {t('settings.saveProfile')}
                 </button>
               </div>
 
               {profileSavedMsg && (
                 <div className="p-2 rounded-lg bg-emerald-950/80 border-[0.5px] border-emerald-400/40 text-emerald-300 text-xs flex items-center gap-1.5 animate-in fade-in">
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Profil sauvegardé ! Le chatbot utilisera votre prénom.</span>
+                  <span>{t('settings.profileSaved')}</span>
                 </div>
               )}
             </form>
@@ -358,9 +377,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="flex items-center justify-between">
               <label className="flex items-center gap-2 text-purple-300 font-bold text-sm">
                 <Volume2 className="w-4 h-4 text-purple-400" />
-                <span>Personnalisation de la Voix Synthétique</span>
+                <span>{t('settings.voiceTitle')}</span>
               </label>
-              <span className="text-[11px] text-slate-400">Synthèse vocale en direct</span>
+              <span className="text-[11px] text-slate-400">{t('settings.voiceDesc')}</span>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -378,10 +397,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 }`}
               >
                 <div className="font-bold text-sm flex items-center justify-between">
-                  <span>Voix Féminine</span>
+                  <span>{t('settings.voiceFemale')}</span>
                   {selectedVoice === 'female' && <CheckCircle2 className="w-4 h-4 text-pink-400" />}
                 </div>
-                <div className="text-[11px] text-slate-400 mt-1">Tonalité douce, fluide et chaleureuse</div>
+                <div className="text-[11px] text-slate-400 mt-1">{t('settings.voiceFemaleDesc')}</div>
               </button>
 
               <button
@@ -398,10 +417,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 }`}
               >
                 <div className="font-bold text-sm flex items-center justify-between">
-                  <span>Voix Masculine</span>
+                  <span>{t('settings.voiceMale')}</span>
                   {selectedVoice === 'male' && <CheckCircle2 className="w-4 h-4 text-sky-400" />}
                 </div>
-                <div className="text-[11px] text-slate-400 mt-1">Tonalité posée, claire et assurée</div>
+                <div className="text-[11px] text-slate-400 mt-1">{t('settings.voiceMaleDesc')}</div>
               </button>
             </div>
 
@@ -413,7 +432,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600/80 hover:bg-purple-500 text-white font-bold text-xs border-[0.5px] border-white/20 transition-all cursor-pointer"
               >
                 <Volume2 className={`w-3.5 h-3.5 ${isSpeakingTest ? 'animate-bounce' : ''}`} />
-                <span>{isSpeakingTest ? "Lecture de l'exemple..." : "Écouter un extrait de la voix"}</span>
+                <span>{isSpeakingTest ? t('settings.voiceListening') : t('settings.voiceListen')}</span>
               </button>
             </div>
           </div>
@@ -423,9 +442,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="flex items-center justify-between">
               <label className="flex items-center gap-2 text-amber-300 font-bold text-sm">
                 <Bell className="w-4 h-4 text-amber-400" />
-                <span>Système de Notifications & Son des Alertes</span>
+                <span>{t('settings.alertTitle')}</span>
               </label>
-              <span className="text-[11px] text-slate-400">Rappels & Événements</span>
+              <span className="text-[11px] text-slate-400">{t('settings.alertDesc')}</span>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -450,7 +469,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 >
                   <span className="font-semibold text-xs">{s.label}</span>
                   <span className="text-[10px] text-amber-400/80 mt-1 flex items-center gap-1">
-                    <Volume2 className="w-3 h-3" /> Cliquer pour tester
+                    <Volume2 className="w-3 h-3" /> {t('settings.testSound')}
                   </span>
                 </button>
               ))}
@@ -462,19 +481,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="flex items-center justify-between">
               <label className="flex items-center gap-2 text-emerald-300 font-bold text-sm">
                 <BatteryCharging className="w-4 h-4 text-emerald-400" />
-                <span>Système de Consommation & Report Mensuel Automatique</span>
+                <span>{t('settings.energyTitle')}</span>
               </label>
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-950 border-[0.5px] border-white/20 text-xs font-mono">
                 <Battery className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="text-white font-bold">{energyPercent}% restant</span>
+                <span className="text-white font-bold">{energyPercent}% {t('header.remaining')}</span>
               </div>
             </div>
 
             {/* Battery Gauge Bar */}
             <div>
               <div className="flex justify-between text-xs text-slate-300 mb-1.5">
-                <span>Niveau de Batterie IA :</span>
-                <span className="text-white font-bold font-mono">{energyPercent}% disponible</span>
+                <span>{t('settings.energyLevel')} :</span>
+                <span className="text-white font-bold font-mono">{energyPercent}% {t('settings.energyAvailable')}</span>
               </div>
               <div className="w-full h-3 bg-slate-950 rounded-full overflow-hidden border-[0.5px] border-white/20 p-0.5">
                 <div
@@ -489,18 +508,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="flex items-center justify-between text-xs">
                 <span className="text-slate-300 font-medium flex items-center gap-1.5">
                   <Layers className="w-3.5 h-3.5 text-emerald-400" />
-                  Report automatique garanti :
+                  {t('settings.rolloverTitle')} :
                 </span>
                 <span className="text-emerald-300 font-bold">
-                  {rolloverInfo?.rolloverEnergy || 35}% reporté du mois précédent
+                  {rolloverInfo?.rolloverEnergy || 35}% {t('settings.rolloverCarried')}
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 leading-relaxed">
-                Toute l'énergie non consommée à la fin de chaque mois est automatiquement conservée et reportée sur le mois suivant.
+                {t('settings.rolloverDesc')}
               </p>
               <div className="flex items-center justify-between pt-1">
                 <span className="text-[11px] text-slate-300">
-                  Total cumulé disponible : <strong>{(energyPercent || 80) + (rolloverInfo?.rolloverEnergy || 35)}%</strong>
+                  {t('settings.totalEnergyAvailable')} : <strong>{(energyPercent || 80) + (rolloverInfo?.rolloverEnergy || 35)}%</strong>
                 </span>
                 {onPerformRollover && (
                   <button
@@ -511,15 +530,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     }}
                     className="px-2.5 py-1 rounded-md bg-emerald-600/30 hover:bg-emerald-600/50 border-[0.5px] border-emerald-400 text-emerald-200 text-[11px] font-semibold transition-all cursor-pointer"
                   >
-                    Simuler le report mensuel
+                    {t('settings.simulateRollover')}
                   </button>
                 )}
               </div>
             </div>
 
-            {/* Quick Recharge Test Bar (Dernière barre conservée) */}
+            {/* Quick Recharge Test Bar */}
             <div className="pt-2 border-t border-white/10 flex items-center justify-between">
-              <span className="text-xs text-slate-300">Recharge rapide :</span>
+              <span className="text-xs text-slate-300">{t('settings.quickRecharge')} :</span>
               <button
                 type="button"
                 onClick={() => handleManualRecharge(20)}
@@ -537,8 +556,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="flex items-center gap-2.5">
                 <Smartphone className="w-4 h-4 text-sky-400" />
                 <div>
-                  <div className="font-bold text-white text-xs">Pont Mobile & Compagnon Téléphone</div>
-                  <div className="text-[11px] text-slate-400">Associez votre iPhone ou Android pour les alertes mobiles</div>
+                  <div className="font-bold text-white text-xs">{t('settings.mobileBridgeTitle')}</div>
+                  <div className="text-[11px] text-slate-400">{t('settings.mobileBridgeDesc')}</div>
                 </div>
               </div>
               <button
@@ -549,7 +568,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 }}
                 className="px-3 py-1.5 rounded-lg bg-sky-600/40 hover:bg-sky-600/70 border-[0.5px] border-sky-400 text-white text-xs font-semibold flex items-center gap-1 cursor-pointer"
               >
-                <span>Ouvrir</span>
+                <span>{t('settings.open')}</span>
                 <ArrowRight className="w-3 h-3" />
               </button>
             </div>
@@ -559,7 +578,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           <div className="p-3.5 rounded-xl bg-white/[0.03] border-[0.5px] border-white/10 space-y-3">
             <label className="flex items-center gap-2 text-white font-semibold">
               <Palette className="w-4 h-4 text-pink-400" />
-              Arrière-plan & Thème
+              {t('settings.themeTitle')}
             </label>
 
             <div className="grid grid-cols-3 gap-2">
@@ -600,7 +619,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 border-[0.5px] border-white/20 text-white hover:bg-white/10 font-semibold cursor-pointer"
               >
                 <ImageIcon className="w-3.5 h-3.5 text-pink-400" />
-                <span>Image personnalisée</span>
+                <span>{t('settings.customImage')}</span>
               </button>
               <button
                 type="button"
@@ -610,7 +629,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 }}
                 className="px-3 py-1.5 rounded-xl bg-white/5 border-[0.5px] border-white/20 text-slate-300 hover:text-white font-semibold cursor-pointer"
               >
-                Réinitialiser
+                {t('settings.reset')}
               </button>
               {/* Hidden file input for import if triggered programmatically */}
               <input
@@ -625,7 +644,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
           {/* Reset Zone */}
           <div className="pt-2 border-t border-white/10 flex items-center justify-between">
-            <span className="text-xs text-rose-400">Zone de réinitialisation :</span>
+            <span className="text-xs text-rose-400">{t('settings.resetZone')} :</span>
             <button
               type="button"
               onClick={() => {
@@ -634,7 +653,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               }}
               className="px-3 py-1.5 rounded-xl bg-rose-950/60 border-[0.5px] border-rose-400/40 text-rose-200 hover:bg-rose-900 text-xs font-bold cursor-pointer"
             >
-              Effacer toutes les données
+              {t('settings.clearAllData')}
             </button>
           </div>
         </div>
@@ -649,7 +668,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             }}
             className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs border-[0.5px] border-white/30 shadow-md transition-all cursor-pointer"
           >
-            Fermer
+            {t('common.close')}
           </button>
         </div>
       </div>

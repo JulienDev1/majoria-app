@@ -3,6 +3,7 @@ import { X, Sparkles } from 'lucide-react';
 import { playCyberSound } from '../utils/security';
 import { RolloverEnergyInfo, UserProfile, UserSubscription } from '../types';
 import { PricingView } from './PricingView';
+import { useLanguage } from '../context/LanguageContext';
 
 interface ForfaitsModalProps {
   isOpen: boolean;
@@ -28,6 +29,7 @@ export const ForfaitsModal: React.FC<ForfaitsModalProps> = ({
   energyPercent = 80,
   rolloverInfo,
 }) => {
+  const { t } = useLanguage();
   if (!isOpen) return null;
 
   return (
@@ -42,10 +44,10 @@ export const ForfaitsModal: React.FC<ForfaitsModalProps> = ({
             </div>
             <div>
               <h2 className="font-extrabold text-white text-base sm:text-lg">
-                Formules & Consommation d'Énergie IA
+                {t('pricing.modalTitle')}
               </h2>
               <p className="text-xs text-slate-400">
-                Passez à la formule supérieure ou gérez vos options de facturation Stripe
+                {t('pricing.modalDesc')}
               </p>
             </div>
           </div>
@@ -55,7 +57,7 @@ export const ForfaitsModal: React.FC<ForfaitsModalProps> = ({
               playCyberSound('click');
               onClose();
             }}
-            aria-label="Fermer"
+            aria-label={t('common.close')}
             className="p-2 rounded-xl border-[0.5px] border-white/15 bg-white/5 hover:bg-white/10 text-white transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />

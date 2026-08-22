@@ -9,7 +9,6 @@ import {
   User,
   Smartphone,
   Flame,
-  BatteryCharging,
   BatteryMedium,
   BatteryLow,
   BatteryWarning,
@@ -18,6 +17,7 @@ import {
 import { playCyberSound } from '../utils/security';
 import { CyberBrainHead } from './CyberBrainHead';
 import { UserProfile } from '../types';
+import { useLanguage } from '../context/LanguageContext';
 
 interface CyberHeaderProps {
   confidentialMode: boolean;
@@ -59,19 +59,19 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
   rolloverPercent = 0,
   onQuickSearch,
 }) => {
+  const { language, t } = useLanguage();
   const [searchQuery, setSearchQuery] = useState('');
   const [cyberClock, setCyberClock] = useState('');
-  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
 
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
-      setCyberClock(now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      setCyberClock(now.toLocaleTimeString(language === 'fr' ? 'fr-FR' : 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     };
     updateTime();
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [language]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,7 +79,6 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
       playCyberSound('beep');
       onQuickSearch(searchQuery.trim());
       setSearchQuery('');
-      setIsMobileSearchOpen(false);
     }
   };
 
@@ -94,7 +93,7 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
 
   const displayName = userProfile?.prenom 
     ? `${userProfile.prenom}${userProfile.nom ? ` ${userProfile.nom}` : ''}`
-    : user?.nom || 'Connexion';
+    : user?.nom || t('header.login');
 
   return (
     <header className="sticky top-0 z-30 border-b border-white/10 bg-[#030914]/45 backdrop-blur-2xl px-3 sm:px-5 py-2.5 sm:py-3 shadow-lg shrink-0">
@@ -110,16 +109,16 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-bold text-lg sm:text-xl md:text-2xl text-white tracking-tight">
-                  MajorI.A
+                  {t('header.appName')}
                 </span>
                 <span className="hidden sm:inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full bg-white/[0.08] backdrop-blur-md text-white border-[0.5px] border-white/20">
-                  Assistant
+                  {t('header.assistantBadge')}
                 </span>
               </div>
               <div className="flex items-center gap-1.5 text-xs text-slate-300 font-medium leading-none mt-0.5">
                 <span className="hidden sm:flex items-center gap-1 text-emerald-400 font-semibold">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
-                  <span>En ligne</span>
+                  <span>{t('header.online')}</span>
                 </span>
                 <span className="hidden sm:inline text-slate-500">|</span>
                 <span className="text-white font-mono text-xs sm:text-sm">{cyberClock}</span>
@@ -136,33 +135,15 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
           <Search className="absolute left-3.5 w-4 h-4 text-slate-400 pointer-events-none group-focus-within:text-white transition-colors" />
           <input
             type="text"
-            placeholder="Rechercher (favoris, mémoires, tâches...)"
+            placeholder={t('header.searchPlaceholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full h-10 lg:h-11 bg-white/[0.04] backdrop-blur-xl border-[0.5px] border-white/20 focus:border-white/50 rounded-xl pl-10 pr-16 text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-white/30 transition-all font-sans"
+            className="w-full h-10 lg:h-11 bg-white/[0.04] backdrop-blur-xl border-[0.5px] border-white/20 focus:border-white/50 rounded-xl pl-10 pr-4 text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-white/30 transition-all font-sans"
           />
-          <button
-            type="submit"
-            className="absolute right-1 px-2.5 py-1 text-xs font-semibold bg-white/10 hover:bg-white/20 text-white border-[0.5px] border-white/20 rounded-lg transition-all"
-          >
-            Entrée
-          </button>
         </form>
 
         {/* Right Side: Quick Action Controls (Transparent / Glassmorphic) */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {/* Mobile Search Toggle */}
-          <button
-            onClick={() => {
-              playCyberSound('click');
-              setIsMobileSearchOpen(!isMobileSearchOpen);
-            }}
-            title="Rechercher"
-            className="md:hidden p-2 rounded-xl bg-white/[0.05] backdrop-blur-xl border-[0.5px] border-white/15 text-white active:scale-95 flex items-center justify-center"
-          >
-            <Search className="w-4.5 h-4.5" />
-          </button>
-
           {/* Mobile Bridge / Phone Connector Button */}
           {onOpenMobileBridge && (
             <button
@@ -170,11 +151,11 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
                 playCyberSound('click');
                 onOpenMobileBridge();
               }}
-              title="Pont Mobile & Compagnon Téléphone"
+              title={t('header.mobileBridgeTitle')}
               className="p-2 sm:px-2.5 sm:py-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.12] backdrop-blur-xl border-[0.5px] border-white/20 text-sky-300 text-xs sm:text-sm font-semibold transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
             >
               <Smartphone className="w-4 h-4 text-sky-400" />
-              <span className="hidden xl:inline">Pont Mobile</span>
+              <span className="hidden xl:inline">{t('header.mobileBridgeBtn')}</span>
             </button>
           )}
 
@@ -188,7 +169,7 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
                 setConfidentialMode(!confidentialMode);
               }
             }}
-            title={confidentialMode ? "Mode confidentiel actif" : "Activer le mode confidentiel"}
+            title={confidentialMode ? t('header.confidentialTitleActive') : t('header.confidentialTitleInactive')}
             className={`p-2 sm:px-3 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold border-[0.5px] transition-all flex items-center gap-1.5 active:scale-95 backdrop-blur-xl ${
               confidentialMode
                 ? 'bg-amber-500/20 border-amber-400/40 text-amber-200'
@@ -196,7 +177,7 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
             }`}
           >
             {confidentialMode ? <ShieldAlert className="w-4 h-4 text-amber-300" /> : <Shield className="w-4 h-4 text-slate-300" />}
-            <span className="hidden md:inline">{confidentialMode ? 'Confidentiel' : 'Standard'}</span>
+            <span className="hidden md:inline">{confidentialMode ? t('header.confidentialActive') : t('header.confidentialStandard')}</span>
           </button>
 
           {/* Voice Auto-Speak Toggle */}
@@ -209,7 +190,7 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
                 setVoiceAutoSpeak(!voiceAutoSpeak);
               }
             }}
-            title={voiceAutoSpeak ? "Lecture vocale active" : "Lecture vocale désactivée"}
+            title={voiceAutoSpeak ? t('header.voiceTitleActive') : t('header.voiceTitleInactive')}
             className={`p-2 sm:p-2.5 rounded-xl border-[0.5px] text-xs sm:text-sm transition-all active:scale-95 flex items-center justify-center backdrop-blur-xl ${
               voiceAutoSpeak
                 ? 'bg-sky-500/20 border-sky-400/40 text-white'
@@ -225,19 +206,19 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
               playCyberSound('click');
               onOpenSettings();
             }}
-            title="Paramètres d'apparence, Voix, Profil & Notifications"
+            title={t('header.settingsTitle')}
             className="p-2 sm:p-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.12] backdrop-blur-xl border-[0.5px] border-white/15 text-white transition-all active:scale-95 flex items-center justify-center cursor-pointer"
           >
             <Settings className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
 
-          {/* Battery / Energy Consumption Live Gauge (Replaces Credits) */}
+          {/* Battery / Energy Consumption Live Gauge */}
           <button
             onClick={() => {
               playCyberSound('click');
               if (onOpenForfaits) onOpenForfaits();
             }}
-            title={`Consommation restante : ${effectiveEnergy}% restant ${rolloverPercent > 0 ? `(+${rolloverPercent}% reporté du mois précédent)` : ''}`}
+            title={`${t('header.batteryTitle')} : ${effectiveEnergy}% ${t('header.remaining')} ${rolloverPercent > 0 ? `(+${rolloverPercent}% ${language === 'fr' ? 'reporté' : 'rolled over'})` : ''}`}
             className={`flex items-center gap-1.5 p-2 sm:px-3 sm:py-2 rounded-xl border-[0.5px] text-xs sm:text-sm font-bold transition-all active:scale-95 cursor-pointer backdrop-blur-xl ${
               effectiveEnergy <= 0
                 ? 'bg-rose-950/40 border-rose-400/40 text-rose-200 animate-pulse'
@@ -249,7 +230,7 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
             {renderBatteryIcon()}
             <div className="flex items-center gap-1">
               <span className="font-mono font-extrabold">{effectiveEnergy}%</span>
-              <span className="hidden sm:inline text-xs font-medium text-slate-300">restant</span>
+              <span className="hidden sm:inline text-xs font-medium text-slate-300">{t('header.remaining')}</span>
             </div>
           </button>
 
@@ -260,11 +241,11 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
                 playCyberSound('click');
                 onOpenForfaits();
               }}
-              title="Consulter les Forfaits & Tarifs avec Report Mensuel Inclus"
+              title={t('header.plansTitle')}
               className="flex items-center gap-1.5 p-2 sm:px-3 sm:py-2 rounded-xl bg-gradient-to-r from-red-600/80 via-rose-600/80 to-red-600/80 hover:from-red-500 hover:to-rose-500 backdrop-blur-xl border-[0.5px] border-red-300/40 text-white text-xs sm:text-sm font-bold shadow-md transition-all active:scale-95 cursor-pointer"
             >
               <Flame className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-white" />
-              <span className="hidden sm:inline">Forfaits</span>
+              <span className="hidden sm:inline">{t('header.plansBtn')}</span>
             </button>
           )}
 
@@ -274,7 +255,7 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
               playCyberSound('click');
               onOpenAuth();
             }}
-            title="Gestion du compte et profil"
+            title={t('header.userTitle')}
             className="flex items-center gap-1.5 p-2 sm:px-3 sm:py-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.12] backdrop-blur-xl border-[0.5px] border-white/15 text-white text-xs sm:text-sm font-semibold transition-all active:scale-95"
           >
             <User className="w-4 h-4 text-white" />
@@ -282,29 +263,6 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
           </button>
         </div>
       </div>
-
-      {/* Mobile Expandable Search Bar */}
-      {isMobileSearchOpen && (
-        <div className="md:hidden mt-2 pt-2 border-t border-white/10 animate-in fade-in slide-in-from-top-2 duration-200">
-          <form onSubmit={handleSearchSubmit} className="relative flex items-center">
-            <Search className="absolute left-3 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-            <input
-              type="text"
-              autoFocus
-              placeholder="Rechercher mémoires, favoris, tâches..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white/[0.06] backdrop-blur-xl border-[0.5px] border-white/20 rounded-xl pl-8 pr-16 py-2 text-xs text-white placeholder-slate-400 font-sans focus:outline-none focus:ring-1 focus:ring-white/30"
-            />
-            <button
-              type="submit"
-              className="absolute right-1 px-2.5 py-1 text-xs font-semibold bg-white/10 text-white rounded-lg"
-            >
-              OK
-            </button>
-          </form>
-        </div>
-      )}
     </header>
   );
 };
