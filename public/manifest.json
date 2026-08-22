@@ -1,0 +1,24 @@
+{
+  "name": "Majori.A",
+  "short_name": "Majori.A",
+  "description": "Assistant IA Majori.A",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#030805",
+  "theme_color": "#030805",
+  "icons": [
+    {
+      "src": "/maskable_icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/maskable_icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

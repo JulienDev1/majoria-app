@@ -12,25 +12,26 @@ export default defineConfig(() => {
       VitePWA({
         registerType: 'autoUpdate',
         injectRegister: 'auto',
-        includeAssets: ['maskable_icon.png', 'favicon.ico', 'robots.txt'],
+        includeAssets: ['maskable_icon.png', 'manifest.json', 'favicon.ico', 'robots.txt'],
         manifest: {
           name: 'Majori.A',
           short_name: 'Majori.A',
           description: 'Assistant IA Majori.A',
           start_url: '/',
+          scope: '/',
           display: 'standalone',
           background_color: '#030805',
           theme_color: '#030805',
           icons: [
             {
               src: '/maskable_icon.png',
-              sizes: '512x512',
+              sizes: '192x192',
               type: 'image/png',
               purpose: 'any maskable',
             },
             {
               src: '/maskable_icon.png',
-              sizes: '192x192',
+              sizes: '512x512',
               type: 'image/png',
               purpose: 'any maskable',
             },
@@ -38,7 +39,7 @@ export default defineConfig(() => {
         },
         workbox: {
           maximumFileSizeToCacheInBytes: 20 * 1024 * 1024, // Support up to 20MB for high-res icons
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,json}'],
         },
       }),
     ],
