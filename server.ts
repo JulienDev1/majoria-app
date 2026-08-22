@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
@@ -1386,6 +1387,28 @@ async function startServer() {
   const http = await import('http');
   const server = http.createServer(app);
 
+  const publicPath = path.resolve(__dirname, 'public');
+  const distPath = path.resolve(__dirname, 'dist');
+
+  // 1. Serve static files from 'public' (e.g. /maskable_icon.png, favicon, etc.)
+  if (fs.existsSync(publicPath)) {
+    app.use(express.static(publicPath));
+  }
+
+  // 2. Serve static files from 'dist' (Vite build output, PWA Service Worker sw.js, manifest.webmanifest, etc.)
+  if (fs.existsSync(distPath)) {
+    app.use(express.static(distPath, {
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('sw.js') || filePath.endsWith('registerSW.js')) {
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        } else if (filePath.endsWith('.webmanifest') || filePath.endsWith('manifest.json')) {
+          res.setHeader('Content-Type', 'application/manifest+json');
+          res.setHeader('Cache-Control', 'no-cache');
+        }
+      },
+    }));
+  }
+
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
@@ -1397,12 +1420,31 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.resolve(__dirname, 'dist');
-    app.use(express.static(distPath));
+    // 3. Fallback all non-API GET requests to dist/index.html
     app.get('*', (req: Request, res: Response) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      if (req.path.startsWith('/api')) {
+        return res.status(404).json({ error: 'Endpoint API introuvable' });
+      }
+      const distIndex = path.join(distPath, 'index.html');
+      if (fs.existsSync(distIndex)) {
+        res.sendFile(distIndex);
+      } else {
+        res.status(404).send('Build frontend introuvable. Veuillez exécuter npm run build.');
+      }
     });
   }
+
+  // Fallback catch-all for any unhandled non-API GET routes
+  app.get('*', (req: Request, res: Response, next) => {
+    if (req.path.startsWith('/api')) {
+      return res.status(404).json({ error: 'Endpoint API introuvable' });
+    }
+    const distIndex = path.join(distPath, 'index.html');
+    if (fs.existsSync(distIndex)) {
+      return res.sendFile(distIndex);
+    }
+    next();
+  });
 
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`⚡ Serveur MajorI.A [Neural Edition] actif sur http://0.0.0.0:${PORT}`);
