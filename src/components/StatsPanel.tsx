@@ -77,7 +77,7 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({
   ];
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col h-full bg-[#030914]/40 backdrop-blur-2xl p-4 md:p-6 overflow-y-auto">
+    <div className="flex-1 min-h-0 flex flex-col h-full bg-[#030914]/55 p-4 md:p-6 overflow-y-auto">
       {/* Header */}
       <div className="pb-4 border-b border-white/10">
         <div className="flex items-center gap-2.5">
@@ -98,7 +98,7 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({
           return (
             <div 
               key={idx} 
-              className="p-4 flex flex-col justify-between rounded-2xl bg-white/[0.04] backdrop-blur-xl border-[0.5px] border-white/15 shadow-md hover:bg-white/[0.08] transition-all space-y-2"
+              className="p-4 flex flex-col justify-between rounded-2xl bg-white/[0.06] border-[0.5px] border-white/15 shadow-md hover:bg-white/[0.1] transition-all space-y-2"
             >
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-semibold text-slate-300">{m.label}</span>
@@ -116,7 +116,7 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({
       {/* Two columns : Tasks & Battery Consumption Report */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
         {/* Task Completion Progress Section */}
-        <div className="bg-white/[0.04] backdrop-blur-xl rounded-2xl border-[0.5px] border-white/15 p-5 shadow-md space-y-4">
+        <div className="bg-white/[0.06] rounded-2xl border-[0.5px] border-white/15 p-5 shadow-md space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <CheckSquare className="w-5 h-5 text-emerald-400" />
@@ -149,7 +149,7 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({
         </div>
 
         {/* Battery & Monthly Rollover Breakdown */}
-        <div className="bg-white/[0.04] backdrop-blur-xl rounded-2xl border-[0.5px] border-white/15 p-5 shadow-md space-y-4">
+        <div className="bg-white/[0.06] rounded-2xl border-[0.5px] border-white/15 p-5 shadow-md space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <BatteryCharging className="w-5 h-5 text-emerald-400" />

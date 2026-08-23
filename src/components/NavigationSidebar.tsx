@@ -181,13 +181,13 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
       {/* Mobile Backdrop */}
       {isOpenMobile && (
         <div
-          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 lg:hidden"
+          className="fixed inset-0 bg-black/75 z-40 lg:hidden"
           onClick={onCloseMobile}
         />
       )}
 
       <aside
-        className={`fixed lg:static top-0 bottom-0 left-0 z-40 w-72 md:w-80 bg-[#030914]/50 backdrop-blur-2xl border-r border-white/10 flex flex-col transition-transform duration-300 ease-in-out ${
+        className={`fixed lg:static top-0 bottom-0 left-0 z-40 w-72 md:w-80 bg-[#030914]/75 border-r border-white/10 flex flex-col transition-transform duration-300 ease-in-out ${
           isOpenMobile ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
@@ -418,7 +418,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
 
         {/* Battery / Energy Consumption Card in Sidebar */}
         <div className="p-3 border-t border-white/10 bg-[#030914]/60 shrink-0">
-          <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white/[0.04] border-[0.5px] border-white/15 backdrop-blur-xl">
+          <div className="flex items-center justify-between gap-2.5 p-2.5 rounded-xl bg-white/[0.06] border-[0.5px] border-white/15">
             <div className="flex items-center gap-2">
               <div className={`p-1.5 rounded-lg border-[0.5px] ${
                 effectiveEnergy <= 0 

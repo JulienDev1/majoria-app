@@ -260,7 +260,7 @@ export const MemoirePanel: React.FC<MemoirePanelProps> = ({
 
       {/* Add / Edit Memory Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
           <div className="w-full max-w-md bg-slate-950 border-2 border-white rounded-2xl p-6 shadow-2xl space-y-4">
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
               {editingMemoire ? (

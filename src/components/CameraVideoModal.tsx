@@ -356,7 +356,7 @@ export const CameraVideoModal: React.FC<CameraVideoModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 animate-fadeIn">
       {/* Hidden Native Camera Input Fallback */}
       <input
         type="file"

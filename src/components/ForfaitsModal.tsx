@@ -33,8 +33,8 @@ export const ForfaitsModal: React.FC<ForfaitsModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-xl flex items-center justify-center p-3 sm:p-5 animate-in fade-in duration-200">
-      <div className="max-w-6xl w-full border-[0.5px] border-white/20 rounded-3xl bg-[#030914]/95 backdrop-blur-2xl p-4 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-3 sm:p-5 animate-in fade-in duration-200">
+      <div className="max-w-6xl w-full border-[0.5px] border-white/20 rounded-3xl bg-[#030914]/95 p-4 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
         
         {/* Modal Top Bar */}
         <div className="flex items-center justify-between pb-3 border-b border-white/10">

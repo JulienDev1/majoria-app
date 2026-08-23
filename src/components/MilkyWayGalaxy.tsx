@@ -150,7 +150,7 @@ export const MilkyWayGalaxy: React.FC<MilkyWayGalaxyProps> = ({
     const initGalaxy = () => {
       if (!canvas || !ctx) return;
 
-      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      dpr = Math.min(window.devicePixelRatio || 1, 3);
       cssWidth = Math.max(window.innerWidth || 0, document.documentElement.clientWidth || 0, screen.width || 360);
       cssHeight = Math.max(window.innerHeight || 0, document.documentElement.clientHeight || 0, screen.height || 640);
 
@@ -263,25 +263,10 @@ export const MilkyWayGalaxy: React.FC<MilkyWayGalaxyProps> = ({
       // Smooth galactic rotation
       galaxyRotation += 0.05 * speed * dt;
 
-      // Clear Canvas to allow background wallpaper / colors to show through
+      // Clear Canvas completely to allow crisp background image to show through with 100% detail
       ctx.clearRect(0, 0, cssWidth, cssHeight);
 
-      // Deep space ambient subtle glow
-      const ambientGlow = ctx.createRadialGradient(
-        cssWidth * 0.5,
-        cssHeight * 0.48,
-        50,
-        cssWidth * 0.5,
-        cssHeight * 0.48,
-        Math.max(cssWidth, cssHeight) * 0.7
-      );
-      ambientGlow.addColorStop(0, 'rgba(30, 27, 75, 0.25)');
-      ambientGlow.addColorStop(0.5, 'rgba(15, 23, 42, 0.15)');
-      ambientGlow.addColorStop(1, 'rgba(2, 6, 23, 0)');
-      ctx.fillStyle = ambientGlow;
-      ctx.fillRect(0, 0, cssWidth, cssHeight);
-
-      // 1. Draw Deep Space Background Stars
+      // 1. Draw Deep Space Background Stars (Sharp & Crystal Clear)
       for (let i = 0; i < bgStars.length; i++) {
         const star = bgStars[i];
         const twinkle = Math.sin(now * 0.0015 * star.twinkleSpeed + star.twinklePhase);

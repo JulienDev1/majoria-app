@@ -225,10 +225,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
     const reader = new FileReader();
     reader.onload = (event) => {
+      const rawDataUrl = event.target?.result as string;
       const img = new Image();
       img.onload = () => {
-        const maxW = 1920;
-        const maxH = 1080;
+        const maxW = 3840;
+        const maxH = 2160;
         let width = img.width;
         let height = img.height;
 
@@ -236,26 +237,29 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           const ratio = Math.min(maxW / width, maxH / height);
           width = Math.round(width * ratio);
           height = Math.round(height * ratio);
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(img, 0, 0, width, height);
+            const highResDataUrl = canvas.toDataURL('image/jpeg', 0.96);
+            onSetBgColor(`url("${highResDataUrl}")`);
+            playCyberSound('success');
+            return;
+          }
         }
 
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, width, height);
-          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
-          onSetBgColor(`url("${compressedDataUrl}")`);
-          playCyberSound('success');
-        } else {
-          onSetBgColor(`url("${event.target?.result as string}")`);
-          playCyberSound('success');
-        }
+        // If within standard high resolution or canvas not needed, use raw full quality
+        onSetBgColor(`url("${rawDataUrl}")`);
+        playCyberSound('success');
       };
       img.onerror = () => {
         alert("Erreur lors de la lecture de l'image");
       };
-      img.src = event.target?.result as string;
+      img.src = rawDataUrl;
     };
     reader.readAsDataURL(file);
     e.target.value = '';
@@ -279,8 +283,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xl flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
-      <div className="max-w-2xl w-full border-[0.5px] border-white/20 rounded-2xl bg-[#030914]/90 backdrop-blur-2xl p-5 sm:p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
+      <div className="max-w-2xl w-full border-[0.5px] border-white/20 rounded-2xl bg-[#030914]/95 p-5 sm:p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
         
         {/* Modal Header */}
         <div className="flex items-center justify-between pb-3 border-b border-white/10">

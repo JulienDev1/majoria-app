@@ -407,10 +407,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   const userName = userProfile?.prenom || user?.nom || 'Utilisateur';
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col h-full bg-[#030914]/35 backdrop-blur-2xl relative overflow-hidden">
+    <div className="flex-1 min-h-0 flex flex-col h-full bg-[#030914]/55 relative overflow-hidden">
       
       {/* Header bar */}
-      <div className="px-3 sm:px-5 py-2.5 bg-white/[0.03] backdrop-blur-xl border-b border-white/10 flex items-center justify-between shrink-0">
+      <div className="px-3 sm:px-5 py-2.5 bg-white/[0.04] border-b border-white/10 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           <CyberBrainHead size={22} />
           <h2 className="font-bold text-white text-sm sm:text-base truncate">
@@ -425,7 +425,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 playCyberSound('click');
                 onOpenTranscription();
               }}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/[0.05] hover:bg-white/10 border-[0.5px] border-white/15 text-rose-300 text-xs font-semibold transition-all cursor-pointer"
+              className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/[0.07] hover:bg-white/[0.14] border-[0.5px] border-white/15 text-rose-300 text-xs font-semibold transition-all cursor-pointer"
             >
               <Mic className="w-3.5 h-3.5 text-rose-400" />
               <span className="hidden sm:inline">{t('nav.transcription')}</span>
@@ -438,7 +438,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               onClearConversation();
             }}
             title={t('chat.clearConv')}
-            className="p-1.5 rounded-lg bg-white/[0.05] hover:bg-rose-950/60 border-[0.5px] border-white/15 text-slate-300 hover:text-rose-300 transition-all cursor-pointer"
+            className="p-1.5 rounded-lg bg-white/[0.07] hover:bg-rose-950/60 border-[0.5px] border-white/15 text-slate-300 hover:text-rose-300 transition-all cursor-pointer"
           >
             <Trash2 className="w-4 h-4" />
           </button>
@@ -649,7 +649,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         
         {/* Exhausted Battery Notice Banner */}
         {effectiveEnergy <= 0 && (
-          <div className="mb-2.5 p-2.5 rounded-xl bg-rose-950/80 border-[0.5px] border-rose-400/50 text-white flex items-center justify-between gap-3 max-w-6xl mx-auto shadow-md backdrop-blur-xl">
+          <div className="mb-2.5 p-2.5 rounded-xl bg-rose-950/90 border-[0.5px] border-rose-400/50 text-white flex items-center justify-between gap-3 max-w-6xl mx-auto shadow-md">
             <div className="flex items-center gap-2 text-xs">
               <BatteryWarning className="w-4 h-4 text-rose-400 shrink-0 animate-pulse" />
               <span>{t('chat.batteryExhausted')}</span>
@@ -686,8 +686,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               disabled={isLoading || isTranscribingAudio}
-              className={`w-full h-11 sm:h-12 bg-white/[0.04] backdrop-blur-xl border-[0.5px] border-white/20 rounded-xl px-3.5 sm:px-4 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-white/50 focus:ring-1 focus:ring-white/30 font-sans transition-all ${
-                isDictating ? 'ring-1 ring-rose-400 bg-rose-950/20' : ''
+              className={`w-full h-11 sm:h-12 bg-white/[0.06] border-[0.5px] border-white/20 rounded-xl px-3.5 sm:px-4 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-white/50 focus:ring-1 focus:ring-white/30 font-sans transition-all ${
+                isDictating ? 'ring-1 ring-rose-400 bg-rose-950/30' : ''
               }`}
             />
           </div>
@@ -696,7 +696,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           <button
             type="submit"
             disabled={(!inputText.trim() && !selectedImage) || isLoading || isTranscribingAudio}
-            className="h-11 px-3.5 sm:h-12 sm:px-4 rounded-xl bg-sky-600/80 hover:bg-sky-500 backdrop-blur-xl disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold border-[0.5px] border-white/30 transition-all shrink-0 flex items-center justify-center gap-1.5 active:scale-95 shadow-md cursor-pointer"
+            className="h-11 px-3.5 sm:h-12 sm:px-4 rounded-xl bg-sky-600/90 hover:bg-sky-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold border-[0.5px] border-white/30 transition-all shrink-0 flex items-center justify-center gap-1.5 active:scale-95 shadow-md cursor-pointer"
           >
             <Send className="w-4 h-4" />
             <span className="hidden sm:inline text-xs font-bold">{t('chat.send')}</span>
@@ -708,10 +708,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             onClick={handleToggleDictation}
             disabled={isTranscribingAudio || isLoading}
             title={isDictating ? "Arrêter la dictée (Mic)" : "Activer la dictée vocale (Mic)"}
-            className={`h-11 px-3 sm:h-12 sm:px-3.5 rounded-xl border-[0.5px] border-white/20 transition-all shrink-0 flex items-center justify-center gap-1.5 active:scale-95 shadow-md cursor-pointer backdrop-blur-xl ${
+            className={`h-11 px-3 sm:h-12 sm:px-3.5 rounded-xl border-[0.5px] border-white/20 transition-all shrink-0 flex items-center justify-center gap-1.5 active:scale-95 shadow-md cursor-pointer ${
               isDictating
                 ? 'bg-rose-600 hover:bg-rose-500 text-white animate-pulse'
-                : 'bg-white/[0.05] hover:bg-white/[0.12] text-slate-100'
+                : 'bg-white/[0.07] hover:bg-white/[0.14] text-slate-100'
             }`}
           >
             {isTranscribingAudio ? (
@@ -735,7 +735,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             }}
             disabled={isLoading || isTranscribingAudio}
             title="Ouvrir l'appareil photo / vidéo (MajorI.A Vision)"
-            className="h-11 px-3 sm:h-12 sm:px-3.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.12] border-[0.5px] border-white/20 text-sky-300 hover:text-white transition-all shrink-0 flex items-center justify-center gap-1.5 active:scale-95 shadow-md cursor-pointer backdrop-blur-xl"
+            className="h-11 px-3 sm:h-12 sm:px-3.5 rounded-xl bg-white/[0.07] hover:bg-white/[0.14] border-[0.5px] border-white/20 text-sky-300 hover:text-white transition-all shrink-0 flex items-center justify-center gap-1.5 active:scale-95 shadow-md cursor-pointer"
           >
             <Camera className="w-4 h-4 text-sky-300" />
             <span className="hidden sm:inline text-xs font-semibold">{t('chat.photoVideo')}</span>
@@ -744,7 +744,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
         {/* Selected Image Preview */}
         {selectedImage && (
-          <div className="mt-2.5 px-3 py-1.5 bg-white/[0.04] border-[0.5px] border-white/20 rounded-xl flex items-center gap-3 max-w-6xl mx-auto backdrop-blur-xl">
+          <div className="mt-2.5 px-3 py-1.5 bg-white/[0.06] border-[0.5px] border-white/20 rounded-xl flex items-center gap-3 max-w-6xl mx-auto">
             <div className="relative w-8 h-8 rounded-lg border-[0.5px] border-white/30 overflow-hidden bg-black">
               <img src={selectedImage} alt="Attachment" className="w-full h-full object-cover" />
               <button

@@ -143,7 +143,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   return (
     <div 
       className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${
-        isMandatory ? 'bg-[#030914]/90 backdrop-blur-2xl' : 'bg-black/80 backdrop-blur-xl'
+        isMandatory ? 'bg-[#030914]/95' : 'bg-black/85'
       }`}
       onClick={(e) => {
         if (!isMandatory && e.target === e.currentTarget) {
@@ -151,7 +151,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         }
       }}
     >
-      <div className="max-w-md w-full border-[0.5px] border-white/20 rounded-2xl bg-[#030914]/90 backdrop-blur-2xl p-5 sm:p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-200">
+      <div className="max-w-md w-full border-[0.5px] border-white/20 rounded-2xl bg-[#030914]/95 p-5 sm:p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-white/10">
           <div className="flex items-center gap-2.5 text-base font-bold text-white">

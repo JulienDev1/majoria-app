@@ -27,7 +27,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   const { t } = useLanguage();
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#030914]/80 backdrop-blur-2xl border-t border-white/10 px-2 py-1.5 shadow-lg pb-[calc(0.35rem+env(safe-area-inset-bottom,0px))]">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#030914]/90 border-t border-white/10 px-2 py-1.5 shadow-lg pb-[calc(0.35rem+env(safe-area-inset-bottom,0px))]">
       <div className="flex items-center justify-around gap-1.5 max-w-lg mx-auto">
         {/* Bouton Chat */}
         <button
@@ -35,7 +35,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             playCyberSound('click');
             setActivePanel('chat');
           }}
-          className={`relative flex flex-col items-center justify-center py-1.5 px-3 rounded-xl transition-all border-[0.5px] backdrop-blur-xl ${
+          className={`relative flex flex-col items-center justify-center py-1.5 px-3 rounded-xl transition-all border-[0.5px] ${
             activePanel === 'chat'
               ? 'border-white/40 bg-white/20 text-white shadow-md font-bold'
               : 'border-transparent text-slate-300 hover:text-white'
@@ -56,7 +56,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             if (onOpenForfaits) onOpenForfaits();
           }}
           title={t('header.plansTitle')}
-          className="relative flex flex-col items-center justify-center py-1.5 px-3 rounded-xl border-[0.5px] border-red-400/50 bg-gradient-to-r from-red-600/80 via-rose-600/80 to-red-600/80 text-white shadow-md active:scale-95 transition-all cursor-pointer shrink-0 backdrop-blur-xl"
+          className="relative flex flex-col items-center justify-center py-1.5 px-3 rounded-xl border-[0.5px] border-red-400/50 bg-gradient-to-r from-red-600/90 via-rose-600/90 to-red-600/90 text-white shadow-md active:scale-95 transition-all cursor-pointer shrink-0"
         >
           <Flame className="w-4.5 h-4.5 text-white" />
           <span className="text-[11px] font-bold text-white mt-0.5">
@@ -72,8 +72,8 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             onOpenMobileMenu();
           }}
           title={isMobileSidebarOpen ? t('common.close') : 'Menu'}
-          className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl border-[0.5px] transition-all active:scale-95 shadow-sm backdrop-blur-xl ${
-            isMobileSidebarOpen ? 'border-rose-400/50 bg-rose-500/20 text-rose-300' : 'border-white/15 bg-white/[0.05] text-white hover:bg-white/10'
+          className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl border-[0.5px] transition-all active:scale-95 shadow-sm ${
+            isMobileSidebarOpen ? 'border-rose-400/50 bg-rose-500/20 text-rose-300' : 'border-white/15 bg-white/[0.07] text-white hover:bg-white/10'
           }`}
         >
           {isMobileSidebarOpen ? <X className="w-4.5 h-4.5 text-rose-400" /> : <Menu className="w-4.5 h-4.5 text-white" />}

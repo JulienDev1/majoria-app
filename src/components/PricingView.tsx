@@ -230,7 +230,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
 
       {/* Billing Interval Toggle (Mensuel / Annuel -20%) */}
       <div className="flex items-center justify-center">
-        <div className="relative flex items-center p-1.5 rounded-2xl bg-slate-900/90 border-[0.5px] border-white/15 backdrop-blur-xl shadow-xl">
+        <div className="relative flex items-center p-1.5 rounded-2xl bg-slate-900/90 border-[0.5px] border-white/15 shadow-xl">
           <button
             type="button"
             onClick={() => {
@@ -289,7 +289,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
           return (
             <div
               key={plan.id}
-              className={`relative flex flex-col justify-between rounded-2xl p-5 sm:p-6 backdrop-blur-2xl transition-all duration-300 border-[0.5px] ${plan.cardBorder} ${
+              className={`relative flex flex-col justify-between rounded-2xl p-5 sm:p-6 transition-all duration-300 border-[0.5px] ${plan.cardBorder} ${
                 isPopular ? 'scale-[1.02] shadow-[0_0_30px_rgba(168,85,247,0.2)]' : 'hover:scale-[1.01]'
               } ${isCurrentPlan ? 'ring-2 ring-emerald-400/80 bg-emerald-950/20' : ''}`}
             >
@@ -425,7 +425,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
 
       {/* Enterprise Contact Modal if clicked */}
       {selectedCustomPlan && (
-        <div className="p-5 sm:p-6 rounded-2xl bg-[#030914]/95 border-[0.5px] border-sky-400/40 backdrop-blur-2xl max-w-xl mx-auto space-y-4 shadow-2xl animate-in zoom-in-95">
+        <div className="p-5 sm:p-6 rounded-2xl bg-[#030914]/95 border-[0.5px] border-sky-400/40 max-w-xl mx-auto space-y-4 shadow-2xl animate-in zoom-in-95">
           <div className="flex items-center justify-between border-b border-white/10 pb-3">
             <h3 className="font-bold text-white text-base sm:text-lg flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-sky-400" />

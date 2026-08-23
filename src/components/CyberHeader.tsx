@@ -96,12 +96,12 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
     : user?.nom || t('header.login');
 
   return (
-    <header className="sticky top-0 z-30 border-b border-white/10 bg-[#030914]/45 backdrop-blur-2xl px-3 sm:px-5 py-2.5 sm:py-3 shadow-lg shrink-0">
+    <header className="sticky top-0 z-30 border-b border-white/10 bg-[#030914]/65 px-3 sm:px-5 py-2.5 sm:py-3 shadow-lg shrink-0">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-2.5 sm:gap-4">
         {/* Left Side: Brand Logo with Sparkle */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <div className="flex items-center gap-2.5 sm:gap-3">
-            <div className="relative flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 md:w-12 md:h-12 rounded-2xl bg-white/[0.04] backdrop-blur-xl border-[0.5px] border-white/20 shadow-md group">
+            <div className="relative flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 md:w-12 md:h-12 rounded-2xl bg-white/[0.06] border-[0.5px] border-white/20 shadow-md group">
               <CyberBrainHead size={28} className="group-hover:scale-105 transition-transform" />
               <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-400 rounded-full border-[0.5px] border-white/60 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
             </div>
@@ -111,7 +111,7 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
                 <span className="font-bold text-lg sm:text-xl md:text-2xl text-white tracking-tight">
                   {t('header.appName')}
                 </span>
-                <span className="hidden sm:inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full bg-white/[0.08] backdrop-blur-md text-white border-[0.5px] border-white/20">
+                <span className="hidden sm:inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full bg-white/[0.1] text-white border-[0.5px] border-white/20">
                   {t('header.assistantBadge')}
                 </span>
               </div>
@@ -138,7 +138,7 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
             placeholder={t('header.searchPlaceholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full h-10 lg:h-11 bg-white/[0.04] backdrop-blur-xl border-[0.5px] border-white/20 focus:border-white/50 rounded-xl pl-10 pr-4 text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-white/30 transition-all font-sans"
+            className="w-full h-10 lg:h-11 bg-white/[0.06] border-[0.5px] border-white/20 focus:border-white/50 rounded-xl pl-10 pr-4 text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-white/30 transition-all font-sans"
           />
         </form>
 
@@ -152,7 +152,7 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
                 onOpenMobileBridge();
               }}
               title={t('header.mobileBridgeTitle')}
-              className="p-2 sm:px-2.5 sm:py-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.12] backdrop-blur-xl border-[0.5px] border-white/20 text-sky-300 text-xs sm:text-sm font-semibold transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
+              className="p-2 sm:px-2.5 sm:py-2 rounded-xl bg-white/[0.07] hover:bg-white/[0.14] border-[0.5px] border-white/20 text-sky-300 text-xs sm:text-sm font-semibold transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
             >
               <Smartphone className="w-4 h-4 text-sky-400" />
               <span className="hidden xl:inline">{t('header.mobileBridgeBtn')}</span>
@@ -170,10 +170,10 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
               }
             }}
             title={confidentialMode ? t('header.confidentialTitleActive') : t('header.confidentialTitleInactive')}
-            className={`p-2 sm:px-3 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold border-[0.5px] transition-all flex items-center gap-1.5 active:scale-95 backdrop-blur-xl ${
+            className={`p-2 sm:px-3 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold border-[0.5px] transition-all flex items-center gap-1.5 active:scale-95 ${
               confidentialMode
                 ? 'bg-amber-500/20 border-amber-400/40 text-amber-200'
-                : 'bg-white/[0.05] border-white/15 text-slate-200 hover:bg-white/[0.1]'
+                : 'bg-white/[0.07] border-white/15 text-slate-200 hover:bg-white/[0.12]'
             }`}
           >
             {confidentialMode ? <ShieldAlert className="w-4 h-4 text-amber-300" /> : <Shield className="w-4 h-4 text-slate-300" />}
@@ -191,10 +191,10 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
               }
             }}
             title={voiceAutoSpeak ? t('header.voiceTitleActive') : t('header.voiceTitleInactive')}
-            className={`p-2 sm:p-2.5 rounded-xl border-[0.5px] text-xs sm:text-sm transition-all active:scale-95 flex items-center justify-center backdrop-blur-xl ${
+            className={`p-2 sm:p-2.5 rounded-xl border-[0.5px] text-xs sm:text-sm transition-all active:scale-95 flex items-center justify-center ${
               voiceAutoSpeak
                 ? 'bg-sky-500/20 border-sky-400/40 text-white'
-                : 'bg-white/[0.05] border-white/15 text-slate-300 hover:bg-white/[0.1]'
+                : 'bg-white/[0.07] border-white/15 text-slate-300 hover:bg-white/[0.12]'
             }`}
           >
             {voiceAutoSpeak ? <Volume2 className="w-4 h-4 sm:w-5 sm:h-5 text-sky-300" /> : <VolumeX className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400" />}
@@ -207,7 +207,7 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
               onOpenSettings();
             }}
             title={t('header.settingsTitle')}
-            className="p-2 sm:p-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.12] backdrop-blur-xl border-[0.5px] border-white/15 text-white transition-all active:scale-95 flex items-center justify-center cursor-pointer"
+            className="p-2 sm:p-2.5 rounded-xl bg-white/[0.07] hover:bg-white/[0.14] border-[0.5px] border-white/15 text-white transition-all active:scale-95 flex items-center justify-center cursor-pointer"
           >
             <Settings className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
@@ -219,12 +219,12 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
               if (onOpenForfaits) onOpenForfaits();
             }}
             title={`${t('header.batteryTitle')} : ${effectiveEnergy}% ${t('header.remaining')} ${rolloverPercent > 0 ? `(+${rolloverPercent}% ${language === 'fr' ? 'reporté' : 'rolled over'})` : ''}`}
-            className={`flex items-center gap-1.5 p-2 sm:px-3 sm:py-2 rounded-xl border-[0.5px] text-xs sm:text-sm font-bold transition-all active:scale-95 cursor-pointer backdrop-blur-xl ${
+            className={`flex items-center gap-1.5 p-2 sm:px-3 sm:py-2 rounded-xl border-[0.5px] text-xs sm:text-sm font-bold transition-all active:scale-95 cursor-pointer ${
               effectiveEnergy <= 0
-                ? 'bg-rose-950/40 border-rose-400/40 text-rose-200 animate-pulse'
+                ? 'bg-rose-950/60 border-rose-400/40 text-rose-200 animate-pulse'
                 : effectiveEnergy <= 25
-                ? 'bg-amber-950/40 border-amber-400/40 text-amber-200'
-                : 'bg-emerald-950/40 border-emerald-400/40 text-emerald-200'
+                ? 'bg-amber-950/60 border-amber-400/40 text-amber-200'
+                : 'bg-emerald-950/60 border-emerald-400/40 text-emerald-200'
             }`}
           >
             {renderBatteryIcon()}
@@ -242,7 +242,7 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
                 onOpenForfaits();
               }}
               title={t('header.plansTitle')}
-              className="flex items-center gap-1.5 p-2 sm:px-3 sm:py-2 rounded-xl bg-gradient-to-r from-red-600/80 via-rose-600/80 to-red-600/80 hover:from-red-500 hover:to-rose-500 backdrop-blur-xl border-[0.5px] border-red-300/40 text-white text-xs sm:text-sm font-bold shadow-md transition-all active:scale-95 cursor-pointer"
+              className="flex items-center gap-1.5 p-2 sm:px-3 sm:py-2 rounded-xl bg-gradient-to-r from-red-600/90 via-rose-600/90 to-red-600/90 hover:from-red-500 hover:to-rose-500 border-[0.5px] border-red-300/40 text-white text-xs sm:text-sm font-bold shadow-md transition-all active:scale-95 cursor-pointer"
             >
               <Flame className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-white" />
               <span className="hidden sm:inline">{t('header.plansBtn')}</span>
@@ -256,7 +256,7 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
               onOpenAuth();
             }}
             title={t('header.userTitle')}
-            className="flex items-center gap-1.5 p-2 sm:px-3 sm:py-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.12] backdrop-blur-xl border-[0.5px] border-white/15 text-white text-xs sm:text-sm font-semibold transition-all active:scale-95"
+            className="flex items-center gap-1.5 p-2 sm:px-3 sm:py-2 rounded-xl bg-white/[0.07] hover:bg-white/[0.14] border-[0.5px] border-white/15 text-white text-xs sm:text-sm font-semibold transition-all active:scale-95"
           >
             <User className="w-4 h-4 text-white" />
             <span className="hidden lg:inline">{displayName}</span>
