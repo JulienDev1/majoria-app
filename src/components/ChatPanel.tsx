@@ -31,6 +31,7 @@ import { playCyberSound, cleanTextForSpeech, speakCyberResponse } from '../utils
 import { exportItemToPDF } from '../utils/pdfExport';
 import { CyberBrainHead } from './CyberBrainHead';
 import { CameraVideoModal } from './CameraVideoModal';
+import { FormattedMarkdown } from './FormattedMarkdown';
 import { useLanguage } from '../context/LanguageContext';
 
 interface ChatPanelProps {
@@ -499,7 +500,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 )}
 
                 <div
-                  className={`relative p-3.5 sm:p-4 rounded-2xl border-[0.5px] backdrop-blur-xl max-w-[85%] sm:max-w-[78%] transition-all shadow-md ${
+                  className={`relative p-3.5 sm:p-4 rounded-2xl border-[0.5px] backdrop-blur-xl max-w-[88%] sm:max-w-[80%] transition-all shadow-md overflow-hidden break-words ${
                     isUser
                       ? 'bg-sky-600/25 border-sky-400/40 text-white rounded-tr-none'
                       : 'bg-white/[0.05] border-white/15 text-slate-100 rounded-tl-none'
@@ -512,16 +513,20 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                     </div>
                   )}
 
-                  {/* Message Text Content */}
-                  <div className="text-xs sm:text-sm whitespace-pre-wrap leading-relaxed break-words font-sans">
-                    {msg.contenu}
+                  {/* Message Text Content rendered cleanly with Markdown */}
+                  <div className="text-xs sm:text-sm leading-relaxed break-words font-sans">
+                    {isUser ? (
+                      <div className="whitespace-pre-wrap">{msg.contenu}</div>
+                    ) : (
+                      <FormattedMarkdown content={msg.contenu} />
+                    )}
                   </div>
 
                   {/* Grounded Google Search Sources */}
                   {msg.sources && msg.sources.length > 0 && (
                     <div className="mt-3 pt-2.5 border-t border-white/10 space-y-1.5">
                       <div className="text-[11px] font-bold text-sky-300 flex items-center gap-1">
-                        <Globe className="w-3 h-3" />
+                        <Globe className="w-3.5 h-3.5 shrink-0" />
                         <span>Sources & Liens Google :</span>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
@@ -531,9 +536,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                             href={src.uri}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-sky-950/70 border-[0.5px] border-sky-400/40 text-[11px] text-sky-200 hover:text-white hover:bg-sky-900 transition-colors"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-950/70 hover:bg-sky-900 border-[0.5px] border-sky-400/40 text-[11px] text-sky-200 hover:text-white transition-colors max-w-full"
                           >
-                            <span className="truncate max-w-[200px]">{src.title}</span>
+                            <span className="truncate max-w-[180px] sm:max-w-[240px]">{src.title}</span>
                             <ExternalLink className="w-2.5 h-2.5 shrink-0" />
                           </a>
                         ))}

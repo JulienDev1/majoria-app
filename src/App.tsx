@@ -866,7 +866,7 @@ export default function App() {
       console.error('Erreur envoi chat:', e);
       const errorMessage = {
         role: 'neo' as const,
-        contenu: "⚠️ Interférence réseau temporaire. Vos données locales sont sécurisées.",
+        contenu: "Désolé, une erreur de communication est survenue. Veuillez renvoyer votre message.",
         date: new Date().toISOString(),
       };
       const errorConv = {
@@ -876,7 +876,7 @@ export default function App() {
       updateConversationsState(
         updatedWithUser.map((c) => (c.id === errorConv.id ? errorConv : c))
       );
-      showToast('⚠️ Erreur de liaison réseau', 'danger');
+      showToast('⚠️ Erreur de liaison avec le serveur', 'danger');
     } finally {
       setIsChatLoading(false);
     }

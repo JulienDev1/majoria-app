@@ -1,0 +1,237 @@
+import React from 'react';
+
+interface FormattedMarkdownProps {
+  content: string;
+  className?: string;
+}
+
+export const FormattedMarkdown: React.FC<FormattedMarkdownProps> = ({ content, className = '' }) => {
+  if (!content) return null;
+
+  // Split lines to handle blocks (headings, lists, code blocks, paragraphs)
+  const lines = content.split('\n');
+  const elements: React.ReactNode[] = [];
+
+  let inCodeBlock = false;
+  let codeBlockContent: string[] = [];
+  let codeBlockLang = '';
+
+  const parseInlineFormatting = (text: string): React.ReactNode => {
+    if (!text) return null;
+
+    // Pattern to match bold (**text** or __text__), italic (*text* or _text_), inline code (`code`), links ([text](url))
+    const tokens: React.ReactNode[] = [];
+    let remaining = text;
+    let keyIdx = 0;
+
+    while (remaining.length > 0) {
+      // 1. Code inline: `code`
+      const codeMatch = remaining.match(/`([^`]+)`/);
+      // 2. Bold: **text** or __text__
+      const boldMatch = remaining.match(/(\*\*|__)(.*?)\1/);
+      // 3. Italic: *text* or _text_
+      const italicMatch = remaining.match(/(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)|(?<!_)_(?!_)(.*?)(?<!_)_(?!_)/);
+      // 4. Link: [label](url)
+      const linkMatch = remaining.match(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/);
+
+      // Find first occurrence
+      let firstIndex = remaining.length;
+      let matchType: 'code' | 'bold' | 'italic' | 'link' | null = null;
+      let matchedString = '';
+      let extracted1 = '';
+      let extracted2 = '';
+
+      if (codeMatch && codeMatch.index !== undefined && codeMatch.index < firstIndex) {
+        firstIndex = codeMatch.index;
+        matchType = 'code';
+        matchedString = codeMatch[0];
+        extracted1 = codeMatch[1];
+      }
+      if (boldMatch && boldMatch.index !== undefined && boldMatch.index < firstIndex) {
+        firstIndex = boldMatch.index;
+        matchType = 'bold';
+        matchedString = boldMatch[0];
+        extracted1 = boldMatch[2];
+      }
+      if (linkMatch && linkMatch.index !== undefined && linkMatch.index < firstIndex) {
+        firstIndex = linkMatch.index;
+        matchType = 'link';
+        matchedString = linkMatch[0];
+        extracted1 = linkMatch[1];
+        extracted2 = linkMatch[2];
+      }
+      if (italicMatch && italicMatch.index !== undefined && italicMatch.index < firstIndex) {
+        firstIndex = italicMatch.index;
+        matchType = 'italic';
+        matchedString = italicMatch[0];
+        extracted1 = italicMatch[1] || italicMatch[2];
+      }
+
+      if (matchType === null || firstIndex >= remaining.length) {
+        tokens.push(remaining);
+        break;
+      }
+
+      // Push text before match
+      if (firstIndex > 0) {
+        tokens.push(remaining.substring(0, firstIndex));
+      }
+
+      // Render matched element
+      if (matchType === 'code') {
+        tokens.push(
+          <code
+            key={`code-${keyIdx++}`}
+            className="px-1.5 py-0.5 rounded bg-black/40 text-sky-200 border border-white/10 font-mono text-[0.9em]"
+          >
+            {extracted1}
+          </code>
+        );
+      } else if (matchType === 'bold') {
+        tokens.push(
+          <strong key={`bold-${keyIdx++}`} className="font-bold text-white">
+            {parseInlineFormatting(extracted1)}
+          </strong>
+        );
+      } else if (matchType === 'italic') {
+        tokens.push(
+          <em key={`italic-${keyIdx++}`} className="italic text-slate-200">
+            {parseInlineFormatting(extracted1)}
+          </em>
+        );
+      } else if (matchType === 'link') {
+        tokens.push(
+          <a
+            key={`link-${keyIdx++}`}
+            href={extracted2}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sky-400 hover:text-sky-300 underline underline-offset-2 transition-colors break-all"
+          >
+            {extracted1}
+          </a>
+        );
+      }
+
+      remaining = remaining.substring(firstIndex + matchedString.length);
+    }
+
+    return tokens;
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Handle code blocks
+    if (line.trim().startsWith('```')) {
+      if (inCodeBlock) {
+        // End of code block
+        elements.push(
+          <div key={`code-block-${i}`} className="my-2.5 rounded-xl overflow-hidden bg-black/60 border border-white/15">
+            {codeBlockLang && (
+              <div className="px-3 py-1 bg-white/[0.06] text-[10px] uppercase font-mono text-slate-400 border-b border-white/10">
+                {codeBlockLang}
+              </div>
+            )}
+            <pre className="p-3 text-xs font-mono text-slate-200 overflow-x-auto whitespace-pre">
+              <code>{codeBlockContent.join('\n')}</code>
+            </pre>
+          </div>
+        );
+        inCodeBlock = false;
+        codeBlockContent = [];
+        codeBlockLang = '';
+      } else {
+        inCodeBlock = true;
+        codeBlockLang = line.trim().replace(/^```/, '').trim();
+        codeBlockContent = [];
+      }
+      continue;
+    }
+
+    if (inCodeBlock) {
+      codeBlockContent.push(line);
+      continue;
+    }
+
+    // Empty line
+    if (!line.trim()) {
+      elements.push(<div key={`empty-${i}`} className="h-2" />);
+      continue;
+    }
+
+    // Headings
+    if (line.startsWith('### ')) {
+      elements.push(
+        <h4 key={`h4-${i}`} className="text-sm font-bold text-white mt-3 mb-1">
+          {parseInlineFormatting(line.substring(4))}
+        </h4>
+      );
+      continue;
+    }
+    if (line.startsWith('## ')) {
+      elements.push(
+        <h3 key={`h3-${i}`} className="text-base font-bold text-white mt-3.5 mb-1.5">
+          {parseInlineFormatting(line.substring(3))}
+        </h3>
+      );
+      continue;
+    }
+    if (line.startsWith('# ')) {
+      elements.push(
+        <h2 key={`h2-${i}`} className="text-lg font-extrabold text-white mt-4 mb-2">
+          {parseInlineFormatting(line.substring(2))}
+        </h2>
+      );
+      continue;
+    }
+
+    // Bullet list (- or * )
+    if (/^(\s*)[-*•]\s+(.*)$/.test(line)) {
+      const match = line.match(/^(\s*)[-*•]\s+(.*)$/);
+      if (match) {
+        const indent = match[1].length > 0 ? 'ml-4' : 'ml-1';
+        elements.push(
+          <div key={`bullet-${i}`} className={`flex items-start gap-2 ${indent} my-0.5`}>
+            <span className="text-sky-400 mt-1 shrink-0 text-xs">•</span>
+            <span className="flex-1 leading-relaxed">{parseInlineFormatting(match[2])}</span>
+          </div>
+        );
+        continue;
+      }
+    }
+
+    // Numbered list
+    if (/^\s*\d+\.\s+(.*)$/.test(line)) {
+      const match = line.match(/^\s*(\d+)\.\s+(.*)$/);
+      if (match) {
+        elements.push(
+          <div key={`numbered-${i}`} className="flex items-start gap-2 ml-1 my-0.5">
+            <span className="text-sky-400 font-mono text-xs mt-0.5 shrink-0">{match[1]}.</span>
+            <span className="flex-1 leading-relaxed">{parseInlineFormatting(match[2])}</span>
+          </div>
+        );
+        continue;
+      }
+    }
+
+    // Blockquote
+    if (line.startsWith('> ')) {
+      elements.push(
+        <blockquote key={`quote-${i}`} className="border-l-2 border-sky-400 pl-3 my-1.5 italic text-slate-300">
+          {parseInlineFormatting(line.substring(2))}
+        </blockquote>
+      );
+      continue;
+    }
+
+    // Standard paragraph line
+    elements.push(
+      <p key={`p-${i}`} className="leading-relaxed my-0.5">
+        {parseInlineFormatting(line)}
+      </p>
+    );
+  }
+
+  return <div className={`space-y-0.5 text-xs sm:text-sm ${className}`}>{elements}</div>;
+};

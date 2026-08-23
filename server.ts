@@ -903,375 +903,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, errorMsg: string): Prom
   ]);
 }
 
-// Open-Meteo weather code interpreter
-function interpretWeatherCode(code: number): { condition: string; emoji: string } {
-  if (code === 0) return { condition: 'Ciel dégagé et ensoleillé', emoji: '☀️' };
-  if (code === 1) return { condition: 'Principalement ensoleillé', emoji: '🌤️' };
-  if (code === 2) return { condition: 'Éclaircies avec quelques passages nuageux', emoji: '⛅' };
-  if (code === 3) return { condition: 'Ciel couvert et nuageux', emoji: '☁️' };
-  if (code >= 45 && code <= 48) return { condition: 'Brouillard et brume', emoji: '🌫️' };
-  if (code >= 51 && code <= 55) return { condition: 'Bruine légère', emoji: '🌦️' };
-  if (code >= 61 && code <= 65) return { condition: 'Pluie et averses', emoji: '🌧️' };
-  if (code >= 71 && code <= 77) return { condition: 'Chutes de neige', emoji: '❄️' };
-  if (code >= 80 && code <= 82) return { condition: 'Averses de pluie soutenues', emoji: '🌧️' };
-  if (code >= 85 && code <= 86) return { condition: 'Averses de neige', emoji: '🌨️' };
-  if (code >= 95 && code <= 99) return { condition: 'Risque d\'orages', emoji: '⛈️' };
-  return { condition: 'Temps variable', emoji: '🌤️' };
-}
-
-// Fetch live accurate weather data via Open-Meteo (real-time, zero key required)
-async function fetchLiveWeather(query: string): Promise<{ summary: string; sources: { title: string; uri: string }[] } | null> {
-  try {
-    const lower = query.toLowerCase();
-    
-    // Extract potential city name
-    let city = 'Paris';
-    const cityMatch = query.match(/(?:à|a|pour|dans le|vers|sur)\s+([A-Za-zÀ-ÿ\-'\s]+?)(?:\s+(?:demain|aujourd'hui|ce matin|ce soir|ce week-end|cette semaine|\?|\.|$)|$)/i);
-    if (cityMatch && cityMatch[1] && cityMatch[1].trim().length > 1) {
-      city = cityMatch[1].trim();
-    } else {
-      const commonCities = ['Paris', 'Lyon', 'Marseille', 'Toulouse', 'Nice', 'Nantes', 'Strasbourg', 'Montpellier', 'Bordeaux', 'Lille', 'Rennes', 'Reims', 'Toulon', 'Grenoble', 'Dijon', 'Angers', 'Bruxelles', 'Genève', 'Montréal'];
-      for (const c of commonCities) {
-        if (lower.includes(c.toLowerCase())) {
-          city = c;
-          break;
-        }
-      }
-    }
-
-    // Geocode city
-    const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=fr&format=json`, {
-      signal: AbortSignal.timeout(2000)
-    });
-    if (!geoRes.ok) return null;
-    const geoData: any = await geoRes.json();
-    if (!geoData.results || geoData.results.length === 0) return null;
-
-    const loc = geoData.results[0];
-    const lat = loc.latitude;
-    const lon = loc.longitude;
-    const cityName = loc.name;
-    const country = loc.country || '';
-
-    // Fetch forecast
-    const weatherRes = await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max&timezone=auto`,
-      { signal: AbortSignal.timeout(2500) }
-    );
-    if (!weatherRes.ok) return null;
-    const weatherData: any = await weatherRes.json();
-
-    const isTomorrow = lower.includes('demain');
-    const dayIdx = isTomorrow ? 1 : 0;
-    const dayLabel = isTomorrow ? 'demain' : "aujourd'hui";
-
-    const daily = weatherData.daily;
-    const current = weatherData.current;
-
-    const minT = daily?.temperature_2m_min?.[dayIdx] ?? Math.round(current?.temperature_2m || 15);
-    const maxT = daily?.temperature_2m_max?.[dayIdx] ?? Math.round((current?.temperature_2m || 15) + 4);
-    const rainProb = daily?.precipitation_probability_max?.[dayIdx] ?? 0;
-    const windSpeed = Math.round(daily?.wind_speed_10m_max?.[dayIdx] ?? current?.wind_speed_10m ?? 12);
-    const wCode = daily?.weather_code?.[dayIdx] ?? current?.weather_code ?? 1;
-    const { condition, emoji } = interpretWeatherCode(wCode);
-
-    let summary = `Prévisions météo pour **${dayLabel}** à **${cityName}${country ? `, ${country}` : ''}** :\n\n`;
-    summary += `- ${emoji} **Conditions** : ${condition}\n`;
-    summary += `- 🌡️ **Températures** : de **${Math.round(minT)}°C** (matin) à **${Math.round(maxT)}°C** (après-midi)\n`;
-    if (rainProb > 0) {
-      summary += `- 💧 **Probabilité de précipitations** : **${rainProb}%**\n`;
-    } else {
-      summary += `- 💧 **Précipitations** : Aucune pluie significative prévue\n`;
-    }
-    summary += `- 💨 **Vent** : Rafales jusqu'à **${windSpeed} km/h**\n\n`;
-
-    if (!isTomorrow && current?.temperature_2m !== undefined) {
-      summary += `*(Actuellement sur place : **${Math.round(current.temperature_2m)}°C**, ressenti **${Math.round(current.apparent_temperature)}°C**)*`;
-    }
-
-    const sources = [
-      {
-        title: `Météo en direct : ${cityName} (${condition})`,
-        uri: `https://www.google.com/search?q=meteo+${encodeURIComponent(cityName)}`
-      },
-      {
-        title: `Données météorologiques - Open-Meteo`,
-        uri: `https://open-meteo.com/`
-      }
-    ];
-
-    return { summary: summary.trim(), sources };
-  } catch (err) {
-    console.warn('Erreur fetchLiveWeather:', err);
-    return null;
-  }
-}
-
-// Helper to fetch live web search facts & references with parallel execution
-async function fetchLiveSearchData(query: string): Promise<{ sources: { title: string; uri: string }[]; searchQueries: string[]; summaryContext: string; detailedInfo?: string }> {
-  const sources: { title: string; uri: string }[] = [];
-  const searchQueries: string[] = [];
-  let summaryContext = "";
-  let detailedInfo = "";
-
-  const cleanQuery = (query || '').replace(/[?.,!]/g, '').trim();
-  if (!cleanQuery) return { sources, searchQueries, summaryContext, detailedInfo };
-
-  searchQueries.push(cleanQuery);
-  sources.push({
-    title: `Recherche Google : "${cleanQuery}"`,
-    uri: `https://www.google.com/search?q=${encodeURIComponent(cleanQuery)}`
-  });
-
-  const lower = cleanQuery.toLowerCase();
-
-  // 1. Weather detection
-  if (lower.includes('météo') || lower.includes('quel temps') || lower.includes('temperature') || lower.includes('température') || lower.includes('pleuvoir') || lower.includes('pluie') || lower.includes('soleil')) {
-    const weatherResult = await fetchLiveWeather(cleanQuery);
-    if (weatherResult) {
-      detailedInfo = weatherResult.summary;
-      summaryContext = weatherResult.summary;
-      sources.unshift(...weatherResult.sources);
-      return { sources, searchQueries, summaryContext, detailedInfo };
-    }
-  }
-
-  // 2. Fast Wikipedia + DuckDuckGo live retrieval
-  try {
-    const ddgPromise = fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(cleanQuery)}&format=json&no_html=1&skip_disambig=1`, {
-      headers: { 'User-Agent': 'MajorIA-Assistant/1.0' },
-      signal: AbortSignal.timeout(1500)
-    }).then(async (res) => {
-      if (res.ok) {
-        const ddgData: any = await res.json();
-        if (ddgData.AbstractText) {
-          summaryContext = ddgData.AbstractText;
-          if (ddgData.AbstractSource && ddgData.AbstractURL) {
-            sources.unshift({
-              title: `${ddgData.Heading || cleanQuery} (${ddgData.AbstractSource})`,
-              uri: ddgData.AbstractURL
-            });
-          }
-        }
-      }
-    }).catch(() => {});
-
-    const wikiPromise = fetch(`https://fr.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(cleanQuery)}&limit=3&namespace=0&format=json`, {
-      headers: { 'User-Agent': 'MajorIA-Search/1.0' },
-      signal: AbortSignal.timeout(1500)
-    }).then(async (res) => {
-      if (res.ok) {
-        const data: any = await res.json();
-        if (Array.isArray(data) && data[1] && data[3]) {
-          for (let i = 0; i < data[1].length; i++) {
-            if (data[3][i] && data[1][i]) {
-              sources.push({
-                title: `${data[1][i]} - Wikipédia`,
-                uri: data[3][i]
-              });
-            }
-          }
-        }
-      }
-    }).catch(() => {});
-
-    await Promise.allSettled([ddgPromise, wikiPromise]);
-  } catch (err) {
-    console.warn('Erreur recherche live rapide:', err);
-  }
-
-  return { sources, searchQueries, summaryContext, detailedInfo };
-}
-
-// Local intelligent conversational fallback engine (Direct, natural, NEVER generic templates)
-function generateLocalFallbackReply(
-  message: string, 
-  searchContext?: { sources: { title: string; uri: string }[]; summaryContext?: string; detailedInfo?: string }, 
-  userProfile?: { prenom?: string; nom?: string }
-) {
-  const text = (message || '').trim();
-  const lower = text.toLowerCase();
-  let reply = "";
-  const actions: any[] = [];
-  const nameGreeting = (userProfile?.prenom ? ` ${userProfile.prenom}` : '');
-
-  // 1. Action intent: Reminders
-  if (lower.includes('rappel') || lower.startsWith('rappelle') || lower.includes('rappelle-moi')) {
-    const cleanTitle = text
-      .replace(/^(rappelle|rappel)(-moi)?( de)?/i, '')
-      .replace(/^(mets|ajoute|crée)( un)? rappel( :| de)?/i, '')
-      .trim() || 'Nouveau rappel';
-    let heure = '12:00';
-    const heureMatch = text.match(/(\d{1,2})[h:](\d{2})?/i);
-    if (heureMatch) {
-      const h = heureMatch[1].padStart(2, '0');
-      const m = (heureMatch[2] || '00').padStart(2, '0');
-      heure = `${h}:${m}`;
-    }
-    actions.push({
-      type: 'reminder',
-      titre: cleanTitle,
-      heure,
-      priorite: 'haute'
-    });
-    reply = `C'est noté${nameGreeting} ! J'ai programmé votre rappel : **${cleanTitle}** pour **${heure}**.`;
-    return { reply, actions };
-  }
-
-  // 2. Action intent: Tasks
-  if (lower.includes('tâche') || lower.includes('tache') || lower.includes('to-do') || lower.includes('todo')) {
-    const cleanTitle = text
-      .replace(/^(ajoute|nouvelle|mets)( une)? (tâche|tache)( :| de)?/i, '')
-      .replace(/^(dans ma to-do|dans ma todo)/i, '')
-      .trim() || 'Nouvelle tâche';
-    actions.push({
-      type: 'task',
-      titre: cleanTitle,
-      priorite: 'normale'
-    });
-    reply = `Tâche enregistrée avec succès dans votre liste${nameGreeting} : **${cleanTitle}**.`;
-    return { reply, actions };
-  }
-
-  // 3. Action intent: Memory & Notes
-  if (lower.includes('mémorise') || lower.includes('souviens-toi') || lower.includes('retiens')) {
-    const cleanMemory = text.replace(/^(mémorise|souviens-toi de|retiens)( que)?/i, '').trim() || text;
-    actions.push({
-      type: 'memory',
-      contenu: cleanMemory,
-      importance: 4
-    });
-    reply = `Information mémorisée avec succès dans votre mémoire centrale${nameGreeting} : **"${cleanMemory}"**.`;
-    return { reply, actions };
-  }
-
-  // 4. Action intent: Favorites
-  if (lower.includes('favori') || lower.includes('sauvegarde cette note')) {
-    const cleanFav = text.replace(/^(sauvegarde|ajoute aux favoris|mets en favori)( :)?/i, '').trim() || text;
-    actions.push({
-      type: 'favorite',
-      titre: cleanFav.slice(0, 40),
-      contenu: cleanFav
-    });
-    reply = `Note enregistrée dans vos favoris${nameGreeting} : **${cleanFav.slice(0, 40)}**.`;
-    return { reply, actions };
-  }
-
-  // 5. Conversational: Identity & Capabilities
-  if (lower.includes('qui es-tu') || lower.includes('qui est tu') || lower.includes('présente-toi') || lower.includes('t es qui') || lower.includes('que sais-tu faire')) {
-    reply = `Bonjour${nameGreeting}, je suis **MajorI.A**, votre assistant d'intelligence artificielle.\n\nVoici ce que je peux faire pour vous :\n\n- 🔍 **Recherche et Synthèse en direct** : Réponses concrètes, météo en temps réel, actualités et explications détaillées.\n- 💻 **Développement & Code** : Aide en React, TypeScript, Python, Tailwind CSS, API et architecture logicielle.\n- 📅 **Productivité & Organisation** : Gestion immédiate de vos rappels programmés, liste de tâches et notes mémorisées.\n- 🎙️ **Interaction Multimodale** : Reconnaissance vocale, synthèse audio text-to-speech et analyse visuelle.\n\nQue souhaitez-vous savoir ou réaliser ?`;
-    return { reply, actions };
-  }
-
-  // 6. Conversational: Greetings & Mood
-  if (/^(bonjour|salut|hello|coucou|hey|bonsoir|bien le bonjour)[\s!.,?]*$/i.test(lower)) {
-    reply = `Bonjour${nameGreeting} ! Comment puis-je vous aider aujourd'hui ? Posez-moi une question, demandez la météo, une actualité ou confiez-moi une tâche à organiser.`;
-    return { reply, actions };
-  }
-  if (lower.includes('comment vas-tu') || lower.includes('comment ca va') || lower.includes('comment ça va') || lower.includes('ca va ?') || lower.includes('ça va ?')) {
-    reply = `Je fonctionne parfaitement et tous mes systèmes sont opérationnels${nameGreeting} ! Merci. Que pouvons-nous faire ensemble ?`;
-    return { reply, actions };
-  }
-  if (lower.includes('merci') || lower.includes('super merci') || lower.includes('top merci')) {
-    reply = `Avec grand plaisir${nameGreeting} ! N'hésitez pas si vous avez d'autres questions.`;
-    return { reply, actions };
-  }
-
-  // 7. Conversational: Time, Date, Calendar
-  if (lower.includes('heure') || lower.includes('date') || lower.includes('quel jour')) {
-    const now = new Date();
-    reply = `Nous sommes le **${now.toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}** et il est actuellement **${now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}**.`;
-    return { reply, actions };
-  }
-
-  // 8. Direct Live Weather
-  if (lower.includes('météo') || lower.includes('quel temps') || lower.includes('pleuvoir') || lower.includes('temperature') || lower.includes('température')) {
-    if (searchContext?.detailedInfo || searchContext?.summaryContext) {
-      reply = searchContext.detailedInfo || searchContext.summaryContext || '';
-      return { reply, actions };
-    }
-  }
-
-  // 9. Direct Search Facts if available
-  if (searchContext && (searchContext.detailedInfo || searchContext.summaryContext)) {
-    const info = searchContext.detailedInfo || searchContext.summaryContext;
-    reply = `${info}`;
-    return { reply, actions };
-  }
-
-  // 10. Math & Calculation formulas
-  if (/^[0-9+\-*/().\s^%]+$/.test(text) && text.length > 1) {
-    try {
-      const sanitizedMath = text.replace(/[^0-9+\-*/().]/g, '');
-      const calcResult = Function(`'use strict'; return (${sanitizedMath})`)();
-      reply = `Résultat du calcul :\n\n$$\\mathbf{${text} = ${calcResult}}$$`;
-      return { reply, actions };
-    } catch {}
-  }
-
-  // 11. Common knowledge
-  if (lower.includes('ciel est bleu') || lower.includes('pourquoi le ciel est bleu')) {
-    reply = `Le ciel apparaît bleu en raison de la **diffusion de Rayleigh** : lorsque la lumière blanche du Soleil traverse l'atmosphère terrestre, les molécules d'air diffusent beaucoup plus efficacement les courtes longueurs d'onde (la lumière bleue) que les longues longueurs d'onde (le rouge), donnant au ciel sa teinte bleue.`;
-    return { reply, actions };
-  }
-
-  if (lower.includes('photosynthèse') || lower.includes('photosynthese')) {
-    reply = `La **photosynthèse** est le processus biologique par lequel les plantes et végétaux utilisent l'énergie de la lumière solaire, l'eau ($H_2O$) et le dioxyde de carbone ($CO_2$) pour fabriquer du glucose ($C_6H_{12}O_6$) et rejeter du dioxygène ($O_2$).`;
-    return { reply, actions };
-  }
-
-  if (lower.includes('blague') || lower.includes('raconte une blague') || lower.includes('fais-moi rire')) {
-    const jokes = [
-      "Que dit un informaticien quand il a froid ?\n\n— *« Ferme la fenêtre, il y a trop de courants d'air dans Windows ! »*",
-      "Pourquoi les développeurs détestent-ils la nature ?\n\n— *Parce qu'il y a beaucoup trop de bugs !*",
-      "Il y a 10 types de personnes dans le monde : celles qui comprennent le binaire, et celles qui ne le comprennent pas !",
-      "Que fait un geek quand il a besoin de café ?\n\n— *Il installe Java !*"
-    ];
-    reply = jokes[Math.floor(Math.random() * jokes.length)];
-    return { reply, actions };
-  }
-
-  // 12. Technical / Code request
-  if (lower.includes('code') || lower.includes('fonction') || lower.includes('javascript') || lower.includes('typescript') || lower.includes('python') || lower.includes('react')) {
-    reply = `Voici un exemple de code optimisé pour votre demande concernant **${text}** :\n\n\`\`\`typescript\nexport function executeTask(input: string): { success: boolean; data: string } {\n  return {\n    success: true,\n    data: input.trim()\n  };\n}\n\`\`\``;
-    return { reply, actions };
-  }
-
-  // 13. Direct factual answer (No template, no evasiveness)
-  reply = `Voici la réponse directe pour votre demande sur **${text}** :\n\nLes informations en direct sont synchronisées avec les sources web et bases de connaissances connectées.`;
-  return { reply, actions };
-}
-
-// Determines if query benefits from real-time Google search
-function shouldPerformGoogleSearch(message: string): boolean {
-  if (!message) return false;
-  const lower = message.toLowerCase().trim();
-  if (lower.length < 3) return false;
-  
-  // Skip search for pure conversational / math / quick actions
-  if (/^(bonjour|salut|hello|coucou|hey|merci|qui es-tu|présente-toi)[.!?\s]*$/i.test(lower)) {
-    return false;
-  }
-  if (/^[0-9+\-*/().\s^%]+$/.test(lower)) {
-    return false;
-  }
-  if (/^(mémorise|rappelle|ajoute la tâche|mets un rappel)/i.test(lower)) {
-    return false;
-  }
-
-  // Keywords triggering web search
-  const searchKeywords = [
-    'actualité', 'news', 'météo', 'temps', 'qui est', 'qui a', 'qu\'est-ce que', 'c\'est quoi',
-    'score', 'match', 'cours de', 'prix', 'dernière', 'dernier', 'récent', 'aujourd\'hui',
-    'demain', '2026', '2025', '2024', 'cherche', 'trouve', 'où se trouve', 'site', 'lien',
-    'population', 'président', 'ministre', 'film', 'série', 'musique', 'date de',
-    'définition', 'pourquoi', 'comment fonctionne', 'quand', 'température', 'pluie'
-  ];
-
-  return searchKeywords.some((k) => lower.includes(k)) || lower.endsWith('?');
-}
-
-// ASSISTANT CHAT INTELLIGENT AVEC GEMINI & GOOGLE SEARCH
+// ASSISTANT CHAT INTELLIGENT AVEC GEMINI & GOOGLE SEARCH (GROUNDING EN TEMPS RÉEL)
 app.post('/api/chat', async (req: Request, res: Response) => {
   try {
     const { message, image, history, userProfile } = req.body;
@@ -1282,152 +914,133 @@ app.post('/api/chat', async (req: Request, res: Response) => {
 
     const userName = (userProfile?.prenom ? `${userProfile.prenom} ${userProfile.nom || ''}`.trim() : userProfile?.userName) || '';
     const userGreetingInstruction = userName 
-      ? `L'utilisateur avec qui tu discutes s'appelle "${userName}" (Prénom: "${userProfile?.prenom || ''}"). Salue-le ou adresse-toi à lui naturellement et personnellement quand approprié.`
-      : "Adresse-toi à l'utilisateur de manière courtoise et chaleureuse.";
+      ? `L'utilisateur avec qui tu discutes s'appelle "${userName}".`
+      : "";
 
-    const systemInstruction = `Tu es MajorI.A, un assistant d'intelligence artificielle hautement performant, intelligent, rapide, précis, chaleureux et direct.
-Tu es conçu pour répondre avec une grande exactitude aux questions, expliquer des concepts complexes avec clarté, aider à la recherche web en temps réel, au développement logiciel, à la rédaction et à l'organisation quotidienne.
+    const systemInstruction = `Tu es MajorI.A, un assistant d'intelligence artificielle hautement performant, précis, direct, naturel et chaleureux.
 ${userGreetingInstruction}
 
-CONSIGNES STRICTES DE RÉPONSE ET DE RECHERCHE :
-1. UTILISATION DU GROUNDING & RECHERCHE GOOGLE :
-   Quand une recherche Google est effectuée (grounding) ou que des données web en direct sont fournies, utilise directement et immédiatement les données fraîches et factuelles pour répondre précisément à la question de l'utilisateur (météo, actualités, scores, faits récents, horaires, cours, lieux, etc.).
-2. AUCUN TEMPLATE GÉNÉRIQUE NI SCOLAIRE :
-   Pour toute demande d'information factuelle (notamment météo, actualités, faits, horaires, questions du quotidien), réponds directement sans JAMAIS sortir de template générique, abstrait ou scolaire du type "Définition & Contexte", "Points essentiels", "Aspects clés" ou "Selon vos objectifs". Ne dis jamais "précisez votre contexte".
-3. RÉPONSE DIRECTE, NATURELLE ET CONCISE :
-   La réponse doit être directe, vivante, naturelle et concise. Par exemple, pour "quel temps fait-il demain", donne immédiatement les conditions météorologiques concrètes, températures et prévisions claires sans introduction superflue ni bla-bla théorique.
-4. QUALITÉ ET MISE EN FORME :
-   Structure tes réponses avec du Markdown propre et lisible (listes à puces, gras pour les chiffres/mots clés, blocs de code si du code est demandé).
-5. CONTEXTE CONVERSATIONNEL :
-   Prends en compte l'historique de la conversation pour maintenir la cohérence de l'échange.
-6. GESTION DES ACTIONS AUTOMATISÉES :
-   Uniquement si l'utilisateur demande explicitement de créer un rappel, une tâche, mémoriser une info ou sauvegarder une note, ajoute à la toute fin de ta réponse un bloc JSON :
-   - Rappel : ACTION_JSON:{"actions":[{"type":"reminder","titre":"Appeler Pierre","dateRappel":"2026-08-21","heure":"15:00","priorite":"haute"}]}
-   - Tâche : ACTION_JSON:{"actions":[{"type":"task","titre":"Faire les courses","priorite":"normale"}]}
-   - Mémoire : ACTION_JSON:{"actions":[{"type":"memory","contenu":"Le code du portail est 4589","importance":3}]}
-   - Favori : ACTION_JSON:{"actions":[{"type":"favorite","titre":"Note Importante","contenu":"..."}]}
-   Sinon, réponds normalement de manière complète et directe sans ajouter ACTION_JSON.`;
+DIRECTIVES DE RÉPONSE :
+1. Réponds avec une exactitude maximale et un grand souci du détail à la question posée.
+2. Formule ta réponse de manière fluide, vivante et concrète, sans préambule superflu, sans répéter inutilement la date du jour en introduction sauf si l'utilisateur la demande explicitement ou si c'est indispensable pour le contexte temporel.
+3. Exploite pleinement les informations en temps réel de la recherche Google pour les faits d'actualité, la météo, les événements et données récentes en te basant sur la temporalité réelle actuelle.
+4. Évite toute structure rigide ou scolaire de type "Définition / Contexte / Analyse". Va droit au but avec un ton naturel.
+5. Si et seulement si l'utilisateur demande explicitement d'enregistrer une action (rappel, tâche, mémoire, favori), termine ton message par exactement :
+   ACTION_JSON:{"actions":[{"type":"reminder","titre":"...","dateRappel":"YYYY-MM-DD","heure":"HH:MM","priorite":"haute"}]}
+   ou
+   ACTION_JSON:{"actions":[{"type":"task","titre":"...","priorite":"normale"}]}
+   ou
+   ACTION_JSON:{"actions":[{"type":"memory","contenu":"...","importance":3}]}
+   ou
+   ACTION_JSON:{"actions":[{"type":"favorite","titre":"...","contenu":"..."}]}
+   Sinon, ne produis aucun bloc ACTION_JSON.`.trim();
 
-    let reply = "";
-    let actions: any[] = [];
-    let sources: { title: string; uri: string }[] = [];
-    let searchQueries: string[] = [];
-
-    const needSearch = !image && shouldPerformGoogleSearch(message || '');
-    let liveData: { sources: { title: string; uri: string }[]; searchQueries: string[]; summaryContext: string; detailedInfo?: string } | null = null;
-
-    // Fetch live search / weather data if search is relevant
-    if (needSearch && message) {
-      liveData = await fetchLiveSearchData(message);
-      if (liveData) {
-        if (liveData.sources.length > 0) {
-          sources.push(...liveData.sources);
-        }
-        if (liveData.searchQueries.length > 0) {
-          searchQueries.push(...liveData.searchQueries);
-        }
-      }
-    }
-
-    // Prepare prompt contents for Gemini (with live search data injected if present)
-    let enrichedMessage = message || '';
-    if (liveData && (liveData.detailedInfo || liveData.summaryContext)) {
-      const searchContextStr = liveData.detailedInfo || liveData.summaryContext;
-      enrichedMessage = `${message}\n\n[Données en temps réel extraites du Web pour cette requête :\n${searchContextStr}\nUtilise ces données précises pour formuler une réponse directe, naturelle et fluide.]`;
-    }
-
-    const contents = buildGeminiContents(history, enrichedMessage, image);
+    const contents = buildGeminiContents(history, message || '', image);
     const ai = getGenAI();
+
+    // Enable Google Search tool for grounded, accurate real-time answers (weather, news, facts, current events)
+    const config: any = {
+      systemInstruction,
+      temperature: 0.7,
+    };
+
+    if (!image) {
+      config.tools = [{ googleSearch: {} }];
+    }
+
     let response: any = null;
+    const candidateModels = ['gemini-3.7-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
 
-    // Fast multi-model cascade with Google Search tool and generous grounding timeouts
-    const candidateConfigs = [
-      { name: 'gemini-3.7-flash', withSearch: needSearch, timeoutMs: needSearch ? 15000 : 7000 },
-      { name: 'gemini-2.5-flash', withSearch: needSearch, timeoutMs: needSearch ? 15000 : 7000 },
-      { name: 'gemini-3.7-flash', withSearch: false, timeoutMs: 6000 }
-    ];
-
-    for (const candidate of candidateConfigs) {
+    for (const modelName of candidateModels) {
       try {
-        const config: any = {
-          systemInstruction,
-          temperature: 0.7,
-        };
-        if (candidate.withSearch) {
-          config.tools = [{ googleSearch: {} }];
-        }
-
         response = await withTimeout(
           ai.models.generateContent({
-            model: candidate.name,
+            model: modelName,
             contents,
-            config
+            config,
           }),
-          candidate.timeoutMs,
-          `Timeout dépassé pour ${candidate.name}`
+          20000,
+          `Délai dépassé pour le modèle ${modelName}`
         );
 
-        if (response && response.text && response.text.trim().length > 0) {
-          break; // Successfully obtained response
+        const extractedText = response?.text || response?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('').trim();
+        if (extractedText && extractedText.length > 0) {
+          break;
         }
-      } catch (modelErr: any) {
-        console.warn(`Modèle ${candidate.name} (search: ${candidate.withSearch}) :`, modelErr?.message || modelErr);
+      } catch (err: any) {
+        console.warn(`Tentative avec ${modelName} a échoué:`, err?.message || err);
       }
     }
 
-    if (response) {
-      const rawText = response.text || "";
+    // Fallback attempt without tools if search tool caused any transient provider error or empty response
+    const currentExtracted = response?.text || response?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('').trim();
+    if (!response || !currentExtracted) {
+      for (const fallbackModel of ['gemini-3.1-flash-lite', 'gemini-3.7-flash', 'gemini-flash-latest']) {
+        try {
+          const simpleConfig: any = {
+            systemInstruction,
+            temperature: 0.7,
+          };
+          response = await withTimeout(
+            ai.models.generateContent({
+              model: fallbackModel,
+              contents,
+              config: simpleConfig,
+            }),
+            12000,
+            `Délai dépassé pour le modèle simple ${fallbackModel}`
+          );
 
-      // Extract Google Search grounding citations & web queries
-      const groundingMeta = response.candidates?.[0]?.groundingMetadata;
-      if (groundingMeta) {
-        if (Array.isArray(groundingMeta.groundingChunks)) {
-          for (const chunk of groundingMeta.groundingChunks) {
-            if (chunk.web?.uri) {
-              sources.push({
-                title: chunk.web.title || chunk.web.uri,
-                uri: chunk.web.uri,
-              });
-            }
+          const fallbackText = response?.text || response?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('').trim();
+          if (fallbackText && fallbackText.length > 0) {
+            break;
+          }
+        } catch (fallbackErr: any) {
+          console.warn(`Fallback ${fallbackModel} a échoué:`, fallbackErr?.message || fallbackErr);
+        }
+      }
+    }
+
+    const rawText = response?.text || response?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('').trim() || "";
+    let reply = rawText.trim();
+    let actions: any[] = [];
+    const sources: { title: string; uri: string }[] = [];
+    let searchQueries: string[] = [];
+
+    // Extract Grounding metadata (Google Search results & queries)
+    const groundingMeta = response?.candidates?.[0]?.groundingMetadata;
+    if (groundingMeta) {
+      if (Array.isArray(groundingMeta.groundingChunks)) {
+        for (const chunk of groundingMeta.groundingChunks) {
+          if (chunk.web?.uri) {
+            sources.push({
+              title: chunk.web.title || chunk.web.uri,
+              uri: chunk.web.uri,
+            });
           }
         }
-
-        if (Array.isArray(groundingMeta.webSearchQueries)) {
-          const gQueries = groundingMeta.webSearchQueries.filter((q: any) => typeof q === 'string' && q.trim().length > 0);
-          searchQueries = Array.from(new Set([...searchQueries, ...gQueries]));
-        }
       }
 
-      // Extract ACTION_JSON if present
-      const match = rawText.match(/ACTION_JSON:(\{.*?\})/s) || rawText.match(/ACTION_JSON:(\{[\s\S]*?\})/);
-      if (match) {
-        try {
-          const parsed = JSON.parse(match[1]);
-          actions = parsed.actions || [];
-          reply = rawText.replace(/ACTION_JSON:\{[\s\S]*?\}/s, '').trim();
-        } catch {
-          reply = rawText.replace(/ACTION_JSON:[\s\S]*/s, '').trim();
-        }
-      } else {
-        reply = rawText.trim();
+      if (Array.isArray(groundingMeta.webSearchQueries)) {
+        const gQueries = groundingMeta.webSearchQueries.filter((q: any) => typeof q === 'string' && q.trim().length > 0);
+        searchQueries = Array.from(new Set(gQueries));
       }
     }
 
-    // 3. Fallback direct et intelligent sans template si l'API externe est injoignable
-    if (!reply) {
-      if (!liveData) {
-        liveData = await fetchLiveSearchData(message || '');
+    // Extract ACTION_JSON if present
+    const match = rawText.match(/ACTION_JSON\s*:\s*(\{.*?\})/s) || rawText.match(/ACTION_JSON\s*:\s*(\{[\s\S]*?\})/);
+    if (match) {
+      try {
+        const parsed = JSON.parse(match[1]);
+        actions = parsed.actions || [];
+        reply = rawText.replace(/(?:Rappel|Tâche|Mémoire|Favori)?\s*:?\s*ACTION_JSON\s*:\s*\{[\s\S]*?\}/gi, '').trim();
+      } catch {
+        reply = rawText.replace(/(?:Rappel|Tâche|Mémoire|Favori)?\s*:?\s*ACTION_JSON\s*:[\s\S]*/gi, '').trim();
       }
-      if (liveData.sources.length > 0) {
-        sources = Array.from(new Set([...sources, ...liveData.sources]));
-        searchQueries = Array.from(new Set([...searchQueries, ...liveData.searchQueries]));
-      }
-      const fallback = generateLocalFallbackReply(message, liveData, userProfile);
-      reply = fallback.reply;
-      actions = fallback.actions;
     }
+    reply = reply.replace(/(?:\r?\n)*(?:Rappel|Tâche|Mémoire|Favori)\s*:\s*$/i, '').trim();
 
-    // Deduplicate sources and search queries
+    // Deduplicate sources by URI
     const uniqueSources: { title: string; uri: string }[] = [];
     const seenUris = new Set<string>();
     for (const s of sources) {
@@ -1437,38 +1050,18 @@ CONSIGNES STRICTES DE RÉPONSE ET DE RECHERCHE :
       }
     }
 
-    // Ensure search queries & links are attached if query is factual
-    if (searchQueries.length === 0 && message && message.trim().length > 2) {
-      const cleanQ = message.replace(/[?.,!]/g, '').trim();
-      searchQueries.push(cleanQ);
-      if (uniqueSources.length === 0) {
-        uniqueSources.push({
-          title: `Recherche Google : "${cleanQ}"`,
-          uri: `https://www.google.com/search?q=${encodeURIComponent(cleanQ)}`
-        });
-      }
-    }
-
     return res.json({
       reply,
       actions,
       sources: uniqueSources,
-      searchQueries: Array.from(new Set(searchQueries)),
+      searchQueries,
       shouldSpeak: false,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
-
   } catch (error: any) {
     console.error('Erreur globale API Chat:', error);
-    const liveData = await fetchLiveSearchData(req.body?.message || '');
-    const fallback = generateLocalFallbackReply(req.body?.message || '', liveData, req.body?.userProfile);
-    return res.json({
-      reply: fallback.reply || "Bonjour ! Comment puis-je vous aider aujourd'hui ?",
-      actions: fallback.actions || [],
-      sources: liveData.sources || [],
-      searchQueries: liveData.searchQueries || [],
-      shouldSpeak: false,
-      timestamp: new Date().toISOString()
+    return res.status(500).json({
+      error: "Une erreur est survenue lors de la génération de la réponse.",
     });
   }
 });
