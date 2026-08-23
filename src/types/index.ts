@@ -100,6 +100,8 @@ export interface Rappel {
   description?: string;
   dateRappel?: string;
   heure?: string;
+  dateFinRappel?: string;
+  heureFin?: string;
   priorite: Priority;
   statut: ReminderStatus;
   dateCreation: string;

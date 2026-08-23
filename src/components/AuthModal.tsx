@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, User, LogOut, X, UserPlus, LogIn, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Lock, User, LogOut, X, UserPlus, LogIn, CheckCircle2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { playCyberSound } from '../utils/security';
 
 interface AuthModalProps {
@@ -21,6 +21,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
@@ -293,26 +294,60 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
                 <div>
                   <label className="block text-slate-200 mb-1 font-semibold">Mot de passe</label>
-                  <input
-                    type="password"
-                    required
-                    placeholder="Au moins 6 caractères"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-white/[0.04] border-[0.5px] border-white/20 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-white/50 font-sans"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      required
+                      placeholder="Au moins 6 caractères"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full bg-white/[0.04] border-[0.5px] border-white/20 rounded-xl px-3 py-2 pr-10 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-white/50 font-sans"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-2.5 top-2.5 text-slate-400 hover:text-white transition-colors"
+                      title={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
 
                 <div>
                   <label className="block text-slate-200 mb-1 font-semibold">Confirmer le mot de passe</label>
-                  <input
-                    type="password"
-                    required
-                    placeholder="Répétez le mot de passe"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full bg-white/[0.04] border-[0.5px] border-white/20 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-white/50 font-sans"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      required
+                      placeholder="Répétez le mot de passe"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="w-full bg-white/[0.04] border-[0.5px] border-white/20 rounded-xl px-3 py-2 pr-10 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-white/50 font-sans"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-2.5 top-2.5 text-slate-400 hover:text-white transition-colors"
+                      title={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Case à cocher Afficher le mot de passe */}
+                <div className="flex items-center gap-2 pt-0.5">
+                  <label className="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white select-none text-xs">
+                    <input
+                      type="checkbox"
+                      id="show-password-register"
+                      checked={showPassword}
+                      onChange={(e) => setShowPassword(e.target.checked)}
+                      className="w-4 h-4 rounded bg-white/10 border-white/20 text-sky-500 focus:ring-sky-400 focus:ring-offset-0 cursor-pointer accent-sky-500"
+                    />
+                    <span>Afficher le mot de passe</span>
+                  </label>
                 </div>
 
                 <button
@@ -341,14 +376,38 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
                 <div>
                   <label className="block text-slate-200 mb-1 font-semibold">Mot de passe</label>
-                  <input
-                    type="password"
-                    required
-                    placeholder="Votre mot de passe"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-white/[0.04] border-[0.5px] border-white/20 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-white/50 font-sans"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      required
+                      placeholder="Votre mot de passe"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full bg-white/[0.04] border-[0.5px] border-white/20 rounded-xl px-3 py-2 pr-10 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-white/50 font-sans"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-2.5 top-2.5 text-slate-400 hover:text-white transition-colors"
+                      title={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Case à cocher Afficher le mot de passe */}
+                <div className="flex items-center gap-2 pt-0.5">
+                  <label className="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white select-none text-xs">
+                    <input
+                      type="checkbox"
+                      id="show-password-login"
+                      checked={showPassword}
+                      onChange={(e) => setShowPassword(e.target.checked)}
+                      className="w-4 h-4 rounded bg-white/10 border-white/20 text-sky-500 focus:ring-sky-400 focus:ring-offset-0 cursor-pointer accent-sky-500"
+                    />
+                    <span>Afficher le mot de passe</span>
+                  </label>
                 </div>
 
                 <button

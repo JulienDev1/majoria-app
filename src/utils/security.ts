@@ -160,6 +160,56 @@ export function playAlertSound(soundType: AlertSound = 'zen-crystal') {
   }
 }
 
+// Specific Reminder Alarm Sound for scheduled deadlines
+export function playReminderAlarmSound() {
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+    const now = ctx.currentTime;
+
+    // Harmonic double bell-chime + digital notification pulse
+    const frequencies = [659.25, 880.0, 1318.51]; // E5, A5, E6
+    frequencies.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      const startTime = now + idx * 0.08;
+      osc.frequency.setValueAtTime(freq, startTime);
+      osc.frequency.exponentialRampToValueAtTime(freq * 1.05, startTime + 0.15);
+      gain.gain.setValueAtTime(0.12, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.9);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(startTime);
+      osc.stop(startTime + 0.9);
+    });
+
+    // Secondary reminder ring echo
+    setTimeout(() => {
+      try {
+        const ctx2 = new AudioContextClass();
+        const t2 = ctx2.currentTime;
+        [880.0, 1318.51].forEach((freq, idx) => {
+          const osc = ctx2.createOscillator();
+          const gain = ctx2.createGain();
+          osc.type = 'sine';
+          const startTime = t2 + idx * 0.09;
+          osc.frequency.setValueAtTime(freq, startTime);
+          gain.gain.setValueAtTime(0.08, startTime);
+          gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.7);
+          osc.connect(gain);
+          gain.connect(ctx2.destination);
+          osc.start(startTime);
+          osc.stop(startTime + 0.7);
+        });
+      } catch {}
+    }, 280);
+  } catch (e) {
+    // Audio restrictions
+  }
+}
+
 // Cyber Sound Effects generator using Web Audio API
 export function playCyberSound(type: 'beep' | 'success' | 'alert' | 'matrix' | 'click') {
   try {

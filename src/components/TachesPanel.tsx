@@ -7,7 +7,8 @@ import {
   Calendar, 
   ArrowRight, 
   ArrowLeft, 
-  Layers
+  Layers,
+  Pencil
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Tache, TaskStatus, Priority } from '../types';
@@ -17,6 +18,7 @@ import { exportItemToPDF } from '../utils/pdfExport';
 interface TachesPanelProps {
   taches: Tache[];
   onAddTache: (tache: Omit<Tache, 'id' | 'dateCreation' | 'status'>) => Promise<void>;
+  onUpdateTache?: (tache: Tache) => Promise<void>;
   onUpdateTacheStatus: (id: number, newStatus: TaskStatus) => Promise<void>;
   onDeleteTache: (id: number) => Promise<void>;
 }
@@ -24,10 +26,12 @@ interface TachesPanelProps {
 export const TachesPanel: React.FC<TachesPanelProps> = ({
   taches,
   onAddTache,
+  onUpdateTache,
   onUpdateTacheStatus,
   onDeleteTache,
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingTache, setEditingTache] = useState<Tache | null>(null);
   const [mobileTab, setMobileTab] = useState<'tous' | TaskStatus>('tous');
 
   // Form states
@@ -35,6 +39,7 @@ export const TachesPanel: React.FC<TachesPanelProps> = ({
   const [newDesc, setNewDesc] = useState('');
   const [newDueDate, setNewDueDate] = useState('');
   const [newPriority, setNewPriority] = useState<Priority>('normale');
+  const [newStatus, setNewStatus] = useState<TaskStatus>('attente');
 
   // Calculations
   const total = taches.length;
@@ -43,21 +48,57 @@ export const TachesPanel: React.FC<TachesPanelProps> = ({
   const enAttente = taches.filter((t) => t.status === 'attente').length;
   const pourcentage = total > 0 ? Math.round((terminees / total) * 100) : 0;
 
-  const handleAddSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTitle.trim()) return;
-
-    await onAddTache({
-      titre: newTitle.trim(),
-      description: newDesc.trim() || undefined,
-      echeance: newDueDate || undefined,
-      priorite: newPriority,
-    });
-
+  const handleOpenAdd = () => {
+    playCyberSound('beep');
+    setEditingTache(null);
     setNewTitle('');
     setNewDesc('');
     setNewDueDate('');
     setNewPriority('normale');
+    setNewStatus('attente');
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEdit = (tache: Tache) => {
+    playCyberSound('click');
+    setEditingTache(tache);
+    setNewTitle(tache.titre);
+    setNewDesc(tache.description || '');
+    setNewDueDate(tache.echeance || '');
+    setNewPriority(tache.priorite || 'normale');
+    setNewStatus(tache.status || 'attente');
+    setIsModalOpen(true);
+  };
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTitle.trim()) return;
+
+    if (editingTache && onUpdateTache) {
+      await onUpdateTache({
+        ...editingTache,
+        titre: newTitle.trim(),
+        description: newDesc.trim() || undefined,
+        echeance: newDueDate || undefined,
+        priorite: newPriority,
+        status: newStatus,
+      });
+      playCyberSound('success');
+    } else {
+      await onAddTache({
+        titre: newTitle.trim(),
+        description: newDesc.trim() || undefined,
+        echeance: newDueDate || undefined,
+        priorite: newPriority,
+      });
+    }
+
+    setEditingTache(null);
+    setNewTitle('');
+    setNewDesc('');
+    setNewDueDate('');
+    setNewPriority('normale');
+    setNewStatus('attente');
     setIsModalOpen(false);
   };
 
@@ -125,19 +166,16 @@ export const TachesPanel: React.FC<TachesPanelProps> = ({
           <div className="flex items-center gap-2">
             <CheckSquare className="w-5 h-5 text-emerald-400" />
             <h1 className="text-xl md:text-2xl font-bold text-white">
-              Tableau des Tâches
+              Tableau des Tâches & Projets
             </h1>
           </div>
           <p className="text-sm text-slate-300 mt-0.5 font-medium">
-            Organisez, suivez et complétez vos activités en toute simplicité.
+            Organisez, modifiez ✏️, suivez et complétez vos activités en toute simplicité.
           </p>
         </div>
 
         <button
-          onClick={() => {
-            playCyberSound('beep');
-            setIsModalOpen(true);
-          }}
+          onClick={handleOpenAdd}
           className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm shadow-md transition-all border border-white active:scale-95"
         >
           <Plus className="w-4 h-4" />
@@ -158,40 +196,42 @@ export const TachesPanel: React.FC<TachesPanelProps> = ({
         </div>
 
         <div className="w-full h-3 bg-slate-950 rounded-full overflow-hidden border border-white p-0.5">
-          <div
-            className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+          <div 
+            className="h-full bg-emerald-500 transition-all duration-500 rounded-full shadow-sm"
             style={{ width: `${pourcentage}%` }}
           />
         </div>
       </div>
 
-      {/* Mobile Column Switcher */}
-      <div className="md:hidden flex items-center gap-1.5 overflow-x-auto pb-2 mb-2 no-scrollbar">
-        {[
-          { id: 'tous', label: 'Toutes les colonnes', count: total },
-          { id: 'attente', label: 'En Attente', count: enAttente },
-          { id: 'cours', label: 'En Cours', count: enCours },
-          { id: 'termine', label: 'Terminé', count: terminees },
-        ].map((tab) => (
+      {/* Mobile Tab Switcher */}
+      <div className="flex sm:hidden items-center gap-1.5 mb-3 overflow-x-auto pb-1 no-scrollbar">
+        <button
+          onClick={() => setMobileTab('tous')}
+          className={`text-xs px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap border border-white transition-all ${
+            mobileTab === 'tous'
+              ? 'bg-white/25 text-white font-bold ring-2 ring-white'
+              : 'bg-slate-900 text-slate-300'
+          }`}
+        >
+          Toutes ({total})
+        </button>
+        {columns.map((c) => (
           <button
-            key={tab.id}
-            onClick={() => {
-              playCyberSound('click');
-              setMobileTab(tab.id as any);
-            }}
-            className={`text-xs font-semibold px-3 py-1.5 rounded-xl border whitespace-nowrap transition-all ${
-              mobileTab === tab.id
-                ? 'bg-white/25 border-white text-white font-bold ring-2 ring-white'
-                : 'bg-slate-900 border-white text-slate-300'
+            key={c.id}
+            onClick={() => setMobileTab(c.id)}
+            className={`text-xs px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap border border-white transition-all ${
+              mobileTab === c.id
+                ? `${c.badgeColor} ring-2 ring-white font-bold`
+                : 'bg-slate-900 text-slate-300'
             }`}
           >
-            {tab.label} ({tab.count})
+            {c.title} ({c.count})
           </button>
         ))}
       </div>
 
-      {/* Kanban Board Columns Grid */}
-      <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-3 gap-4 pb-6">
+      {/* Kanban Board Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1">
         {displayColumns.map((col) => {
           const colTasks = taches.filter((t) => t.status === col.id);
 
@@ -229,6 +269,14 @@ export const TachesPanel: React.FC<TachesPanelProps> = ({
                         </span>
 
                         <div className="flex items-center gap-1">
+                          {/* Modifier ✏️ */}
+                          <button
+                            onClick={() => handleOpenEdit(tache)}
+                            title="Modifier ✏️"
+                            className="p-1 border border-white rounded-lg bg-emerald-950/60 text-emerald-300 hover:bg-emerald-900 hover:text-white transition-colors"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
                           <button
                             onClick={() => {
                               playCyberSound('click');
@@ -278,6 +326,14 @@ export const TachesPanel: React.FC<TachesPanelProps> = ({
 
                         {/* Move Buttons */}
                         <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleOpenEdit(tache)}
+                            className="text-[11px] font-semibold text-emerald-300 hover:text-emerald-200 hover:underline flex items-center gap-0.5 mr-1"
+                          >
+                            <Pencil className="w-3 h-3" />
+                            Modifier
+                          </button>
+
                           {col.id !== 'attente' && (
                             <button
                               onClick={() => {
@@ -314,18 +370,27 @@ export const TachesPanel: React.FC<TachesPanelProps> = ({
         })}
       </div>
 
-      {/* Add Modal */}
+      {/* Add / Edit Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="w-full max-w-md bg-slate-950 border-2 border-white rounded-2xl p-6 shadow-2xl space-y-4">
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <CheckSquare className="w-5 h-5 text-emerald-400" />
-              Nouvelle Tâche
+              {editingTache ? (
+                <>
+                  <Pencil className="w-5 h-5 text-emerald-400" />
+                  Modifier la Tâche ✏️
+                </>
+              ) : (
+                <>
+                  <CheckSquare className="w-5 h-5 text-emerald-400" />
+                  Nouvelle Tâche
+                </>
+              )}
             </h2>
 
-            <form onSubmit={handleAddSubmit} className="space-y-3">
+            <form onSubmit={handleFormSubmit} className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Titre de la tâche</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Titre de la tâche *</label>
                 <input
                   type="text"
                   required
@@ -372,6 +437,21 @@ export const TachesPanel: React.FC<TachesPanelProps> = ({
                 </div>
               </div>
 
+              {editingTache && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Statut / Colonne</label>
+                  <select
+                    value={newStatus}
+                    onChange={(e) => setNewStatus(e.target.value as TaskStatus)}
+                    className="w-full bg-slate-900 border border-white rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white font-sans"
+                  >
+                    <option value="attente">En Attente</option>
+                    <option value="cours">En Cours</option>
+                    <option value="termine">Terminé</option>
+                  </select>
+                </div>
+              )}
+
               <div className="flex items-center justify-end gap-2 pt-3">
                 <button
                   type="button"
@@ -384,7 +464,7 @@ export const TachesPanel: React.FC<TachesPanelProps> = ({
                   type="submit"
                   className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 border border-white text-white font-semibold text-sm shadow-md"
                 >
-                  Enregistrer
+                  {editingTache ? 'Mettre à jour' : 'Enregistrer'}
                 </button>
               </div>
             </form>

@@ -200,6 +200,8 @@ export interface TranslationsSchema {
     noRappels: string;
     date: string;
     time: string;
+    endDate: string;
+    endTime: string;
     status: string;
     completed: string;
     pending: string;
@@ -605,8 +607,10 @@ export const translations: Record<Language, TranslationsSchema> = {
       searchRappels: 'Rechercher un rappel...',
       addRappel: 'Nouveau rappel',
       noRappels: 'Aucun rappel programmé.',
-      date: 'Date d’échéance',
-      time: 'Heure',
+      date: 'Date de début / d’échéance',
+      time: 'Heure de début',
+      endDate: 'Date de fin',
+      endTime: 'Heure de fin',
       status: 'Statut',
       completed: 'Terminé',
       pending: 'En attente',
@@ -1010,8 +1014,10 @@ export const translations: Record<Language, TranslationsSchema> = {
       searchRappels: 'Search reminders...',
       addRappel: 'New reminder',
       noRappels: 'No scheduled reminders.',
-      date: 'Due Date',
-      time: 'Time',
+      date: 'Start / Due Date',
+      time: 'Start Time',
+      endDate: 'End Date',
+      endTime: 'End Time',
       status: 'Status',
       completed: 'Completed',
       pending: 'Pending',

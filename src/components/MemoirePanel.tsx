@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Brain, Plus, Trash2, FileText, Search, Star } from 'lucide-react';
+import { Brain, Plus, Trash2, FileText, Search, Star, Pencil } from 'lucide-react';
 import { Memoire } from '../types';
 import { playCyberSound } from '../utils/security';
 import { exportItemToPDF } from '../utils/pdfExport';
@@ -7,17 +7,20 @@ import { exportItemToPDF } from '../utils/pdfExport';
 interface MemoirePanelProps {
   memoire: Memoire[];
   onAddMemoire: (contenu: string, tags: string[], importance: number) => Promise<void>;
+  onUpdateMemoire?: (id: number, contenu: string, tags: string[], importance: number) => Promise<void>;
   onDeleteMemoire: (id: number) => Promise<void>;
 }
 
 export const MemoirePanel: React.FC<MemoirePanelProps> = ({
   memoire,
   onAddMemoire,
+  onUpdateMemoire,
   onDeleteMemoire,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingMemoire, setEditingMemoire] = useState<Memoire | null>(null);
 
   // Form states
   const [newContent, setNewContent] = useState('');
@@ -40,7 +43,25 @@ export const MemoirePanel: React.FC<MemoirePanelProps> = ({
     })
     .sort((a, b) => b.importance - a.importance);
 
-  const handleAddSubmit = async (e: React.FormEvent) => {
+  const handleOpenAdd = () => {
+    playCyberSound('beep');
+    setEditingMemoire(null);
+    setNewContent('');
+    setNewTagsStr('');
+    setNewImportance(3);
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEdit = (item: Memoire) => {
+    playCyberSound('click');
+    setEditingMemoire(item);
+    setNewContent(item.contenu);
+    setNewTagsStr((item.tags || []).join(', '));
+    setNewImportance(item.importance || 3);
+    setIsModalOpen(true);
+  };
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newContent.trim()) return;
     const tags = newTagsStr
@@ -48,7 +69,14 @@ export const MemoirePanel: React.FC<MemoirePanelProps> = ({
       .map((t) => t.trim().replace(/^#/, ''))
       .filter(Boolean);
 
-    await onAddMemoire(newContent.trim(), tags, newImportance);
+    if (editingMemoire && onUpdateMemoire) {
+      await onUpdateMemoire(editingMemoire.id, newContent.trim(), tags, newImportance);
+      playCyberSound('success');
+    } else {
+      await onAddMemoire(newContent.trim(), tags, newImportance);
+    }
+
+    setEditingMemoire(null);
     setNewContent('');
     setNewTagsStr('');
     setNewImportance(3);
@@ -67,15 +95,12 @@ export const MemoirePanel: React.FC<MemoirePanelProps> = ({
             </h1>
           </div>
           <p className="text-sm text-slate-300 mt-1 font-medium">
-            Informations importantes et instructions retenues par votre assistant MajorI.A.
+            Informations importantes et instructions retenues. Modifiez ✏️ ou organisez selon vos besoins.
           </p>
         </div>
 
         <button
-          onClick={() => {
-            playCyberSound('beep');
-            setIsModalOpen(true);
-          }}
+          onClick={handleOpenAdd}
           className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold text-sm shadow-md transition-all border border-white"
         >
           <Plus className="w-4 h-4" />
@@ -158,6 +183,14 @@ export const MemoirePanel: React.FC<MemoirePanelProps> = ({
                   </div>
 
                   <div className="flex items-center gap-1.5">
+                    {/* Modifier ✏️ */}
+                    <button
+                      onClick={() => handleOpenEdit(item)}
+                      title="Modifier ✏️"
+                      className="p-1 border border-white rounded-lg bg-purple-950/60 text-purple-300 hover:bg-purple-900 hover:text-white transition-colors"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
                     <button
                       onClick={() => {
                         playCyberSound('click');
@@ -203,12 +236,21 @@ export const MemoirePanel: React.FC<MemoirePanelProps> = ({
                 )}
 
                 {/* Date footer */}
-                <div className="pt-2 border-t border-white/30 text-xs text-slate-300">
-                  {new Date(item.date).toLocaleDateString('fr-FR', {
-                    day: '2-digit',
-                    month: 'short',
-                    year: 'numeric'
-                  })}
+                <div className="pt-2 border-t border-white/30 text-xs text-slate-300 flex items-center justify-between">
+                  <span>
+                    {new Date(item.date).toLocaleDateString('fr-FR', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric'
+                    })}
+                  </span>
+                  <button
+                    onClick={() => handleOpenEdit(item)}
+                    className="text-[11px] font-semibold text-purple-300 hover:text-purple-200 hover:underline flex items-center gap-1"
+                  >
+                    <Pencil className="w-3 h-3" />
+                    Modifier
+                  </button>
                 </div>
               </div>
             </div>
@@ -216,18 +258,27 @@ export const MemoirePanel: React.FC<MemoirePanelProps> = ({
         </div>
       )}
 
-      {/* Add Memory Modal */}
+      {/* Add / Edit Memory Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="w-full max-w-md bg-slate-950 border-2 border-white rounded-2xl p-6 shadow-2xl space-y-4">
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <Brain className="w-5 h-5 text-purple-400" />
-              Mémoriser une information
+              {editingMemoire ? (
+                <>
+                  <Pencil className="w-5 h-5 text-purple-400" />
+                  Modifier la Mémoire ✏️
+                </>
+              ) : (
+                <>
+                  <Brain className="w-5 h-5 text-purple-400" />
+                  Mémoriser une information
+                </>
+              )}
             </h2>
 
-            <form onSubmit={handleAddSubmit} className="space-y-3">
+            <form onSubmit={handleFormSubmit} className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Information à retenir</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Information à retenir *</label>
                 <textarea
                   required
                   rows={4}
@@ -281,7 +332,7 @@ export const MemoirePanel: React.FC<MemoirePanelProps> = ({
                   type="submit"
                   className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 border border-white text-white font-semibold text-sm shadow-md"
                 >
-                  Enregistrer
+                  {editingMemoire ? 'Mettre à jour' : 'Enregistrer'}
                 </button>
               </div>
             </form>

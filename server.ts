@@ -98,6 +98,28 @@ app.post('/api/favoris', (req: Request, res: Response) => {
   res.status(201).json(item);
 });
 
+app.put('/api/favoris/:id', (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  const idx = serverStore.favoris.findIndex(f => f.id === id);
+  if (idx !== -1) {
+    serverStore.favoris[idx] = { ...serverStore.favoris[idx], ...req.body };
+    res.json(serverStore.favoris[idx]);
+  } else {
+    res.status(404).json({ error: 'Favori introuvable' });
+  }
+});
+
+app.patch('/api/favoris/:id', (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  const idx = serverStore.favoris.findIndex(f => f.id === id);
+  if (idx !== -1) {
+    serverStore.favoris[idx] = { ...serverStore.favoris[idx], ...req.body };
+    res.json(serverStore.favoris[idx]);
+  } else {
+    res.status(404).json({ error: 'Favori introuvable' });
+  }
+});
+
 app.delete('/api/favoris/:id', (req: Request, res: Response) => {
   const id = Number(req.params.id);
   serverStore.favoris = serverStore.favoris.filter(f => f.id !== id);
@@ -113,6 +135,28 @@ app.post('/api/memoire', (req: Request, res: Response) => {
   const item = { id: Date.now(), importance: 3, tags: [], ...req.body, date: req.body.date || new Date().toISOString() };
   serverStore.memoire.unshift(item);
   res.status(201).json(item);
+});
+
+app.put('/api/memoire/:id', (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  const idx = serverStore.memoire.findIndex(m => m.id === id);
+  if (idx !== -1) {
+    serverStore.memoire[idx] = { ...serverStore.memoire[idx], ...req.body };
+    res.json(serverStore.memoire[idx]);
+  } else {
+    res.status(404).json({ error: 'Mémoire introuvable' });
+  }
+});
+
+app.patch('/api/memoire/:id', (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  const idx = serverStore.memoire.findIndex(m => m.id === id);
+  if (idx !== -1) {
+    serverStore.memoire[idx] = { ...serverStore.memoire[idx], ...req.body };
+    res.json(serverStore.memoire[idx]);
+  } else {
+    res.status(404).json({ error: 'Mémoire introuvable' });
+  }
 });
 
 app.get('/api/memoire/recherche/:q', (req: Request, res: Response) => {
@@ -926,7 +970,7 @@ DIRECTIVES DE RÉPONSE :
 3. Exploite pleinement les informations en temps réel de la recherche Google pour les faits d'actualité, la météo, les événements et données récentes en te basant sur la temporalité réelle actuelle.
 4. Évite toute structure rigide ou scolaire de type "Définition / Contexte / Analyse". Va droit au but avec un ton naturel.
 5. Si et seulement si l'utilisateur demande explicitement d'enregistrer une action (rappel, tâche, mémoire, favori), termine ton message par exactement :
-   ACTION_JSON:{"actions":[{"type":"reminder","titre":"...","dateRappel":"YYYY-MM-DD","heure":"HH:MM","priorite":"haute"}]}
+   ACTION_JSON:{"actions":[{"type":"reminder","titre":"...","dateRappel":"YYYY-MM-DD","heure":"HH:MM","dateFinRappel":"YYYY-MM-DD","heureFin":"HH:MM","priorite":"haute"}]}
    ou
    ACTION_JSON:{"actions":[{"type":"task","titre":"...","priorite":"normale"}]}
    ou
@@ -1065,6 +1109,139 @@ DIRECTIVES DE RÉPONSE :
     });
   }
 });
+
+// SYSTEM INSTRUCTION OFFICIELLE MAJOR I.A - ASSISTANT PERSONNEL MOBILE & DEEP LINKS
+export const MOBILE_ASSISTANT_SYSTEM_INSTRUCTION = `Tu es l'intelligence artificielle d'un assistant personnel intégré dans une PWA multiplateforme (iOS / Android) .
+Tu dois détecter automatiquement la langue de l'utilisateur (FR ou EN) .
+Ton rôle est de traduire l'instruction de l'utilisateur en un Deep Link (URL Scheme) pour ouvrir l'application demandée sur son téléphone.
+RÈGLE ABSOLUE : Tu dois IMPÉRATIVEMENT répondre UNIQUEMENT avec un objet JSON strict contenant TOUJOURS les deux champs suivants, sans jamais les omettre, sans aucun texte d'introduction et sans balises Markdown autour :
+{
+"feedback_speech": "Phrase courte confirmant l'action dans la langue de l'utilisateur (FR ou EN).",
+"url": "L'URL ou le Schema à ouvrir sur le téléphone (string) ou null s'il n'y a aucune application à lancer."
+}
+Règles pour remplir le champ "url" :
+Si l'utilisateur nomme une application, génère son Schema URL standard (ex: "spotify:search:[mots]", "instagram://", "https://wa.me/[numero]?text=[message]", etc.).
+Pour les actions système :
+-Appeler : "tel:[numero]"
+-SMS : "sms:[numero]?body=[texte]"
+-Email : "mailto:[email]"
+-GPS / Carte : "https://www.google.com/maps/search/?api=1&query=[lieu]"
+Si l'application exacte n'a pas de Schema connu ou pour une recherche globale, utilise : "https://www.google.com/search?q=[mots_cles]"
+Si c'est une simple discussion ou une salutation, mets "url": null.
+Format de sortie : JSON brut uniquement.`;
+
+// HANDLER ASSISTANT MOBILE & DEEP LINKS
+async function handleMobileAssistantDeepLink(req: Request, res: Response) {
+  try {
+    const message = (req.body?.message || req.body?.instruction || req.body?.prompt || '').trim();
+
+    if (!message) {
+      return res.json({
+        feedback_speech: "Veuillez formuler une demande ou commande.",
+        url: null
+      });
+    }
+
+    const ai = getGenAI();
+    let response: any = null;
+    const candidateModels = ['gemini-3.7-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+
+    for (const modelName of candidateModels) {
+      try {
+        response = await withTimeout(
+          ai.models.generateContent({
+            model: modelName,
+            contents: [{ role: 'user', parts: [{ text: message }] }],
+            config: {
+              systemInstruction: MOBILE_ASSISTANT_SYSTEM_INSTRUCTION,
+              temperature: 0.2,
+              responseMimeType: 'application/json',
+            },
+          }),
+          15000,
+          `Délai dépassé pour ${modelName}`
+        );
+
+        const rawText = response?.text || response?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('').trim();
+        if (rawText && rawText.length > 0) {
+          try {
+            // Nettoyage Markdown si présent
+            const cleaned = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
+            const parsed = JSON.parse(cleaned);
+            if (parsed && typeof parsed.feedback_speech === 'string' && (typeof parsed.url === 'string' || parsed.url === null)) {
+              return res.json({
+                feedback_speech: parsed.feedback_speech,
+                url: parsed.url,
+              });
+            }
+          } catch {}
+        }
+      } catch (err: any) {
+        console.warn(`Mobile assistant deep link err with ${modelName}:`, err?.message || err);
+      }
+    }
+
+    // Heuristic Fallback in case of temporary offline/timeout
+    const lower = message.toLowerCase();
+    const isEn = /^(open|call|text|send|navigate|where|search|play)\b/i.test(lower);
+
+    // Call
+    const telMatch = message.match(/(?:appelle|téléphone|call)\s+(?:le\s+)?([+\d\s.-]{6,})/i);
+    if (telMatch) {
+      const cleanNum = telMatch[1].replace(/[\s.-]/g, '');
+      return res.json({
+        feedback_speech: isEn ? `Calling ${cleanNum}...` : `Appel vers le ${cleanNum} en cours...`,
+        url: `tel:${cleanNum}`,
+      });
+    }
+
+    // SMS
+    const smsMatch = message.match(/(?:sms|message|texte)\s+(?:à|au|to)\s+([+\d\s.-]{6,})/i);
+    if (smsMatch) {
+      const cleanNum = smsMatch[1].replace(/[\s.-]/g, '');
+      return res.json({
+        feedback_speech: isEn ? `Opening SMS to ${cleanNum}...` : `Ouverture du message pour le ${cleanNum}...`,
+        url: `sms:${cleanNum}`,
+      });
+    }
+
+    // GPS
+    if (/(?:gps|carte|itinéraire|guide|navigate|route|aller à|directions to)\b/i.test(lower)) {
+      const query = encodeURIComponent(message.replace(/^(?:gps|itinéraire vers|guide-moi vers|directions to|route to)\s+/i, ''));
+      return res.json({
+        feedback_speech: isEn ? "Opening GPS navigation..." : "Lancement du guidage GPS...",
+        url: `https://www.google.com/maps/search/?api=1&query=${query}`,
+      });
+    }
+
+    // Spotify
+    if (/(?:spotify|musique|chanson|play|écoute)\b/i.test(lower)) {
+      const track = encodeURIComponent(message.replace(/^(?:lance spotify|joue|mets|play)\s+/i, ''));
+      return res.json({
+        feedback_speech: isEn ? "Opening Spotify..." : "Lancement de Spotify...",
+        url: `spotify:search:${track}`,
+      });
+    }
+
+    // Default Fallback
+    return res.json({
+      feedback_speech: isEn ? "Here is the result of your request." : "Voici le résultat de votre demande.",
+      url: lower.length > 3 ? `https://www.google.com/search?q=${encodeURIComponent(message)}` : null,
+    });
+
+  } catch (error: any) {
+    console.error('Erreur API Mobile Assistant:', error);
+    return res.status(500).json({
+      feedback_speech: "Une erreur est survenue lors de l'exécution de la commande.",
+      url: null
+    });
+  }
+}
+
+// Endpoints pour l'assistant mobile & Deep Links
+app.post('/api/assistant/deep-link', handleMobileAssistantDeepLink);
+app.post('/api/deep-link', handleMobileAssistantDeepLink);
+app.post('/api/mobile-assistant', handleMobileAssistantDeepLink);
 
 // TRANSCRIPTION AUDIO / VOIX ENDPOINT
 app.post('/api/transcribe', async (req: Request, res: Response) => {

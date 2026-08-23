@@ -20,6 +20,7 @@ import {
   safeSave, 
   playCyberSound, 
   playAlertSound,
+  playReminderAlarmSound,
   speakCyberResponse, 
   sanitizeConfidentialText,
 } from './utils/security';
@@ -481,31 +482,56 @@ export default function App() {
     }
   };
 
-  // Periodic Reminder Checker loop (every 60s) with custom alert sound
+  // Periodic Reminder Checker loop (checks every 15s for exact timing) with custom alert sound & browser notification
   useEffect(() => {
+    // Request permission once on mount or interaction if supported
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      try {
+        Notification.requestPermission().catch(() => {});
+      } catch {}
+    }
+
     const checkReminders = () => {
       const now = new Date();
       const notifies = safeLoad<string[]>('neo-notifies', []);
       let updatedNotifies = [...notifies];
 
       rappels
-        .filter((r) => r.statut === 'actif' && r.dateRappel && r.heure)
+        .filter((r) => r.statut === 'actif' && r.dateRappel)
         .forEach((r) => {
-          const reminderTime = new Date(`${r.dateRappel}T${r.heure}`);
-          const diff = reminderTime.getTime() - now.getTime();
-          const key = `rappel-${r.id}-${r.dateRappel}`;
+          const timeStr = r.heure || '00:00';
+          const reminderDateTime = new Date(`${r.dateRappel}T${timeStr}`);
+          
+          if (isNaN(reminderDateTime.getTime())) return;
 
-          // Alert if due within next 15 minutes or overdue by less than 5 min
-          if (diff >= -5 * 60 * 1000 && diff <= 15 * 60 * 1000 && !updatedNotifies.includes(key)) {
-            // Play custom alert sound
+          const diff = reminderDateTime.getTime() - now.getTime();
+          const key = `rappel-${r.id}-${r.dateRappel}-${timeStr}`;
+
+          // Trigger when reminder time arrives (within window of -10 min overdue to +1 min upcoming)
+          if (diff >= -10 * 60 * 1000 && diff <= 1 * 60 * 1000 && !updatedNotifies.includes(key)) {
+            // Play dedicated reminder chime & sound
+            playReminderAlarmSound();
             playAlertSound(alertSound);
-            showToast(`🔔 Alerte Rappel : ${r.titre} (${r.heure})`, 'warning');
 
+            const endDateInfo = r.dateFinRappel
+              ? ` (Fin : ${new Date(r.dateFinRappel).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}${r.heureFin ? ` à ${r.heureFin}` : ''})`
+              : '';
+
+            showToast(`🔔 Rappel à échéance : ${r.titre}${r.heure ? ` (${r.heure})` : ''}${endDateInfo}`, 'warning');
+
+            // Browser push notification
             if ('Notification' in window && Notification.permission === 'granted') {
-              new Notification(`🔔 MajorI.A - Rappel`, {
-                body: `${r.titre}\n${r.description || ''}`,
-                icon: '/favicon.ico',
-              });
+              try {
+                const bodyText = `${r.titre}${r.description ? `\n${r.description}` : ''}${endDateInfo}`;
+                new Notification(`🔔 MajorI.A - Rappel d’échéance`, {
+                  body: bodyText,
+                  icon: '/favicon.ico',
+                  tag: key,
+                  requireInteraction: true,
+                });
+              } catch (notifErr) {
+                console.warn('Erreur notification navigateur:', notifErr);
+              }
             }
 
             updatedNotifies.push(key);
@@ -516,7 +542,7 @@ export default function App() {
     };
 
     checkReminders();
-    const interval = setInterval(checkReminders, 60000);
+    const interval = setInterval(checkReminders, 15000);
     return () => clearInterval(interval);
   }, [rappels, alertSound, showToast]);
 
@@ -940,6 +966,22 @@ export default function App() {
     showToast('⭐ Favori enregistré', 'success');
   };
 
+  const handleUpdateFavori = async (fav: Favori) => {
+    try {
+      await fetch(`${API}/favoris/${fav.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fav),
+      });
+    } catch {}
+    setFavoris((prev) => {
+      const next = prev.map((f) => (f.id === fav.id ? fav : f));
+      safeSave('neo-favoris', next);
+      return next;
+    });
+    showToast('✏️ Favori mis à jour', 'success');
+  };
+
   const handleDeleteFavori = async (id: number) => {
     try {
       await fetch(`${API}/favoris/${id}`, { method: 'DELETE' });
@@ -976,6 +1018,22 @@ export default function App() {
     showToast('🧠 Information mémorisée', 'success');
   };
 
+  const handleUpdateMemoire = async (mem: Memoire) => {
+    try {
+      await fetch(`${API}/memoire/${mem.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(mem),
+      });
+    } catch {}
+    setMemoire((prev) => {
+      const next = prev.map((m) => (m.id === mem.id ? mem : m));
+      safeSave('neo-memoire', next);
+      return next;
+    });
+    showToast('✏️ Mémoire mise à jour', 'success');
+  };
+
   const handleDeleteMemoire = async (id: number) => {
     try {
       await fetch(`${API}/memoire/${id}`, { method: 'DELETE' });
@@ -1010,6 +1068,22 @@ export default function App() {
     });
     playAlertSound(alertSound);
     showToast(`🔔 Rappel programmé : ${item.titre}`, 'success');
+  };
+
+  const handleUpdateRappel = async (rappel: Rappel) => {
+    try {
+      await fetch(`${API}/rappels/${rappel.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(rappel),
+      });
+    } catch {}
+    setRappels((prev) => {
+      const next = prev.map((r) => (r.id === rappel.id ? rappel : r));
+      safeSave('neo-rappels', next);
+      return next;
+    });
+    showToast(`✏️ Rappel mis à jour : ${rappel.titre}`, 'success');
   };
 
   const handleToggleRappelStatus = async (id: number) => {
@@ -1063,6 +1137,22 @@ export default function App() {
       return next;
     });
     showToast(`✅ Tâche ajoutée : ${item.titre}`, 'success');
+  };
+
+  const handleUpdateTache = async (tache: Tache) => {
+    try {
+      await fetch(`${API}/taches/${tache.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(tache),
+      });
+    } catch {}
+    setTaches((prev) => {
+      const next = prev.map((t) => (t.id === tache.id ? tache : t));
+      safeSave('neo-taches', next);
+      return next;
+    });
+    showToast(`✏️ Tâche mise à jour : ${tache.titre}`, 'success');
   };
 
   const handleUpdateTacheStatus = async (id: number, status: TaskStatus) => {
@@ -1303,6 +1393,7 @@ export default function App() {
             <FavorisPanel
               favoris={favoris}
               onAddFavori={handleAddFavori}
+              onUpdateFavori={handleUpdateFavori}
               onDeleteFavori={handleDeleteFavori}
             />
           )}
@@ -1311,6 +1402,7 @@ export default function App() {
             <MemoirePanel
               memoire={memoire}
               onAddMemoire={handleAddMemoire}
+              onUpdateMemoire={handleUpdateMemoire}
               onDeleteMemoire={handleDeleteMemoire}
             />
           )}
@@ -1319,6 +1411,7 @@ export default function App() {
             <RappelsPanel
               rappels={rappels}
               onAddRappel={handleAddRappel}
+              onUpdateRappel={handleUpdateRappel}
               onToggleStatus={handleToggleRappelStatus}
               onDeleteRappel={handleDeleteRappel}
             />
@@ -1328,13 +1421,21 @@ export default function App() {
             <TachesPanel
               taches={taches}
               onAddTache={handleAddTache}
+              onUpdateTache={handleUpdateTache}
               onUpdateTacheStatus={handleUpdateTacheStatus}
               onDeleteTache={handleDeleteTache}
             />
           )}
 
           {activePanel === 'calendar' && (
-            <CalendarPanel rappels={rappels} taches={taches} />
+            <CalendarPanel 
+              rappels={rappels} 
+              taches={taches} 
+              onUpdateRappel={handleUpdateRappel}
+              onUpdateTache={handleUpdateTache}
+              onDeleteRappel={handleDeleteRappel}
+              onDeleteTache={handleDeleteTache}
+            />
           )}
 
           {activePanel === 'stats' && (

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Star, Plus, Trash2, FileText, Search, Copy, Check } from 'lucide-react';
+import { Star, Plus, Trash2, FileText, Search, Copy, Check, Pencil } from 'lucide-react';
 import { Favori } from '../types';
 import { playCyberSound } from '../utils/security';
 import { exportItemToPDF } from '../utils/pdfExport';
@@ -7,17 +7,22 @@ import { exportItemToPDF } from '../utils/pdfExport';
 interface FavorisPanelProps {
   favoris: Favori[];
   onAddFavori: (titre: string, contenu: string, categorie: string) => Promise<void>;
+  onUpdateFavori?: (favori: Favori) => Promise<void>;
   onDeleteFavori: (id: number) => Promise<void>;
 }
 
 export const FavorisPanel: React.FC<FavorisPanelProps> = ({
   favoris,
   onAddFavori,
+  onUpdateFavori,
   onDeleteFavori,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCat, setActiveCat] = useState('tous');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingFavori, setEditingFavori] = useState<Favori | null>(null);
+
+  // Form states
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
   const [newCategory, setNewCategory] = useState('général');
@@ -41,10 +46,41 @@ export const FavorisPanel: React.FC<FavorisPanelProps> = ({
     return f.categorie === activeCat;
   });
 
-  const handleAddSubmit = async (e: React.FormEvent) => {
+  const handleOpenAdd = () => {
+    playCyberSound('beep');
+    setEditingFavori(null);
+    setNewTitle('');
+    setNewContent('');
+    setNewCategory('général');
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEdit = (fav: Favori) => {
+    playCyberSound('click');
+    setEditingFavori(fav);
+    setNewTitle(fav.titre);
+    setNewContent(fav.contenu || '');
+    setNewCategory(fav.categorie || 'général');
+    setIsModalOpen(true);
+  };
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
-    await onAddFavori(newTitle.trim(), newContent.trim(), newCategory);
+
+    if (editingFavori && onUpdateFavori) {
+      await onUpdateFavori({
+        ...editingFavori,
+        titre: newTitle.trim(),
+        contenu: newContent.trim(),
+        categorie: newCategory,
+      });
+      playCyberSound('success');
+    } else {
+      await onAddFavori(newTitle.trim(), newContent.trim(), newCategory);
+    }
+
+    setEditingFavori(null);
     setNewTitle('');
     setNewContent('');
     setNewCategory('général');
@@ -70,15 +106,12 @@ export const FavorisPanel: React.FC<FavorisPanelProps> = ({
             </h1>
           </div>
           <p className="text-sm text-slate-300 mt-1 font-medium">
-            Retrouvez rapidement vos notes et favoris enregistrés.
+            Retrouvez rapidement, modifiez ✏️ et organisez vos favoris et notes enregistrées.
           </p>
         </div>
 
         <button
-          onClick={() => {
-            playCyberSound('beep');
-            setIsModalOpen(true);
-          }}
+          onClick={handleOpenAdd}
           className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-semibold text-sm shadow-md transition-all border border-white"
         >
           <Plus className="w-4 h-4" />
@@ -127,7 +160,7 @@ export const FavorisPanel: React.FC<FavorisPanelProps> = ({
           <Star className="w-12 h-12 text-slate-400 mb-2 stroke-1" />
           <h3 className="text-base font-bold text-white">Aucun favori enregistré</h3>
           <p className="text-sm text-slate-300 max-w-sm mt-1">
-            Ajoutez vos notes ou favoris pour les retrouver facilement.
+            Ajoutez vos notes ou favoris pour les retrouver et les modifier facilement.
           </p>
         </div>
       ) : (
@@ -145,6 +178,14 @@ export const FavorisPanel: React.FC<FavorisPanelProps> = ({
                   </span>
 
                   <div className="flex items-center gap-1.5">
+                    {/* Modifier ✏️ */}
+                    <button
+                      onClick={() => handleOpenEdit(fav)}
+                      title="Modifier ✏️"
+                      className="p-1 border border-white rounded-lg bg-amber-950/60 text-amber-300 hover:bg-amber-900 hover:text-white transition-colors"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
                     <button
                       onClick={() => handleCopy(fav.contenu || fav.titre, fav.id)}
                       title="Copier le texte"
@@ -187,30 +228,48 @@ export const FavorisPanel: React.FC<FavorisPanelProps> = ({
               </div>
 
               {/* Date footer */}
-              <div className="pt-2 border-t border-white/30 text-xs text-slate-300">
-                {new Date(fav.date).toLocaleDateString('fr-FR', {
-                  day: '2-digit',
-                  month: 'short',
-                  year: 'numeric'
-                })}
+              <div className="pt-2 border-t border-white/30 text-xs text-slate-300 flex items-center justify-between">
+                <span>
+                  {new Date(fav.date).toLocaleDateString('fr-FR', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric'
+                  })}
+                </span>
+                <button
+                  onClick={() => handleOpenEdit(fav)}
+                  className="text-[11px] font-semibold text-amber-300 hover:text-amber-200 hover:underline flex items-center gap-1"
+                >
+                  <Pencil className="w-3 h-3" />
+                  Modifier
+                </button>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Add Modal */}
+      {/* Add / Edit Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="w-full max-w-md bg-slate-950 border-2 border-white rounded-2xl p-6 shadow-2xl space-y-4">
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <Star className="w-5 h-5 text-amber-400 fill-amber-400" />
-              Nouveau Favori
+              {editingFavori ? (
+                <>
+                  <Pencil className="w-5 h-5 text-amber-400" />
+                  Modifier le Favori ✏️
+                </>
+              ) : (
+                <>
+                  <Star className="w-5 h-5 text-amber-400 fill-amber-400" />
+                  Nouveau Favori
+                </>
+              )}
             </h2>
 
-            <form onSubmit={handleAddSubmit} className="space-y-3">
+            <form onSubmit={handleFormSubmit} className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Titre</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Titre *</label>
                 <input
                   type="text"
                   required
@@ -259,7 +318,7 @@ export const FavorisPanel: React.FC<FavorisPanelProps> = ({
                   type="submit"
                   className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 border border-white text-white font-semibold text-sm shadow-md"
                 >
-                  Enregistrer
+                  {editingFavori ? 'Mettre à jour' : 'Enregistrer'}
                 </button>
               </div>
             </form>
