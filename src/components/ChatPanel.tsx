@@ -33,7 +33,6 @@ import { CyberBrainHead } from './CyberBrainHead';
 import { CameraVideoModal } from './CameraVideoModal';
 import { FormattedMarkdown } from './FormattedMarkdown';
 import { useLanguage } from '../context/LanguageContext';
-import { transcribeAudioClient } from '../utils/geminiClient';
 
 interface ChatPanelProps {
   conversation: Conversation | null;
@@ -332,13 +331,20 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             const reader = new FileReader();
             reader.onloadend = async () => {
               const base64Data = reader.result as string;
-              const data = await transcribeAudioClient({ audioData: base64Data, mimeType: mime });
-              if (data.transcription) {
-                setInputText((prev) => {
-                  const base = baseInputTextRef.current ? baseInputTextRef.current.trim() : '';
-                  return base ? `${base} ${data.transcription}` : data.transcription;
-                });
-                playCyberSound('success');
+              const res = await fetch('/api/transcribe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ audioData: base64Data, mimeType: mime }),
+              });
+              if (res.ok) {
+                const data = await res.json();
+                if (data.transcription) {
+                  setInputText((prev) => {
+                    const base = baseInputTextRef.current ? baseInputTextRef.current.trim() : '';
+                    return base ? `${base} ${data.transcription}` : data.transcription;
+                  });
+                  playCyberSound('success');
+                }
               }
               setIsTranscribingAudio(false);
             };

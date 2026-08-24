@@ -19,7 +19,6 @@ import {
 } from 'lucide-react';
 import { TranscriptionItem } from '../types';
 import { playCyberSound, safeLoad, safeSave } from '../utils/security';
-import { transcribeAudioClient } from '../utils/geminiClient';
 
 interface TranscriptionPanelProps {
   onSendToChat: (text: string) => void;
@@ -349,7 +348,7 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
     }
   };
 
-  // Helper to transcribe an audio Blob via direct client-side Gemini API
+  // Helper to transcribe an audio Blob via server-side Gemini API
   const transcribeBlobWithGemini = async (blob: Blob, mimeType: string) => {
     setIsProcessingAI(true);
     onShowToast('Transcription haute précision avec l\'IA en cours...', 'info');
@@ -359,11 +358,17 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
       reader.onload = async () => {
         try {
           const base64Data = reader.result as string;
-          const data = await transcribeAudioClient({
-            audioData: base64Data,
-            mimeType,
-            language: selectedLanguage === 'fr-FR' ? 'français' : 'anglais'
+          const response = await fetch('/api/transcribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              audioData: base64Data,
+              mimeType,
+              language: selectedLanguage === 'fr-FR' ? 'français' : 'anglais',
+            }),
           });
+
+          const data = await response.json();
 
           if (data.transcription && data.transcription.trim()) {
             const resultText = data.transcription.trim();
@@ -382,7 +387,7 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
             };
             setSavedTranscriptions((prev) => [newItem, ...prev]);
           } else {
-            throw new Error('Transcription vide');
+            throw new Error(data.error || 'Transcription vide');
           }
         } catch (err: any) {
           console.error('Erreur API Transcription:', err);
@@ -418,11 +423,17 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
         try {
           const base64Data = reader.result as string;
           
-          const data = await transcribeAudioClient({
-            audioData: base64Data,
-            mimeType: file.type || 'audio/mp3',
-            language: selectedLanguage === 'fr-FR' ? 'français' : 'anglais'
+          const response = await fetch('/api/transcribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              audioData: base64Data,
+              mimeType: file.type || 'audio/mp3',
+              language: selectedLanguage === 'fr-FR' ? 'français' : 'anglais',
+            }),
           });
+
+          const data = await response.json();
 
           if (data.transcription) {
             const resultText = data.transcription;
@@ -441,7 +452,7 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
             };
             setSavedTranscriptions((prev) => [newItem, ...prev]);
           } else {
-            throw new Error('Erreur transcription');
+            throw new Error(data.error || 'Erreur transcription');
           }
         } catch (error: any) {
           console.error('Upload transcription error:', error);

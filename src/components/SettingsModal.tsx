@@ -26,7 +26,6 @@ import {
 import { playCyberSound, playAlertSound, speakCyberResponse } from '../utils/security';
 import { GalaxyColorScheme } from './MilkyWayGalaxy';
 import { getSupabaseConfig, saveSupabaseConfig, callUseCredit } from '../utils/supabase';
-import { getGeminiApiKey, saveGeminiApiKey } from '../utils/geminiClient';
 import { AlertSound, RolloverEnergyInfo, UserProfile, VoiceGender } from '../types';
 import { useLanguage } from '../context/LanguageContext';
 import { LanguageSelector } from './LanguageSelector';
@@ -110,18 +109,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [rpcStatus, setRpcStatus] = useState<string | null>(null);
   const [isTestingRpc, setIsTestingRpc] = useState(false);
 
-  // Gemini API Key state
-  const [geminiApiKey, setGeminiApiKey] = useState('');
-  const [geminiKeySaved, setGeminiKeySaved] = useState(false);
-
   useEffect(() => {
     if (isOpen) {
       const cfg = getSupabaseConfig();
       setSupabaseUrl(cfg.url);
       setSupabaseKey(cfg.anonKey);
-      setGeminiApiKey(getGeminiApiKey());
       setRpcStatus(null);
-      setGeminiKeySaved(false);
       if (userProfile) {
         setPrenom(userProfile.prenom || '');
         setNom(userProfile.nom || '');
@@ -561,52 +554,32 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
-          {/* Section 4b: Clé API Gemini (Direct Client / Vercel) */}
+          {/* Section 4b: Architecture Sécurisée Serveur (Vercel & Express) */}
           <div className="p-3.5 rounded-xl bg-white/[0.03] border-[0.5px] border-white/10 space-y-3">
             <div className="flex items-center justify-between">
               <label className="flex items-center gap-2 text-sky-300 font-bold text-sm">
                 <Sparkles className="w-4 h-4 text-sky-400" />
-                <span>Moteur IA Gemini (@google/genai)</span>
+                <span>Moteur IA & Sécurité Serveur</span>
               </label>
-              <span className="text-[11px] text-slate-400">
-                Mode Client Direct / Vercel
+              <span className="text-[11px] text-emerald-400 font-mono flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Route /api/chat Active
               </span>
             </div>
 
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              Les requêtes IA sont exécutées directement côté client sans dépendance serveur localhost.
-              {geminiApiKey ? ' Une clé API est actuellement active.' : ' Renseignez votre clé API Gemini ou configurez la variable GEMINI_API_KEY.'}
+            <p className="text-[11px] text-slate-300 leading-relaxed">
+              Votre clé d'API <code className="text-sky-300 font-mono">GEMINI_API_KEY</code> est protégée sur le serveur (Vercel / Backend). Aucune clé API n'est injectée ni exposée dans le navigateur client.
             </p>
 
-            <div className="space-y-2">
-              <label className="block text-slate-300 font-medium">Clé API Google Gemini (variable GEMINI_API_KEY) :</label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="password"
-                  placeholder="AIzaSy..."
-                  value={geminiApiKey}
-                  onChange={(e) => setGeminiApiKey(e.target.value)}
-                  className="flex-1 bg-slate-950/70 border-[0.5px] border-white/20 rounded-xl px-3 py-2 text-white placeholder-slate-500 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-sky-400"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    saveGeminiApiKey(geminiApiKey);
-                    setGeminiKeySaved(true);
-                    playCyberSound('success');
-                    setTimeout(() => setGeminiKeySaved(false), 3000);
-                  }}
-                  className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs border-[0.5px] border-white/30 transition-all cursor-pointer whitespace-nowrap"
-                >
-                  Enregistrer
-                </button>
+            <div className="p-2.5 rounded-lg bg-slate-950/70 border border-emerald-500/30 text-[11px] text-slate-400 space-y-1">
+              <div className="flex items-center justify-between text-slate-300">
+                <span>Point de terminaison :</span>
+                <span className="font-mono text-emerald-400">POST /api/chat</span>
               </div>
-              {geminiKeySaved && (
-                <div className="text-[11px] text-emerald-400 flex items-center gap-1 mt-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Clé API Gemini enregistrée localement avec succès !</span>
-                </div>
-              )}
+              <div className="flex items-center justify-between text-slate-300">
+                <span>Emplacement de la clé :</span>
+                <span className="font-mono text-sky-300">process.env.GEMINI_API_KEY</span>
+              </div>
             </div>
           </div>
 

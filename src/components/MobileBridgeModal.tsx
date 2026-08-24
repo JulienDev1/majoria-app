@@ -19,7 +19,6 @@ import {
   Play
 } from 'lucide-react';
 import { playCyberSound, playAlertSound, speakCyberResponse } from '../utils/security';
-import { generateMobileAssistantDeepLinkClient } from '../utils/geminiClient';
 import { MobileBridgeInfo } from '../types';
 
 interface MobileBridgeModalProps {
@@ -111,11 +110,19 @@ export const MobileBridgeModal: React.FC<MobileBridgeModalProps> = ({
     playCyberSound('click');
 
     try {
-      const data = await generateMobileAssistantDeepLinkClient(cmd);
-      setDeepLinkResult(data);
-      playCyberSound('success');
-      if (data.feedback_speech) {
-        speakCyberResponse(data.feedback_speech, 'female');
+      const res = await fetch('/api/assistant/deep-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: cmd })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setDeepLinkResult(data);
+        playCyberSound('success');
+        if (data.feedback_speech) {
+          speakCyberResponse(data.feedback_speech, 'female');
+        }
       }
     } catch (err) {
       console.error('Erreur test assistant deep link:', err);
