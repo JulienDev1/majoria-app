@@ -517,8 +517,18 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   <div className="text-xs sm:text-sm leading-relaxed break-words font-sans">
                     {isUser ? (
                       <div className="whitespace-pre-wrap">{msg.contenu}</div>
+                    ) : !msg.contenu && isLoading && idx === conversation.messages.length - 1 ? (
+                      <div className="flex items-center gap-2 text-xs text-sky-300 py-1">
+                        <Loader2 className="w-3.5 h-3.5 text-sky-400 animate-spin" />
+                        <span className="animate-pulse">MajorI.A formule sa réponse...</span>
+                      </div>
                     ) : (
-                      <FormattedMarkdown content={msg.contenu} />
+                      <div className="relative">
+                        <FormattedMarkdown content={msg.contenu} />
+                        {isLoading && idx === conversation.messages.length - 1 && (
+                          <span className="inline-block w-1.5 h-3.5 ml-1 bg-sky-400 animate-pulse rounded-sm align-middle shadow-[0_0_8px_rgba(56,189,248,0.8)]" />
+                        )}
+                      </div>
                     )}
                   </div>
 
@@ -586,8 +596,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           })
         )}
 
-        {/* Loading Indicator with Animated Brain */}
-        {isLoading && (
+        {/* Loading Indicator with Animated Brain (only if no AI bubble has been appended yet) */}
+        {isLoading && (!conversation || conversation.messages.length === 0 || conversation.messages[conversation.messages.length - 1].role === 'user') && (
           <div className="flex gap-2.5 sm:gap-3.5 max-w-4xl mx-auto items-center">
             <div className="w-7 h-7 rounded-xl bg-white/[0.06] border-[0.5px] border-white/20 flex items-center justify-center shrink-0">
               <CyberBrainHead size={18} />

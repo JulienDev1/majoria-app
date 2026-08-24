@@ -488,7 +488,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <span>{t('settings.energyTitle')}</span>
               </label>
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-950 border-[0.5px] border-white/20 text-xs font-mono">
-                <Battery className="w-3.5 h-3.5 text-emerald-400" />
                 <span className="text-white font-bold">{energyPercent}% {t('header.remaining')}</span>
               </div>
             </div>

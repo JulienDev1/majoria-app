@@ -964,10 +964,10 @@ function withTimeout<T>(promise: Promise<T>, ms: number, errorMsg: string): Prom
   ]);
 }
 
-// ASSISTANT CHAT INTELLIGENT AVEC GEMINI & GOOGLE SEARCH (GROUNDING EN TEMPS RÉEL)
+// ASSISTANT CHAT INTELLIGENT AVEC GEMINI & GOOGLE SEARCH (STREAMING & GROUNDING EN TEMPS RÉEL)
 app.post('/api/chat', async (req: Request, res: Response) => {
   try {
-    const { message, image, history, userProfile } = req.body;
+    const { message, image, history, userProfile, stream = true } = req.body;
 
     if (!message && !image) {
       return res.status(400).json({ error: 'Message ou image requis' });
@@ -999,131 +999,160 @@ DIRECTIVES DE RÉPONSE :
     const contents = buildGeminiContents(history, message || '', image);
     const ai = getGenAI();
 
-    // Enable Google Search tool for grounded, accurate real-time answers (weather, news, facts, current events)
+    const needsLiveSearch = Boolean(
+      !image &&
+      message &&
+      /(?:cherche|search|google|météo|meteo|actualit|nouvelle|news|qui est|score|match|cours|prix|aujourd'hui|ce jour|date|heure|en direct|récent|2026|direct)/i.test(
+        message
+      )
+    );
+
     const config: any = {
       systemInstruction,
       temperature: 0.7,
     };
 
-    if (!image) {
+    if (needsLiveSearch) {
       config.tools = [{ googleSearch: {} }];
     }
 
-    let response: any = null;
-    const candidateModels = ['gemini-3.7-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+    // Set SSE headers for streaming response
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    if (typeof res.flushHeaders === 'function') {
+      res.flushHeaders();
+    }
+
+    let streamResponse: any = null;
+    const candidateModels = ['gemini-3.1-flash-lite', 'gemini-3.7-flash', 'gemini-flash-latest'];
 
     for (const modelName of candidateModels) {
       try {
-        response = await withTimeout(
-          ai.models.generateContent({
-            model: modelName,
-            contents,
-            config,
-          }),
-          20000,
-          `Délai dépassé pour le modèle ${modelName}`
-        );
-
-        const extractedText = response?.text || response?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('').trim();
-        if (extractedText && extractedText.length > 0) {
-          break;
-        }
+        streamResponse = await ai.models.generateContentStream({
+          model: modelName,
+          contents,
+          config,
+        });
+        if (streamResponse) break;
       } catch (err: any) {
-        console.warn(`Tentative avec ${modelName} a échoué:`, err?.message || err);
+        console.warn(`Tentative streaming serveur ${modelName} a échoué:`, err?.message || err);
       }
     }
 
-    // Fallback attempt without tools if search tool caused any transient provider error or empty response
-    const currentExtracted = response?.text || response?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('').trim();
-    if (!response || !currentExtracted) {
+    // Fallback attempt without tools if search tool caused any transient issue
+    if (!streamResponse) {
       for (const fallbackModel of ['gemini-3.1-flash-lite', 'gemini-3.7-flash', 'gemini-flash-latest']) {
         try {
-          const simpleConfig: any = {
-            systemInstruction,
-            temperature: 0.7,
-          };
-          response = await withTimeout(
-            ai.models.generateContent({
-              model: fallbackModel,
-              contents,
-              config: simpleConfig,
-            }),
-            12000,
-            `Délai dépassé pour le modèle simple ${fallbackModel}`
-          );
-
-          const fallbackText = response?.text || response?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('').trim();
-          if (fallbackText && fallbackText.length > 0) {
-            break;
-          }
+          streamResponse = await ai.models.generateContentStream({
+            model: fallbackModel,
+            contents,
+            config: {
+              systemInstruction,
+              temperature: 0.7,
+            },
+          });
+          if (streamResponse) break;
         } catch (fallbackErr: any) {
-          console.warn(`Fallback ${fallbackModel} a échoué:`, fallbackErr?.message || fallbackErr);
+          console.warn(`Fallback streaming ${fallbackModel} a échoué:`, fallbackErr?.message || fallbackErr);
         }
       }
     }
 
-    const rawText = response?.text || response?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('').trim() || "";
-    let reply = rawText.trim();
-    let actions: any[] = [];
-    const sources: { title: string; uri: string }[] = [];
-    let searchQueries: string[] = [];
+    if (!streamResponse) {
+      res.write(`data: ${JSON.stringify({ type: 'error', error: "Impossible de joindre le modèle d'IA." })}\n\n`);
+      res.end();
+      return;
+    }
 
-    // Extract Grounding metadata (Google Search results & queries)
-    const groundingMeta = response?.candidates?.[0]?.groundingMetadata;
-    if (groundingMeta) {
-      if (Array.isArray(groundingMeta.groundingChunks)) {
-        for (const chunk of groundingMeta.groundingChunks) {
-          if (chunk.web?.uri) {
-            sources.push({
-              title: chunk.web.title || chunk.web.uri,
-              uri: chunk.web.uri,
-            });
+    let fullText = '';
+    const rawSources: { title: string; uri: string }[] = [];
+    const searchQueries: string[] = [];
+
+    for await (const chunk of streamResponse) {
+      const chunkText = chunk.text || '';
+      if (chunkText) {
+        fullText += chunkText;
+        res.write(`data: ${JSON.stringify({ type: 'chunk', text: chunkText })}\n\n`);
+        if (typeof (res as any).flush === 'function') {
+          (res as any).flush();
+        }
+      }
+
+      const groundingMeta = chunk?.candidates?.[0]?.groundingMetadata;
+      if (groundingMeta) {
+        if (Array.isArray(groundingMeta.groundingChunks)) {
+          for (const gc of groundingMeta.groundingChunks) {
+            if (gc.web?.uri) {
+              rawSources.push({
+                title: gc.web.title || gc.web.uri,
+                uri: gc.web.uri,
+              });
+            }
+          }
+        }
+        if (Array.isArray(groundingMeta.webSearchQueries)) {
+          for (const q of groundingMeta.webSearchQueries) {
+            if (typeof q === 'string' && q.trim()) {
+              searchQueries.push(q.trim());
+            }
           }
         }
       }
-
-      if (Array.isArray(groundingMeta.webSearchQueries)) {
-        const gQueries = groundingMeta.webSearchQueries.filter((q: any) => typeof q === 'string' && q.trim().length > 0);
-        searchQueries = Array.from(new Set(gQueries));
-      }
     }
+
+    let reply = fullText.trim();
+    let actions: any[] = [];
 
     // Extract ACTION_JSON if present
-    const match = rawText.match(/ACTION_JSON\s*:\s*(\{.*?\})/s) || rawText.match(/ACTION_JSON\s*:\s*(\{[\s\S]*?\})/);
+    const match = fullText.match(/ACTION_JSON\s*:\s*(\{.*?\})/s) || fullText.match(/ACTION_JSON\s*:\s*(\{[\s\S]*?\})/);
     if (match) {
       try {
         const parsed = JSON.parse(match[1]);
         actions = parsed.actions || [];
-        reply = rawText.replace(/(?:Rappel|Tâche|Mémoire|Favori)?\s*:?\s*ACTION_JSON\s*:\s*\{[\s\S]*?\}/gi, '').trim();
+        reply = fullText.replace(/(?:Rappel|Tâche|Mémoire|Favori)?\s*:?\s*ACTION_JSON\s*:\s*\{[\s\S]*?\}/gi, '').trim();
       } catch {
-        reply = rawText.replace(/(?:Rappel|Tâche|Mémoire|Favori)?\s*:?\s*ACTION_JSON\s*:[\s\S]*/gi, '').trim();
+        reply = fullText.replace(/(?:Rappel|Tâche|Mémoire|Favori)?\s*:?\s*ACTION_JSON\s*:[\s\S]*/gi, '').trim();
       }
     }
     reply = reply.replace(/(?:\r?\n)*(?:Rappel|Tâche|Mémoire|Favori)\s*:\s*$/i, '').trim();
 
-    // Deduplicate sources by URI
+    // Deduplicate sources
     const uniqueSources: { title: string; uri: string }[] = [];
     const seenUris = new Set<string>();
-    for (const s of sources) {
+    for (const s of rawSources) {
       if (s.uri && !seenUris.has(s.uri)) {
         seenUris.add(s.uri);
         uniqueSources.push(s);
       }
     }
 
-    return res.json({
-      reply,
+    res.write(`data: ${JSON.stringify({
+      type: 'done',
+      reply: reply || "Transmission reçue.",
       actions,
       sources: uniqueSources,
-      searchQueries,
+      searchQueries: Array.from(new Set(searchQueries)),
       shouldSpeak: false,
       timestamp: new Date().toISOString(),
-    });
+    })}\n\n`);
+
+    res.write('data: [DONE]\n\n');
+    res.end();
   } catch (error: any) {
-    console.error('Erreur globale API Chat:', error);
-    return res.status(500).json({
-      error: "Une erreur est survenue lors de la génération de la réponse.",
-    });
+    console.error('Erreur globale API Chat Streaming:', error);
+    try {
+      res.write(`data: ${JSON.stringify({
+        type: 'error',
+        error: error?.message || "Une erreur est survenue lors de la génération de la réponse.",
+      })}\n\n`);
+      res.end();
+    } catch {
+      if (!res.headersSent) {
+        res.status(500).json({ error: "Une erreur est survenue lors de la génération de la réponse." });
+      }
+    }
   }
 });
 

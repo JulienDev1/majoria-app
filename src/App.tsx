@@ -846,7 +846,10 @@ export default function App() {
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream, application/json',
+        },
         body: JSON.stringify({
           message: safeMessageText,
           image,
@@ -856,6 +859,7 @@ export default function App() {
             nom: userProfile.nom || '',
             userName: user?.nom || '',
           },
+          stream: true,
         }),
       });
 
@@ -864,36 +868,157 @@ export default function App() {
         throw new Error(errJson.error || `Erreur serveur (${res.status})`);
       }
 
-      const data = await res.json();
+      const contentType = res.headers.get('content-type') || '';
 
-      const replyContent = confidentialMode
-        ? sanitizeConfidentialText(data.reply)
-        : data.reply || "Transmission reçue.";
+      if (contentType.includes('text/event-stream') && res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let accumulatedRawText = '';
+        let finalReply = '';
+        let finalActions: any[] = [];
+        let finalSources: { title: string; uri: string }[] = [];
+        let finalSearchQueries: string[] = [];
+        let buffer = '';
 
-      const neoMessage = {
-        role: 'neo' as const,
-        contenu: replyContent,
-        sources: Array.isArray(data.sources) && data.sources.length > 0 ? data.sources : undefined,
-        searchQueries: Array.isArray(data.searchQueries) && data.searchQueries.length > 0 ? data.searchQueries : undefined,
-        date: new Date().toISOString(),
-      };
+        // Add initial empty assistant message so tokens render immediately into the bubble
+        const initialAiMessage = {
+          role: 'neo' as const,
+          contenu: '',
+          date: new Date().toISOString(),
+        };
 
-      const finalConv: Conversation = {
-        ...convWithUserMsg,
-        messages: [...convWithUserMsg.messages, neoMessage],
-      };
+        const convWithAiPlaceholder: Conversation = {
+          ...convWithUserMsg,
+          messages: [...convWithUserMsg.messages, initialAiMessage],
+        };
 
-      const finalConvs = updatedWithUser.map((c) =>
-        c.id === finalConv.id ? finalConv : c
-      );
-      updateConversationsState(finalConvs);
+        setConversations((prev) =>
+          prev.map((c) => (c.id === convWithAiPlaceholder.id ? convWithAiPlaceholder : c))
+        );
 
-      if (data.actions && data.actions.length > 0) {
-        await processAiActions(data.actions);
-      }
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-      if (voiceAutoSpeak) {
-        speakCyberResponse(replyContent, voiceGender);
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || !trimmed.startsWith('data:')) continue;
+            const dataStr = trimmed.replace(/^data:\s*/, '');
+            if (dataStr === '[DONE]') continue;
+
+            try {
+              const parsed = JSON.parse(dataStr);
+              if (parsed.type === 'chunk' && parsed.text) {
+                accumulatedRawText += parsed.text;
+
+                // Temporarily hide pending ACTION_JSON block in progress so raw JSON doesn't flicker on screen
+                const cleanStreamingText = accumulatedRawText
+                  .replace(/(?:Rappel|Tâche|Mémoire|Favori)?\s*:?\s*ACTION_JSON\s*:[\s\S]*/gi, '')
+                  .trimEnd();
+
+                const displayContent = confidentialMode
+                  ? sanitizeConfidentialText(cleanStreamingText)
+                  : cleanStreamingText;
+
+                setConversations((prevConvs) =>
+                  prevConvs.map((c) => {
+                    if (c.id !== convWithAiPlaceholder.id) return c;
+                    const msgs = [...c.messages];
+                    if (msgs.length > 0 && msgs[msgs.length - 1].role === 'neo') {
+                      msgs[msgs.length - 1] = {
+                        ...msgs[msgs.length - 1],
+                        contenu: displayContent,
+                      };
+                    }
+                    return { ...c, messages: msgs };
+                  })
+                );
+              } else if (parsed.type === 'done') {
+                finalReply = parsed.reply || accumulatedRawText;
+                finalActions = parsed.actions || [];
+                finalSources = parsed.sources || [];
+                finalSearchQueries = parsed.searchQueries || [];
+              } else if (parsed.type === 'error') {
+                throw new Error(parsed.error || 'Erreur lors du streaming');
+              }
+            } catch (jsonErr: any) {
+              if (jsonErr.message && !jsonErr.message.includes('JSON')) {
+                throw jsonErr;
+              }
+            }
+          }
+        }
+
+        // Clean final reply text and persist state
+        const cleanedReply = (finalReply || accumulatedRawText)
+          .replace(/(?:Rappel|Tâche|Mémoire|Favori)?\s*:?\s*ACTION_JSON\s*:[\s\S]*/gi, '')
+          .trim();
+
+        const finalizedContent = confidentialMode
+          ? sanitizeConfidentialText(cleanedReply)
+          : cleanedReply || "Transmission reçue.";
+
+        const finalNeoMessage = {
+          role: 'neo' as const,
+          contenu: finalizedContent,
+          sources: finalSources.length > 0 ? finalSources : undefined,
+          searchQueries: finalSearchQueries.length > 0 ? finalSearchQueries : undefined,
+          date: new Date().toISOString(),
+        };
+
+        const finalizedConv: Conversation = {
+          ...convWithUserMsg,
+          messages: [...convWithUserMsg.messages, finalNeoMessage],
+        };
+
+        updateConversationsState(
+          currentConvs.map((c) => (c.id === finalizedConv.id ? finalizedConv : c))
+        );
+
+        if (finalActions && finalActions.length > 0) {
+          await processAiActions(finalActions);
+        }
+
+        if (voiceAutoSpeak) {
+          speakCyberResponse(finalizedContent, voiceGender);
+        }
+      } else {
+        // Fallback for non-streaming response
+        const data = await res.json();
+
+        const replyContent = confidentialMode
+          ? sanitizeConfidentialText(data.reply)
+          : data.reply || "Transmission reçue.";
+
+        const neoMessage = {
+          role: 'neo' as const,
+          contenu: replyContent,
+          sources: Array.isArray(data.sources) && data.sources.length > 0 ? data.sources : undefined,
+          searchQueries: Array.isArray(data.searchQueries) && data.searchQueries.length > 0 ? data.searchQueries : undefined,
+          date: new Date().toISOString(),
+        };
+
+        const finalConv: Conversation = {
+          ...convWithUserMsg,
+          messages: [...convWithUserMsg.messages, neoMessage],
+        };
+
+        const finalConvs = updatedWithUser.map((c) =>
+          c.id === finalConv.id ? finalConv : c
+        );
+        updateConversationsState(finalConvs);
+
+        if (data.actions && data.actions.length > 0) {
+          await processAiActions(data.actions);
+        }
+
+        if (voiceAutoSpeak) {
+          speakCyberResponse(replyContent, voiceGender);
+        }
       }
     } catch (e: any) {
       console.error('Erreur envoi chat via /api/chat:', e);

@@ -8,11 +8,7 @@ import {
   Settings, 
   User,
   Smartphone,
-  Flame,
-  BatteryMedium,
-  BatteryLow,
-  BatteryWarning,
-  BatteryFull
+  Flame
 } from 'lucide-react';
 import { playCyberSound } from '../utils/security';
 import { CyberBrainHead } from './CyberBrainHead';
@@ -83,13 +79,6 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
   };
 
   const effectiveEnergy = typeof energyPercent === 'number' ? Math.max(0, energyPercent) : 100;
-
-  const renderBatteryIcon = () => {
-    if (effectiveEnergy <= 10) return <BatteryWarning className="w-4 h-4 text-rose-400 animate-pulse" />;
-    if (effectiveEnergy <= 30) return <BatteryLow className="w-4 h-4 text-amber-400" />;
-    if (effectiveEnergy <= 70) return <BatteryMedium className="w-4 h-4 text-emerald-400" />;
-    return <BatteryFull className="w-4 h-4 text-emerald-400" />;
-  };
 
   const displayName = userProfile?.prenom 
     ? `${userProfile.prenom}${userProfile.nom ? ` ${userProfile.nom}` : ''}`
@@ -227,7 +216,6 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
                 : 'bg-emerald-950/60 border-emerald-400/40 text-emerald-200'
             }`}
           >
-            {renderBatteryIcon()}
             <div className="flex items-center gap-1">
               <span className="font-mono font-extrabold">{effectiveEnergy}%</span>
               <span className="hidden sm:inline text-xs font-medium text-slate-300">{t('header.remaining')}</span>

@@ -139,15 +139,14 @@ export default async function handler(req: any, res: any) {
       ? `L'utilisateur avec qui tu discutes s'appelle "${userName}".`
       : "";
 
-    const systemInstruction = `Tu es MajorI.A, un assistant d'intelligence artificielle hautement performant, précis, direct, naturel et chaleureux.
+    const systemInstruction = `Tu es MajorI.A, un assistant d'intelligence artificielle ultra-rapide, précis, direct, naturel et chaleureux.
 ${userGreetingInstruction}
 
 DIRECTIVES DE RÉPONSE :
-1. Réponds avec une exactitude maximale et un grand souci du détail à la question posée.
-2. Formule ta réponse de manière fluide, vivante et concrète, sans préambule superflu, sans répéter inutilement la date du jour en introduction sauf si l'utilisateur la demande explicitement ou si c'est indispensable pour le contexte temporel.
-3. Exploite pleinement les informations en temps réel de la recherche Google pour les faits d'actualité, la météo, les événements et données récentes en te basant sur la temporalité réelle actuelle.
-4. Évite toute structure rigide ou scolaire de type "Définition / Contexte / Analyse". Va droit au but avec un ton naturel.
-5. Si et seulement si l'utilisateur demande explicitement d'enregistrer une action (rappel, tâche, mémoire, favori), termine ton message par exactement :
+1. Réponds de façon concise, précise et directe dès les premiers mots sans préambule superflu ni répétitions inutiles.
+2. Formule ta réponse avec clarté, vivacité et fluidité.
+3. Si la question porte sur des faits récents, l'actualité ou la météo, exploite les données en temps réel.
+4. Si et seulement si l'utilisateur demande explicitement d'enregistrer une action (rappel, tâche, mémoire, favori), termine ton message par exactement :
    ACTION_JSON:{"actions":[{"type":"reminder","titre":"...","dateRappel":"YYYY-MM-DD","heure":"HH:MM","dateFinRappel":"YYYY-MM-DD","heureFin":"HH:MM","priorite":"haute"}]}
    ou
    ACTION_JSON:{"actions":[{"type":"task","titre":"...","priorite":"normale"}]}
@@ -158,44 +157,63 @@ DIRECTIVES DE RÉPONSE :
    Sinon, ne produis aucun bloc ACTION_JSON.`.trim();
 
     const contents = buildGeminiContents(history, message || '', image);
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        },
+      },
+    });
 
-    // Enable Google Search tool for grounded, accurate real-time answers
+    // Set SSE headers for streaming response
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    if (typeof res.flushHeaders === 'function') {
+      res.flushHeaders();
+    }
+
+    const needsLiveSearch = Boolean(
+      !image &&
+      message &&
+      /(?:cherche|search|google|météo|meteo|actualit|nouvelle|news|qui est|score|match|cours|prix|aujourd'hui|ce jour|date|heure|en direct|récent|2026|direct)/i.test(
+        message
+      )
+    );
+
     const config: any = {
       systemInstruction,
       temperature: 0.7,
     };
 
-    if (!image) {
+    if (needsLiveSearch) {
       config.tools = [{ googleSearch: {} }];
     }
 
-    let response: any = null;
-    const candidateModels = ['gemini-3.7-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+    let streamResponse: any = null;
+    // Ultra-fast model priority: gemini-3.1-flash-lite has the lowest TTFT, followed by gemini-3.7-flash
+    const candidateModels = ['gemini-3.1-flash-lite', 'gemini-3.7-flash', 'gemini-flash-latest'];
 
     for (const modelName of candidateModels) {
       try {
-        response = await ai.models.generateContent({
+        streamResponse = await ai.models.generateContentStream({
           model: modelName,
           contents,
           config,
         });
-
-        const extractedText = response?.text || response?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('').trim();
-        if (extractedText && extractedText.length > 0) {
-          break;
-        }
+        if (streamResponse) break;
       } catch (err: any) {
-        console.warn(`Tentative serveur ${modelName} a échoué:`, err?.message || err);
+        console.warn(`Tentative streaming serveur ${modelName} a échoué:`, err?.message || err);
       }
     }
 
-    // Fallback attempt without tools if search grounding caused an issue or empty response
-    const currentExtracted = response?.text || response?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('').trim();
-    if (!response || !currentExtracted) {
+    // Fallback attempt without tools if search grounding caused an issue or model failed
+    if (!streamResponse) {
       for (const fallbackModel of ['gemini-3.1-flash-lite', 'gemini-3.7-flash', 'gemini-flash-latest']) {
         try {
-          response = await ai.models.generateContent({
+          streamResponse = await ai.models.generateContentStream({
             model: fallbackModel,
             contents,
             config: {
@@ -203,83 +221,103 @@ DIRECTIVES DE RÉPONSE :
               temperature: 0.7,
             },
           });
-
-          const fallbackText = response?.text || response?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('').trim();
-          if (fallbackText && fallbackText.length > 0) {
-            break;
-          }
+          if (streamResponse) break;
         } catch (fallbackErr: any) {
-          console.warn(`Fallback serveur ${fallbackModel} a échoué:`, fallbackErr?.message || fallbackErr);
+          console.warn(`Fallback streaming serveur ${fallbackModel} a échoué:`, fallbackErr?.message || fallbackErr);
         }
       }
     }
 
-    if (!response) {
-      res.status(502).json({ error: "Impossible de joindre le modèle d'IA." });
+    if (!streamResponse) {
+      res.write(`data: ${JSON.stringify({ type: 'error', error: "Impossible de joindre le modèle d'IA." })}\n\n`);
+      res.end();
       return;
     }
 
-    const rawText = response?.text || response?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('').trim() || "";
-    let reply = rawText.trim();
-    let actions: any[] = [];
-    const sources: { title: string; uri: string }[] = [];
-    let searchQueries: string[] = [];
+    let fullText = '';
+    const rawSources: { title: string; uri: string }[] = [];
+    const searchQueries: string[] = [];
 
-    // Extract Grounding metadata
-    const groundingMeta = response?.candidates?.[0]?.groundingMetadata;
-    if (groundingMeta) {
-      if (Array.isArray(groundingMeta.groundingChunks)) {
-        for (const chunk of groundingMeta.groundingChunks) {
-          if (chunk.web?.uri) {
-            sources.push({
-              title: chunk.web.title || chunk.web.uri,
-              uri: chunk.web.uri,
-            });
-          }
+    for await (const chunk of streamResponse) {
+      const chunkText = chunk.text || '';
+      if (chunkText) {
+        fullText += chunkText;
+        res.write(`data: ${JSON.stringify({ type: 'chunk', text: chunkText })}\n\n`);
+        if (typeof res.flush === 'function') {
+          res.flush();
         }
       }
 
-      if (Array.isArray(groundingMeta.webSearchQueries)) {
-        const gQueries = groundingMeta.webSearchQueries.filter((q: any) => typeof q === 'string' && q.trim().length > 0);
-        searchQueries = Array.from(new Set(gQueries));
+      // Collect grounding metadata from chunk candidates
+      const groundingMeta = chunk?.candidates?.[0]?.groundingMetadata;
+      if (groundingMeta) {
+        if (Array.isArray(groundingMeta.groundingChunks)) {
+          for (const gc of groundingMeta.groundingChunks) {
+            if (gc.web?.uri) {
+              rawSources.push({
+                title: gc.web.title || gc.web.uri,
+                uri: gc.web.uri,
+              });
+            }
+          }
+        }
+        if (Array.isArray(groundingMeta.webSearchQueries)) {
+          for (const q of groundingMeta.webSearchQueries) {
+            if (typeof q === 'string' && q.trim()) {
+              searchQueries.push(q.trim());
+            }
+          }
+        }
       }
     }
 
+    let reply = fullText.trim();
+    let actions: any[] = [];
+
     // Extract ACTION_JSON if present
-    const match = rawText.match(/ACTION_JSON\s*:\s*(\{.*?\})/s) || rawText.match(/ACTION_JSON\s*:\s*(\{[\s\S]*?\})/);
+    const match = fullText.match(/ACTION_JSON\s*:\s*(\{.*?\})/s) || fullText.match(/ACTION_JSON\s*:\s*(\{[\s\S]*?\})/);
     if (match) {
       try {
         const parsed = JSON.parse(match[1]);
         actions = parsed.actions || [];
-        reply = rawText.replace(/(?:Rappel|Tâche|Mémoire|Favori)?\s*:?\s*ACTION_JSON\s*:\s*\{[\s\S]*?\}/gi, '').trim();
+        reply = fullText.replace(/(?:Rappel|Tâche|Mémoire|Favori)?\s*:?\s*ACTION_JSON\s*:\s*\{[\s\S]*?\}/gi, '').trim();
       } catch {
-        reply = rawText.replace(/(?:Rappel|Tâche|Mémoire|Favori)?\s*:?\s*ACTION_JSON\s*:[\s\S]*/gi, '').trim();
+        reply = fullText.replace(/(?:Rappel|Tâche|Mémoire|Favori)?\s*:?\s*ACTION_JSON\s*:[\s\S]*/gi, '').trim();
       }
     }
     reply = reply.replace(/(?:\r?\n)*(?:Rappel|Tâche|Mémoire|Favori)\s*:\s*$/i, '').trim();
 
-    // Deduplicate sources by URI
+    // Deduplicate sources
     const uniqueSources: { title: string; uri: string }[] = [];
     const seenUris = new Set<string>();
-    for (const s of sources) {
+    for (const s of rawSources) {
       if (s.uri && !seenUris.has(s.uri)) {
         seenUris.add(s.uri);
         uniqueSources.push(s);
       }
     }
 
-    res.status(200).json({
+    // Send final completion payload
+    res.write(`data: ${JSON.stringify({
+      type: 'done',
       reply: reply || "Transmission reçue.",
       actions,
       sources: uniqueSources,
-      searchQueries,
+      searchQueries: Array.from(new Set(searchQueries)),
       shouldSpeak: false,
       timestamp: new Date().toISOString(),
-    });
+    })}\n\n`);
+
+    res.write('data: [DONE]\n\n');
+    res.end();
   } catch (error: any) {
-    console.error('Erreur API Chat Vercel:', error);
-    res.status(500).json({
-      error: error?.message || "Une erreur est survenue lors de la génération de la réponse.",
-    });
+    console.error('Erreur API Chat Streaming Vercel:', error);
+    try {
+      res.write(`data: ${JSON.stringify({
+        type: 'error',
+        error: error?.message || "Une erreur est survenue lors de la génération de la réponse.",
+      })}\n\n`);
+      res.end();
+    } catch {}
   }
 }
