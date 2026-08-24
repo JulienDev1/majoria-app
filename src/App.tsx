@@ -326,7 +326,7 @@ export default function App() {
     localStorage.setItem('neo-battery-energy', val.toString());
   };
 
-  // Sync background styling to document
+  // Sync background styling to document and completely replace previous background
   const applyBackground = useCallback((bg: string) => {
     setBgColor(bg);
     try {
@@ -334,9 +334,10 @@ export default function App() {
     } catch (e) {
       console.warn('Failed to save background to localStorage:', e);
     }
-    if (bg.startsWith('url(')) {
+    const isCustom = Boolean(bg && (bg.startsWith('url(') || bg.startsWith('data:') || bg.startsWith('blob:')));
+    if (isCustom) {
       document.body.style.setProperty('--page-bg-image', bg);
-      document.body.style.setProperty('--page-bg-color', '#020612');
+      document.body.style.setProperty('--page-bg-color', 'transparent');
     } else {
       document.body.style.setProperty('--page-bg-image', 'none');
       document.body.style.setProperty('--page-bg-color', bg || '#020612');
@@ -1269,16 +1270,31 @@ export default function App() {
     }
   };
 
+  const isCustomBackground = Boolean(bgColor && (bgColor.startsWith('url(') || bgColor.startsWith('data:') || bgColor.startsWith('blob:')));
+
   return (
     <div className="relative w-screen h-screen overflow-hidden flex flex-col font-sans select-none text-slate-100">
       
-      {/* Dynamic Milky Way Galaxy Canvas (Cosmic Background) */}
-      <MilkyWayGalaxy
-        enabled={galaxyEnabled}
-        colorScheme={galaxyColorScheme}
-        speed={galaxySpeed}
-        opacity={galaxyOpacity}
-      />
+      {/* Background Layer: Completely replaces preset background when custom image is imported */}
+      {isCustomBackground ? (
+        <div
+          id="custom-imported-background"
+          className="fixed inset-0 pointer-events-none z-0 bg-cover bg-center bg-no-repeat transition-all duration-200"
+          style={{
+            backgroundImage: bgColor,
+            filter: 'none',
+            WebkitFilter: 'none',
+            imageRendering: 'crisp-edges',
+          }}
+        />
+      ) : (
+        <MilkyWayGalaxy
+          enabled={galaxyEnabled}
+          colorScheme={galaxyColorScheme}
+          speed={galaxySpeed}
+          opacity={galaxyOpacity}
+        />
+      )}
 
       {/* Cyber Header with Live Battery Indicator & Action Buttons */}
       <CyberHeader

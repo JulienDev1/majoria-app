@@ -73,8 +73,8 @@ export const CameraVideoModal: React.FC<CameraVideoModalProps> = ({
       .catch(() => {});
   }, []);
 
-  // Start Camera stream
-  const startCamera = useCallback(async () => {
+  // Start Camera stream with clean constraints and robust user-gesture try/catch for Android & iOS
+  const startCamera = useCallback(async (preferredFacing: 'user' | 'environment' = facingMode) => {
     setIsLoadingCamera(true);
     setCameraError(null);
 
@@ -89,32 +89,35 @@ export const CameraVideoModal: React.FC<CameraVideoModalProps> = ({
         throw new Error("L'accès à la caméra n'est pas supporté par ce navigateur.");
       }
 
+      // Clean constraints object with facingMode: { ideal: 'environment' }
+      const cleanConstraints: MediaStreamConstraints = {
+        video: {
+          facingMode: { ideal: preferredFacing || 'environment' }
+        },
+        audio: mode === 'video'
+      };
+
       let newStream: MediaStream;
       try {
-        // Try getting video with facingMode and audio
-        newStream = await navigator.mediaDevices.getUserMedia({
+        newStream = await navigator.mediaDevices.getUserMedia(cleanConstraints);
+      } catch (primaryErr) {
+        // Safe fallback without audio if audio permission failed
+        const fallbackConstraints: MediaStreamConstraints = {
           video: {
-            facingMode: { ideal: facingMode },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 }
-          },
-          audio: true
-        });
-      } catch (errWithAudio) {
-        // Fallback to video only without audio
-        newStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: facingMode },
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
+            facingMode: { ideal: preferredFacing || 'environment' }
           },
           audio: false
-        });
+        };
+        newStream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
       }
 
       setStream(newStream);
       if (videoRef.current) {
         videoRef.current.srcObject = newStream;
+        videoRef.current.setAttribute('playsinline', 'true');
+        videoRef.current.setAttribute('webkit-playsinline', 'true');
+        videoRef.current.muted = true;
+        await videoRef.current.play().catch(() => {});
       }
     } catch (err: any) {
       console.error('Erreur démarrage caméra:', err);
@@ -125,12 +128,25 @@ export const CameraVideoModal: React.FC<CameraVideoModalProps> = ({
         msg = "Aucun périphérique caméra détecté sur cet appareil.";
       } else if (err.name === 'NotReadableError') {
         msg = "La caméra est déjà utilisée par une autre application.";
+      } else if (err.message) {
+        msg = err.message;
       }
       setCameraError(msg);
     } finally {
       setIsLoadingCamera(false);
     }
-  }, [facingMode]);
+  }, [facingMode, mode, stream]);
+
+  // Direct user-click camera initialization handler with try/catch
+  const handleUserStartCamera = () => {
+    try {
+      playCyberSound('click');
+      startCamera(facingMode);
+    } catch (e: any) {
+      console.error('User click camera init error:', e);
+      setCameraError(e?.message || "Erreur lors de l'activation de la caméra.");
+    }
+  };
 
   // Stop camera stream
   const stopCamera = useCallback(() => {
@@ -152,19 +168,30 @@ export const CameraVideoModal: React.FC<CameraVideoModalProps> = ({
       setIsRecording(false);
       setRecordingSeconds(0);
       setCustomPrompt('');
-      startCamera();
+      // Attempt camera initialization safely
+      try {
+        startCamera(facingMode);
+      } catch (err) {
+        console.warn('Auto start camera prevented by browser policy, awaiting user click:', err);
+      }
     } else {
       stopCamera();
     }
     return () => {
       stopCamera();
     };
-  }, [isOpen, startCamera, stopCamera]);
+  }, [isOpen]);
 
-  // Toggle Camera (front/back)
+  // Toggle Camera (front/back) with user click
   const toggleFacingMode = () => {
-    playCyberSound('click');
-    setFacingMode((prev) => (prev === 'user' ? 'environment' : 'user'));
+    try {
+      playCyberSound('click');
+      const nextFacing = facingMode === 'user' ? 'environment' : 'user';
+      setFacingMode(nextFacing);
+      startCamera(nextFacing);
+    } catch (err) {
+      console.error('Toggle camera error:', err);
+    }
   };
 
   // Capture Snapshot Photo
@@ -488,8 +515,8 @@ export const CameraVideoModal: React.FC<CameraVideoModalProps> = ({
                   <p className="text-xs sm:text-sm text-slate-300">{cameraError}</p>
                   <div className="flex flex-wrap gap-2 justify-center mt-2">
                     <button
-                      onClick={startCamera}
-                      className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold flex items-center gap-1.5"
+                      onClick={handleUserStartCamera}
+                      className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
                     >
                       <RefreshCw className="w-3.5 h-3.5" />
                       <span>Réessayer</span>

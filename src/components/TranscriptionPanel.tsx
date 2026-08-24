@@ -574,7 +574,7 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
       </div>
 
       {/* Main Recording / Dictation Card */}
-      <div className="bg-slate-900/90 rounded-2xl border border-white p-5 sm:p-6 shadow-xl backdrop-blur-md space-y-5">
+      <div className="bg-slate-900/90 rounded-2xl border border-white p-5 sm:p-6 shadow-xl space-y-5">
         {/* Controls and Status */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-xl bg-slate-950 border border-white">
           <div className="flex items-center gap-4 w-full sm:w-auto">

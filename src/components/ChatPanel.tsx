@@ -611,7 +611,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
         {/* Live Audio Dictation Bar */}
         {isDictating && (
-          <div className="max-w-4xl mx-auto p-3 rounded-2xl bg-rose-950/70 border-[0.5px] border-rose-400/60 backdrop-blur-xl flex items-center justify-between gap-3 animate-pulse">
+          <div className="max-w-4xl mx-auto p-3 rounded-2xl bg-rose-950/80 border-[0.5px] border-rose-400/60 flex items-center justify-between gap-3 animate-pulse">
             <div className="flex items-center gap-2.5">
               <span className="w-2.5 h-2.5 rounded-full bg-rose-400 animate-ping inline-block" />
               <div>
@@ -645,7 +645,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       </div>
 
       {/* Message Input Bottom Bar (Glassmorphic & Transparent) */}
-      <div className="p-3 sm:p-4 bg-[#030914]/50 border-t border-white/10 backdrop-blur-2xl shrink-0">
+      <div className="p-3 sm:p-4 bg-[#030914]/60 border-t border-white/10 shrink-0">
         
         {/* Exhausted Battery Notice Banner */}
         {effectiveEnergy <= 0 && (
