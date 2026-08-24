@@ -134,12 +134,32 @@ export async function callUseCredit(userId?: string): Promise<UseCreditResult> {
   const client = getSupabaseClient();
   if (client) {
     try {
-      const rpcPromise = client.rpc('use_credit', { user_id: effectiveUserId });
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 800));
-      const { data, error } = await Promise.race([rpcPromise, timeoutPromise]) as any;
+      let rpcData: any = null;
+      let rpcError: any = null;
 
-      if (!error && (typeof data === 'number' || typeof data === 'string')) {
-        const parsed = Number(data);
+      try {
+        const res = await client.rpc('use_credit', { user_id: effectiveUserId });
+        if (!res.error && res.data !== null && res.data !== undefined) {
+          rpcData = res.data;
+        } else {
+          const res2 = await client.rpc('use_credit', { p_user_id: effectiveUserId });
+          if (!res2.error && res2.data !== null && res2.data !== undefined) {
+            rpcData = res2.data;
+          } else {
+            const res3 = await client.rpc('use_credit');
+            if (!res3.error && res3.data !== null && res3.data !== undefined) {
+              rpcData = res3.data;
+            } else {
+              rpcError = res.error || res2.error || res3.error;
+            }
+          }
+        }
+      } catch (e) {
+        rpcError = e;
+      }
+
+      if (!rpcError && (typeof rpcData === 'number' || typeof rpcData === 'string')) {
+        const parsed = Number(rpcData);
         if (!isNaN(parsed)) {
           if (parsed === -1) {
             return {

@@ -279,7 +279,7 @@ app.post('/api/supabase/use-credit', async (req: Request, res: Response) => {
   // 1. If Supabase is connected on server
   if (serverSupabase) {
     try {
-      // Step A: Ensure user exists in user_credits with 30 default credits before calling use_credit
+      // Step A: Ensure user exists in user_credits with 30 default credits if possible
       try {
         const { data: existingUser } = await serverSupabase
           .from('user_credits')
@@ -292,56 +292,73 @@ app.post('/api/supabase/use-credit', async (req: Request, res: Response) => {
             .from('user_credits')
             .upsert({ user_id: effectiveUserId, credits: 30 }, { onConflict: 'user_id' });
         }
-      } catch (checkErr) {
-        console.warn('Vérification table user_credits avant use_credit:', checkErr);
+      } catch {
+        // Table may not exist yet, ignore
       }
 
-      // Step B: Call RPC use_credit
-      let rpcResult;
+      // Step B: Call RPC use_credit with various common signatures
+      let rpcResult: { data: any; error: any } = { data: null, error: null };
+      
       try {
-        rpcResult = await serverSupabase.rpc('use_credit', { user_id: effectiveUserId });
-      } catch {
-        try {
-          rpcResult = await serverSupabase.rpc('use_credit');
-        } catch (rpcErr) {
-          rpcResult = { error: rpcErr, data: null };
+        const r1 = await serverSupabase.rpc('use_credit', { user_id: effectiveUserId });
+        if (!r1.error && r1.data !== null && r1.data !== undefined) {
+          rpcResult = r1;
+        } else {
+          const r2 = await serverSupabase.rpc('use_credit', { p_user_id: effectiveUserId });
+          if (!r2.error && r2.data !== null && r2.data !== undefined) {
+            rpcResult = r2;
+          } else {
+            const r3 = await serverSupabase.rpc('use_credit');
+            if (!r3.error && r3.data !== null && r3.data !== undefined) {
+              rpcResult = r3;
+            } else {
+              rpcResult = { data: null, error: r1.error || r2.error || r3.error };
+            }
+          }
+        }
+      } catch (rpcErr) {
+        rpcResult = { error: rpcErr, data: null };
+      }
+
+      const { data, error } = rpcResult;
+      if (!error && data !== null && data !== undefined) {
+        const val = typeof data === 'number' ? data : Number(data);
+        if (!isNaN(val)) {
+          if (val === -1) {
+            return res.json({ success: false, balance: -1, isExhausted: true, error: 'Crédits épuisés (-1)', source: 'supabase-rpc' });
+          }
+          return res.json({ success: true, balance: val, isExhausted: false, source: 'supabase-rpc' });
         }
       }
 
-      const { data, error } = rpcResult as any;
-      if (error) {
-        console.warn('Server Supabase RPC use_credit error, fallback to table query:', error);
-        // Fallback: direct table decrement
-        const { data: userRow } = await serverSupabase
+      // Step C: Fallback to direct user_credits table query if RPC is not available
+      try {
+        const { data: userRow, error: tableErr } = await serverSupabase
           .from('user_credits')
           .select('credits')
           .eq('user_id', effectiveUserId)
           .maybeSingle();
 
-        let current = userRow?.credits !== undefined ? Number(userRow.credits) : 30;
-        if (isNaN(current)) current = 30;
+        if (!tableErr && userRow !== null && userRow !== undefined) {
+          let current = userRow?.credits !== undefined ? Number(userRow.credits) : 30;
+          if (isNaN(current)) current = 30;
 
-        if (current <= 0) {
-          return res.json({ success: false, balance: -1, isExhausted: true, error: 'Crédits épuisés (-1)' });
-        }
-
-        const decremented = current - 1;
-        await serverSupabase
-          .from('user_credits')
-          .upsert({ user_id: effectiveUserId, credits: decremented }, { onConflict: 'user_id' });
-
-        return res.json({ success: true, balance: decremented, isExhausted: false });
-      } else {
-        const val = typeof data === 'number' ? data : Number(data);
-        if (!isNaN(val)) {
-          if (val === -1) {
-            return res.json({ success: false, balance: -1, isExhausted: true, error: 'Crédits épuisés (-1)' });
+          if (current <= 0) {
+            return res.json({ success: false, balance: -1, isExhausted: true, error: 'Crédits épuisés (-1)', source: 'supabase-table' });
           }
-          return res.json({ success: true, balance: val, isExhausted: false });
+
+          const decremented = current - 1;
+          await serverSupabase
+            .from('user_credits')
+            .upsert({ user_id: effectiveUserId, credits: decremented }, { onConflict: 'user_id' });
+
+          return res.json({ success: true, balance: decremented, isExhausted: false, source: 'supabase-table' });
         }
+      } catch {
+        // Table not present or failed, fallback smoothly to serverStore
       }
     } catch (err: any) {
-      console.warn('Server Supabase RPC call exception:', err);
+      // Supabase unavailable, fallback to serverStore
     }
   }
 
