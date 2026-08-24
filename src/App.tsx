@@ -25,6 +25,7 @@ import {
   sanitizeConfidentialText,
 } from './utils/security';
 import { callUseCredit, getCreditBalance, syncCreditsToSupabase } from './utils/supabase';
+import { generateChatMessageClient } from './utils/geminiClient';
 import { fetchUserSubscription } from './utils/stripe';
 import { MilkyWayGalaxy, GalaxyColorScheme } from './components/MilkyWayGalaxy';
 import { CyberHeader } from './components/CyberHeader';
@@ -844,22 +845,17 @@ export default function App() {
     setIsChatLoading(true);
 
     try {
-      const res = await fetch(`${API}/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: safeMessageText,
-          image,
-          history: (targetConv?.messages || []).slice(-10),
-          userProfile: {
-            prenom: userProfile.prenom || '',
-            nom: userProfile.nom || '',
-            userName: user?.nom || '',
-          },
-        }),
+      const data = await generateChatMessageClient({
+        message: safeMessageText,
+        image,
+        history: (targetConv?.messages || []).slice(-10),
+        userProfile: {
+          prenom: userProfile.prenom || '',
+          nom: userProfile.nom || '',
+          userName: user?.nom || '',
+        },
       });
 
-      const data = await res.json();
       const replyContent = confidentialMode
         ? sanitizeConfidentialText(data.reply)
         : data.reply || "Transmission reçue.";
@@ -890,10 +886,10 @@ export default function App() {
         speakCyberResponse(replyContent, voiceGender);
       }
     } catch (e: any) {
-      console.error('Erreur envoi chat:', e);
+      console.error('Erreur envoi chat direct SDK:', e);
       const errorMessage = {
         role: 'neo' as const,
-        contenu: "Désolé, une erreur de communication est survenue. Veuillez renvoyer votre message.",
+        contenu: e?.message || "Désolé, une erreur de communication est survenue. Veuillez vérifier votre clé API Gemini ou renvoyer votre message.",
         date: new Date().toISOString(),
       };
       const errorConv = {
@@ -903,7 +899,7 @@ export default function App() {
       updateConversationsState(
         updatedWithUser.map((c) => (c.id === errorConv.id ? errorConv : c))
       );
-      showToast('⚠️ Erreur de liaison avec le serveur', 'danger');
+      showToast(e?.message?.includes('Clé API') ? '⚠️ Clé API Gemini manquante' : '⚠️ Erreur de communication avec l\'IA', 'danger');
     } finally {
       setIsChatLoading(false);
     }
