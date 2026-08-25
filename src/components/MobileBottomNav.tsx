@@ -15,6 +15,7 @@ interface MobileBottomNavProps {
   tasksCount?: number;
   remindersCount?: number;
   favorisCount?: number;
+  isCollapsed?: boolean;
 }
 
 export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
@@ -23,11 +24,18 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   onOpenMobileMenu,
   onOpenForfaits,
   isMobileSidebarOpen = false,
+  isCollapsed = false,
 }) => {
   const { t } = useLanguage();
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#030914]/90 border-t border-white/10 px-2 py-1.5 shadow-lg pb-[calc(0.35rem+env(safe-area-inset-bottom,0px))]">
+    <nav 
+      className={`md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#030914]/90 backdrop-blur-xl border-t border-white/10 px-2 py-1.5 shadow-lg pb-[calc(0.35rem+env(safe-area-inset-bottom,0px))] transition-all duration-300 ease-in-out ${
+        isCollapsed 
+          ? 'translate-y-full opacity-0 pointer-events-none' 
+          : 'translate-y-0 opacity-100'
+      }`}
+    >
       <div className="flex items-center justify-around gap-1.5 max-w-lg mx-auto">
         {/* Bouton Chat */}
         <button
@@ -45,7 +53,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           <span className="text-[11px] font-semibold mt-0.5">{t('nav.chat')}</span>
         </button>
 
-        {/* Commutateur Rapide FR | EN (remplace le bouton Importer) */}
+        {/* Commutateur Rapide FR | EN */}
         <LanguageSelector variant="bottom-nav" />
 
         {/* Bouton Forfaits */}

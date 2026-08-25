@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { PanelLeftOpen, ChevronRight } from 'lucide-react';
 import { 
   Conversation, 
   Favori, 
@@ -66,6 +67,106 @@ export default function App() {
   const [activeCategory, setActiveCategory] = useState('tous');
   const [conversationSearch, setConversationSearch] = useState('');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('majoria-sidebar-collapsed');
+      return stored !== null ? stored === 'true' : true;
+    }
+    return true;
+  });
+  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('majoria-header-collapsed');
+      return stored !== null ? stored === 'true' : true;
+    }
+    return true;
+  });
+
+  const handleToggleSidebar = useCallback(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setIsMobileSidebarOpen((prev) => !prev);
+    } else {
+      setIsSidebarCollapsed((prev) => {
+        const next = !prev;
+        localStorage.setItem('majoria-sidebar-collapsed', next ? 'true' : 'false');
+        return next;
+      });
+    }
+  }, []);
+
+  const handleToggleHeader = useCallback(() => {
+    setIsHeaderCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem('majoria-header-collapsed', next ? 'true' : 'false');
+      return next;
+    });
+  }, []);
+
+  const handleUnfoldAllBars = useCallback(() => {
+    setIsHeaderCollapsed(false);
+    setIsSidebarCollapsed(false);
+    localStorage.setItem('majoria-sidebar-collapsed', 'false');
+    localStorage.setItem('majoria-header-collapsed', 'false');
+  }, []);
+
+  const handleCollapseAllBars = useCallback(() => {
+    setIsHeaderCollapsed(true);
+    setIsSidebarCollapsed(true);
+    localStorage.setItem('majoria-sidebar-collapsed', 'true');
+    localStorage.setItem('majoria-header-collapsed', 'true');
+  }, []);
+
+  // Dépliage / Repliage au Scroll global :
+  // Défilement vers le bas -> les barres s'effacent automatiquement pour laisser place nette à la lecture
+  // Défilement vers le haut -> les barres se réaffichent en douceur
+  useEffect(() => {
+    let lastTouchY = 0;
+
+    const handleWheel = (e: WheelEvent) => {
+      // Don't collapse if an interactive modal or popup is open
+      if ((e.target as HTMLElement)?.closest('.modal-backdrop, [role="dialog"]')) return;
+
+      if (e.deltaY > 12) {
+        // Scroll down
+        handleCollapseAllBars();
+      } else if (e.deltaY < -12) {
+        // Scroll up
+        handleUnfoldAllBars();
+      }
+    };
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        lastTouchY = e.touches[0].clientY;
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        const currentY = e.touches[0].clientY;
+        const diff = lastTouchY - currentY;
+        if (diff > 18) {
+          // Scroll down
+          handleCollapseAllBars();
+          lastTouchY = currentY;
+        } else if (diff < -18) {
+          // Scroll up
+          handleUnfoldAllBars();
+          lastTouchY = currentY;
+        }
+      }
+    };
+
+    window.addEventListener('wheel', handleWheel, { passive: true });
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: true });
+
+    return () => {
+      window.removeEventListener('wheel', handleWheel);
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchmove', handleTouchMove);
+    };
+  }, [handleCollapseAllBars, handleUnfoldAllBars]);
 
   // Core Data State
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -1589,6 +1690,10 @@ export default function App() {
         onOpenAuth={() => setIsAuthOpen(true)}
         onOpenForfaits={() => setIsForfaitsOpen(true)}
         onQuickSearch={handleQuickSearch}
+        onToggleSidebar={handleToggleSidebar}
+        isSidebarOpen={!isSidebarCollapsed}
+        isCollapsed={isHeaderCollapsed}
+        onToggleCollapseHeader={handleToggleHeader}
       />
 
       {/* Main Layout Area */}
@@ -1622,10 +1727,54 @@ export default function App() {
           onOpenForfaits={() => setIsForfaitsOpen(true)}
           isOpenMobile={isMobileSidebarOpen}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={handleToggleSidebar}
         />
 
         {/* Dynamic Main Workspace Panel */}
         <section className="flex-1 min-w-0 min-h-0 flex flex-col relative overflow-hidden">
+          {/* Top Quick Bar for non-chat panels to easily unfold menu or return to chat */}
+          {activePanel !== 'chat' && (
+            <div className="px-3 sm:px-5 py-2.5 bg-white/[0.04] border-b border-white/10 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    playCyberSound('click');
+                    handleToggleSidebar();
+                  }}
+                  title={isSidebarCollapsed ? "Dérouler le menu latéral" : "Replier le menu latéral"}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border-[0.5px] border-white/20 bg-white/[0.06] hover:bg-white/[0.12] text-slate-200 hover:text-white transition-all text-xs cursor-pointer"
+                >
+                  <PanelLeftOpen className="w-4 h-4 text-sky-400" />
+                  <span className="font-medium text-xs">{isSidebarCollapsed ? "Menu (Dérouler)" : "Replier le menu"}</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    playCyberSound('click');
+                    setActivePanel('chat');
+                  }}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border-[0.5px] border-sky-400/40 bg-sky-600/20 hover:bg-sky-600/30 text-sky-200 hover:text-white transition-all text-xs font-semibold cursor-pointer"
+                >
+                  <span>← Retour au Chat</span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    playCyberSound('click');
+                    handleToggleHeader();
+                  }}
+                  title={isHeaderCollapsed ? "Déplier l'en-tête (Profil, Langue, Forfaits)" : "Replier l'en-tête"}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border-[0.5px] border-white/20 bg-white/[0.06] hover:bg-white/[0.12] text-slate-200 hover:text-white transition-all text-xs cursor-pointer"
+                >
+                  <span className="text-xs">{isHeaderCollapsed ? "⚡ Déplier l'en-tête" : "▲ Masquer l'en-tête"}</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {activePanel === 'chat' && (
             <ChatPanel
               conversation={activeConversation}
@@ -1642,6 +1791,12 @@ export default function App() {
               onOpenForfaits={() => setIsForfaitsOpen(true)}
               onOpenTranscription={() => setActivePanel('transcription')}
               isOnline={isOnline}
+              isHeaderCollapsed={isHeaderCollapsed}
+              onToggleCollapseHeader={handleToggleHeader}
+              isSidebarCollapsed={isSidebarCollapsed}
+              onToggleSidebar={handleToggleSidebar}
+              onUnfoldAllBars={handleUnfoldAllBars}
+              onCollapseAllBars={handleCollapseAllBars}
             />
           )}
 
@@ -1819,6 +1974,7 @@ export default function App() {
           if (input) input.click();
         }}
         isMobileSidebarOpen={isMobileSidebarOpen}
+        isCollapsed={isHeaderCollapsed && isSidebarCollapsed}
         tasksCount={taches.length}
         remindersCount={rappels.filter((r) => r.statut === 'actif').length}
         favorisCount={favoris.length}

@@ -26,13 +26,17 @@ import {
   Flame,
   Battery,
   WifiOff,
-  Cpu
+  Cpu,
+  ChevronDown,
+  ChevronUp,
+  PanelLeftOpen,
+  PanelLeftClose,
+  Maximize2
 } from 'lucide-react';
 import { Conversation, UserProfile, VoiceGender } from '../types';
 import { playCyberSound, cleanTextForSpeech, speakCyberResponse } from '../utils/security';
 import { cleanSpokenTranscript, mergeSpeechSegments, removeRepeatedWordsAndPhrases } from '../utils/speechCleaner';
 import { exportItemToPDF } from '../utils/pdfExport';
-import { CyberBrainHead } from './CyberBrainHead';
 import { CameraVideoModal } from './CameraVideoModal';
 import { FormattedMarkdown } from './FormattedMarkdown';
 import { useLanguage } from '../context/LanguageContext';
@@ -52,6 +56,12 @@ interface ChatPanelProps {
   energyPercent?: number | null;
   onOpenForfaits?: () => void;
   isOnline?: boolean;
+  isHeaderCollapsed?: boolean;
+  onToggleCollapseHeader?: () => void;
+  isSidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
+  onUnfoldAllBars?: () => void;
+  onCollapseAllBars?: () => void;
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
@@ -66,6 +76,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   energyPercent = 80,
   onOpenForfaits,
   isOnline = true,
+  isHeaderCollapsed = false,
+  onToggleCollapseHeader,
+  isSidebarCollapsed = false,
+  onToggleSidebar,
+  onUnfoldAllBars,
+  onCollapseAllBars,
 }) => {
   const { t } = useLanguage();
   const [inputText, setInputText] = useState('');
@@ -83,85 +99,91 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const recognitionRef = useRef<any>(null);
-  const timerRef = useRef<any>(null);
-  const silenceTimerRef = useRef<any>(null);
-  const waveAnimTimerRef = useRef<any>(null);
-  const isSendingVoiceRef = useRef<boolean>(false);
-  const baseInputTextRef = useRef<string>('');
-  const capturedTextRef = useRef<string>('');
-  const shouldKeepListeningRef = useRef<boolean>(false);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const lastScrollTopRef = useRef<number>(0);
 
+  // Audio Recognition Refs
+  const recognitionRef = useRef<any>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const dictationTimerRef = useRef<any>(null);
+  const capturedTextRef = useRef<string>('');
+  const baseInputTextRef = useRef<string>('');
+
+  // Auto-scroll on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [conversation?.messages, isLoading]);
 
+  // Clean up on unmount
   useEffect(() => {
     return () => {
-      if (window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-      }
       stopAllMedia();
     };
   }, []);
 
-  const clearSilenceTimer = () => {
-    if (silenceTimerRef.current) {
-      clearTimeout(silenceTimerRef.current);
-      silenceTimerRef.current = null;
+  // Handle Scroll to fold/unfold bars automatically (Dépliage / Repliage Scroll)
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const currentScrollTop = e.currentTarget.scrollTop;
+    const diff = currentScrollTop - lastScrollTopRef.current;
+
+    // Défilement vers le bas -> les barres s'effacent automatiquement pour laisser place nette à la lecture
+    if (diff > 12 && currentScrollTop > 20) {
+      if (onCollapseAllBars) {
+        onCollapseAllBars();
+      }
+    } 
+    // Défilement vers le haut -> les barres se réaffichent en douceur
+    else if (diff < -12) {
+      if (onUnfoldAllBars) {
+        onUnfoldAllBars();
+      }
     }
+
+    lastScrollTopRef.current = currentScrollTop;
   };
 
   const stopAllMedia = () => {
-    shouldKeepListeningRef.current = false;
-    clearSilenceTimer();
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    if (waveAnimTimerRef.current) {
-      clearInterval(waveAnimTimerRef.current);
-      waveAnimTimerRef.current = null;
-    }
     if (recognitionRef.current) {
       try {
-        recognitionRef.current.abort();
-      } catch (e) {}
+        recognitionRef.current.onresult = null;
+        recognitionRef.current.onerror = null;
+        recognitionRef.current.onend = null;
+        recognitionRef.current.stop();
+      } catch (e) {
+        // ignore
+      }
       recognitionRef.current = null;
     }
-    setAudioLevel(0);
-    setIsDictating(false);
-  };
 
-  const stopRecordingAndSend = async (forcedText?: string) => {
-    clearSilenceTimer();
-    if (isSendingVoiceRef.current) return;
-
-    shouldKeepListeningRef.current = false;
-    const base = baseInputTextRef.current ? baseInputTextRef.current.trim() : '';
-    const captured = capturedTextRef.current.trim();
-    const rawCandidate = (forcedText !== undefined 
-      ? forcedText 
-      : (captured ? (base ? mergeSpeechSegments(base, captured) : captured) : inputText)
-    ).trim();
-    const candidate = cleanSpokenTranscript(rawCandidate);
-    const imageToSend = selectedImage;
-
-    stopAllMedia();
-
-    if (candidate || imageToSend) {
-      isSendingVoiceRef.current = true;
-      setInputText('');
-      setSelectedImage(null);
-      setSelectedImageName(null);
-      setLiveTranscript('');
-      capturedTextRef.current = '';
-      baseInputTextRef.current = '';
-
-      playCyberSound('success');
-      await onSendMessage(candidate, imageToSend || undefined);
-      isSendingVoiceRef.current = false;
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
     }
+
+    if (audioContextRef.current) {
+      try {
+        audioContextRef.current.close();
+      } catch (e) {
+        // ignore
+      }
+      audioContextRef.current = null;
+    }
+
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+
+    if (dictationTimerRef.current) {
+      clearInterval(dictationTimerRef.current);
+      dictationTimerRef.current = null;
+    }
+
+    setIsDictating(false);
+    setAudioLevel(0);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -169,10 +191,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     if (!file) return;
 
     if (file.type.startsWith('image/')) {
-      if (file.size > 5 * 1024 * 1024) {
-        setMicErrorMessage('Image trop volumineuse (maximum 5 Mo)');
-        return;
-      }
       const reader = new FileReader();
       reader.onload = () => {
         setSelectedImage(reader.result as string);
@@ -183,126 +201,126 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     } else {
       const reader = new FileReader();
       reader.onload = () => {
-        const content = reader.result as string;
-        setInputText((prev) => {
-          const header = `[Fichier importé: ${file.name}]\n`;
-          return prev ? `${prev}\n\n${header}${content}` : `${header}${content}`;
-        });
-        playCyberSound('success');
+        const textContent = reader.result as string;
+        setInputText((prev) => (prev ? `${prev}\n\n[Fichier: ${file.name}]\n${textContent}` : `[Fichier: ${file.name}]\n${textContent}`));
+        playCyberSound('beep');
       };
       reader.readAsText(file);
     }
-    e.target.value = '';
   };
 
-  // Synchronous Start Dictation for real-time transcription across Mobile and Desktop
-  const startRecording = () => {
+  const startRecording = async () => {
     setMicErrorMessage(null);
-    clearSilenceTimer();
-    isSendingVoiceRef.current = false;
-    shouldKeepListeningRef.current = true;
-    playCyberSound('beep');
     baseInputTextRef.current = inputText;
     capturedTextRef.current = '';
     setLiveTranscript('');
-    setDictationSeconds(0);
-    setIsDictating(true);
 
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    
-    if (SpeechRecognition) {
-      try {
-        const recognizer = new SpeechRecognition();
-        recognizer.continuous = true;
-        recognizer.interimResults = true;
-        recognizer.lang = 'fr-FR';
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
-        recognizer.onresult = (event: any) => {
-          let currentFinal = '';
-          let currentInterim = '';
-
-          for (let i = 0; i < event.results.length; ++i) {
-            const res = event.results[i];
-            const transcriptChunk = res[0]?.transcript || '';
-            if (res.isFinal) {
-              currentFinal = currentFinal ? mergeSpeechSegments(currentFinal, transcriptChunk) : transcriptChunk;
-            } else {
-              currentInterim = currentInterim ? mergeSpeechSegments(currentInterim, transcriptChunk) : transcriptChunk;
-            }
-          }
-
-          const combined = currentInterim 
-            ? mergeSpeechSegments(currentFinal, currentInterim) 
-            : currentFinal;
-            
-          const cleanedTranscript = cleanSpokenTranscript(combined);
-
-          if (cleanedTranscript) {
-            capturedTextRef.current = cleanedTranscript;
-            setLiveTranscript(cleanedTranscript);
-            const base = baseInputTextRef.current ? baseInputTextRef.current.trim() : '';
-            const fullCombined = base 
-              ? mergeSpeechSegments(base, cleanedTranscript) 
-              : cleanedTranscript;
-            setInputText(fullCombined);
-
-            // Auto-send after a 2s natural pause in speaking
-            clearSilenceTimer();
-            silenceTimerRef.current = setTimeout(() => {
-              if (capturedTextRef.current.trim()) {
-                stopRecordingAndSend();
-              }
-            }, 2000);
-          }
-        };
-
-        recognizer.onerror = (event: any) => {
-          console.warn('SpeechRecognition status:', event.error);
-          if (event.error === 'not-allowed') {
-            setMicErrorMessage("Autorisation du micro refusée par le navigateur.");
-            stopAllMedia();
-          } else if (event.error === 'no-speech') {
-            // Ignored, continue listening
-          }
-        };
-
-        recognizer.onend = () => {
-          // If dictation is still active and user hasn't clicked stop yet, keep listening or send
-          if (shouldKeepListeningRef.current) {
-            if (capturedTextRef.current.trim()) {
-              // We have text and recognition ended -> auto-send
-              stopRecordingAndSend();
-            } else {
-              try {
-                recognizer.start();
-              } catch (e) {}
-            }
-          }
-        };
-
-        recognizer.start();
-        recognitionRef.current = recognizer;
-      } catch (err) {
-        console.warn('SpeechRecognition initialization error:', err);
-        setMicErrorMessage("La reconnaissance vocale n'a pas pu démarrer.");
-      }
-    } else {
-      setMicErrorMessage("La reconnaissance vocale Web Speech n'est pas supportée par ce navigateur.");
+    if (!SpeechRecognition) {
+      setMicErrorMessage("La reconnaissance vocale n'est pas prise en charge par ce navigateur.");
+      return;
     }
 
-    // Timer & Visualizer animation
-    timerRef.current = setInterval(() => {
-      setDictationSeconds((prev) => prev + 1);
-    }, 1000);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
 
-    waveAnimTimerRef.current = setInterval(() => {
-      setAudioLevel(Math.floor(25 + Math.random() * 65));
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      audioContextRef.current = audioCtx;
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      analyserRef.current = analyser;
+
+      const source = audioCtx.createMediaStreamSource(stream);
+      source.connect(analyser);
+
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const updateVolume = () => {
+        if (!analyserRef.current) return;
+        analyserRef.current.getByteFrequencyData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          sum += dataArray[i];
+        }
+        const avg = sum / dataArray.length;
+        setAudioLevel(Math.min(100, avg * 2));
+        animationFrameRef.current = requestAnimationFrame(updateVolume);
+      };
+      updateVolume();
+
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'fr-FR';
+      recognition.continuous = true;
+      recognition.interimResults = true;
+
+      recognition.onresult = (event: any) => {
+        let interim = '';
+        let final = '';
+
+        for (let i = 0; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            final += transcript + ' ';
+          } else {
+            interim += transcript;
+          }
+        }
+
+        const combinedText = (final + interim).trim();
+        capturedTextRef.current = combinedText;
+        setLiveTranscript(combinedText);
+
+        const base = baseInputTextRef.current ? baseInputTextRef.current.trim() : '';
+        const fullDisplay = base ? `${base} ${combinedText}` : combinedText;
+        setInputText(fullDisplay);
+      };
+
+      recognition.onerror = (event: any) => {
+        if (event.error !== 'no-speech') {
+          setMicErrorMessage(`Erreur micro : ${event.error}`);
+        }
+      };
+
+      recognition.onend = () => {
+        // Stop media if ended
+      };
+
+      recognition.start();
+      recognitionRef.current = recognition;
+      setIsDictating(true);
+      setDictationSeconds(0);
+      playCyberSound('beep');
+
+      dictationTimerRef.current = setInterval(() => {
+        setDictationSeconds((s) => s + 1);
+      }, 1000);
+    } catch (err: any) {
+      setMicErrorMessage("Impossible d'accéder au microphone. Vérifiez les autorisations.");
+      stopAllMedia();
+    }
+  };
+
+  const stopRecordingAndSend = async (customText?: string) => {
+    const rawToUse = customText || capturedTextRef.current || inputText;
+    stopAllMedia();
+
+    setTimeout(async () => {
+      const cleaned = cleanSpokenTranscript(rawToUse);
+      if (cleaned.trim()) {
+        setInputText('');
+        setLiveTranscript('');
+        capturedTextRef.current = '';
+        await onSendMessage(cleaned.trim(), selectedImage || undefined);
+        setSelectedImage(null);
+        setSelectedImageName(null);
+      }
     }, 120);
   };
 
   const handleToggleDictation = () => {
     if (isDictating) {
-      // Direct send of captured text upon clicking stop dictation
       const base = baseInputTextRef.current ? baseInputTextRef.current.trim() : '';
       const textToSend = capturedTextRef.current.trim()
         ? (base ? `${base} ${capturedTextRef.current.trim()}` : capturedTextRef.current.trim())
@@ -361,13 +379,35 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   return (
     <div className="flex-1 min-h-0 flex flex-col h-full bg-[#030914]/55 relative overflow-hidden">
       
-      {/* Header bar */}
+      {/* Header bar of Chat with Menu and Fullscreen Controls (No icon logo) */}
       <div className="px-3 sm:px-5 py-2.5 bg-white/[0.04] border-b border-white/10 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <CyberBrainHead size={22} />
+        <div className="flex items-center gap-2.5 min-w-0">
+          {/* Toggle Sidebar Button directly in Chat Header */}
+          {onToggleSidebar && (
+            <button
+              onClick={() => {
+                playCyberSound('click');
+                onToggleSidebar();
+              }}
+              title={isSidebarCollapsed ? "Dérouler le menu latéral" : "Replier le menu latéral"}
+              className="flex items-center gap-1 p-1.5 rounded-lg border-[0.5px] border-white/20 bg-white/[0.06] hover:bg-white/[0.12] text-slate-300 hover:text-white transition-all text-xs cursor-pointer"
+            >
+              {isSidebarCollapsed ? (
+                <>
+                  <PanelLeftOpen className="w-4 h-4 text-sky-400" />
+                  <span className="hidden sm:inline text-[11px] font-medium">Menu</span>
+                </>
+              ) : (
+                <PanelLeftClose className="w-4 h-4 text-slate-300" />
+              )}
+            </button>
+          )}
+
+          {/* Clean Conversation Title (No Icon Logo) */}
           <h2 className="font-bold text-white text-sm sm:text-base truncate">
             {conversation?.titre || `${t('nav.chat')} (${userName})`}
           </h2>
+
           {!isOnline && (
             <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 border-[0.5px] border-amber-400/40 text-[10px] text-amber-300 font-mono">
               <WifiOff className="w-3 h-3" />
@@ -384,6 +424,31 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             </span>
           )}
 
+          {/* Toggle Full Screen / Collapse all bars */}
+          {onToggleCollapseHeader && (
+            <button
+              onClick={() => {
+                playCyberSound('click');
+                onToggleCollapseHeader();
+              }}
+              title={isHeaderCollapsed ? "Déplier l'en-tête" : "Replier l'en-tête (Ne voir que le chat)"}
+              className="flex items-center gap-1 p-1.5 rounded-lg bg-white/[0.07] hover:bg-white/[0.14] border-[0.5px] border-white/15 text-sky-300 hover:text-white transition-all text-xs cursor-pointer"
+            >
+              {isHeaderCollapsed ? (
+                <>
+                  <ChevronDown className="w-4 h-4 text-sky-400" />
+                  <span className="hidden sm:inline text-[11px] font-medium">Déplier en-tête</span>
+                </>
+              ) : (
+                <>
+                  <ChevronUp className="w-4 h-4 text-slate-300" />
+                  <span className="hidden sm:inline text-[11px] font-medium">Plein écran</span>
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Delete / Clear Chat */}
           <button
             onClick={() => {
               playCyberSound('alert');
@@ -397,15 +462,16 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
       </div>
 
-      {/* Messages Scroll Area */}
-      <div className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-4">
+      {/* Messages Scroll Area with Scroll-based fold/unfold */}
+      <div 
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-4"
+      >
         {(!conversation || conversation.messages.length === 0) ? (
           <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-4 max-w-lg mx-auto">
-            <div className="relative p-4 rounded-3xl bg-white/[0.04] backdrop-blur-2xl border-[0.5px] border-white/20 shadow-2xl">
-              <CyberBrainHead size={54} />
-            </div>
             <div>
-              <h3 className="text-lg sm:text-xl font-bold text-white mb-1">
+              <h3 className="text-xl sm:text-2xl font-bold text-white mb-1 tracking-tight">
                 {t('chat.welcome')} {userProfile?.prenom ? userProfile.prenom : ''} !
               </h3>
               <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
@@ -446,8 +512,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 }`}
               >
                 {!isUser && (
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-white/[0.06] backdrop-blur-xl border-[0.5px] border-white/20 flex items-center justify-center shrink-0 mt-0.5">
-                    <CyberBrainHead size={20} />
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-white/[0.06] backdrop-blur-xl border-[0.5px] border-white/20 flex items-center justify-center shrink-0 mt-0.5 text-sky-300 text-xs font-bold font-mono">
+                    IA
                   </div>
                 )}
 
@@ -556,11 +622,11 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           })
         )}
 
-        {/* Loading Indicator with Animated Brain (only if no AI bubble has been appended yet) */}
+        {/* Loading Indicator without icon logo */}
         {isLoading && (!conversation || conversation.messages.length === 0 || conversation.messages[conversation.messages.length - 1].role === 'user') && (
           <div className="flex gap-2.5 sm:gap-3.5 max-w-4xl mx-auto items-center">
-            <div className="w-7 h-7 rounded-xl bg-white/[0.06] border-[0.5px] border-white/20 flex items-center justify-center shrink-0">
-              <CyberBrainHead size={18} />
+            <div className="w-7 h-7 rounded-xl bg-white/[0.06] border-[0.5px] border-white/20 flex items-center justify-center shrink-0 text-sky-300 text-xs font-bold font-mono">
+              IA
             </div>
             <div className="p-3 rounded-2xl bg-white/[0.04] backdrop-blur-xl border-[0.5px] border-white/15 flex items-center gap-2 text-xs text-slate-300">
               <Loader2 className="w-4 h-4 text-sky-400 animate-spin" />

@@ -18,11 +18,12 @@ import {
   Battery,
   BatteryCharging,
   Flame,
-  Layers
+  Layers,
+  ChevronLeft,
+  PanelLeftClose
 } from 'lucide-react';
 import { PanelId, Conversation } from '../types';
 import { playCyberSound } from '../utils/security';
-import { CyberBrainHead } from './CyberBrainHead';
 import { useLanguage } from '../context/LanguageContext';
 
 interface NavigationSidebarProps {
@@ -49,6 +50,8 @@ interface NavigationSidebarProps {
   onOpenForfaits?: () => void;
   isOpenMobile?: boolean;
   onCloseMobile?: () => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
@@ -75,6 +78,8 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
   onOpenForfaits,
   isOpenMobile = false,
   onCloseMobile,
+  isCollapsed = false,
+  onToggleCollapse,
 }) => {
   const { t } = useLanguage();
 
@@ -183,23 +188,48 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
         />
       )}
 
+      {/* Main Sidebar Container with smooth sliding unfold/fold to right */}
       <aside
-        className={`fixed lg:static top-0 bottom-0 left-0 z-40 w-72 md:w-80 bg-[#030914]/75 border-r border-white/10 flex flex-col transition-transform duration-300 ease-in-out ${
-          isOpenMobile ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        className={`fixed lg:relative top-0 bottom-0 left-0 z-40 bg-[#030914]/90 backdrop-blur-xl border-r border-white/10 flex flex-col transition-all duration-300 ease-in-out shrink-0 overflow-hidden ${
+          isOpenMobile 
+            ? 'translate-x-0 w-72 sm:w-80 shadow-2xl' 
+            : isCollapsed 
+              ? '-translate-x-full lg:translate-x-0 lg:w-0 lg:border-r-0 lg:opacity-0 pointer-events-none'
+              : '-translate-x-full lg:translate-x-0 w-72 md:w-80 opacity-100'
         }`}
       >
-        {/* Mobile Header in Sidebar */}
-        <div className="p-3 border-b border-white/10 flex items-center justify-between lg:hidden shrink-0">
+        {/* Sidebar Header with Collapse Button on desktop & mobile */}
+        <div className="p-3 border-b border-white/10 flex items-center justify-between shrink-0 bg-white/[0.02]">
           <div className="flex items-center gap-2">
-            <CyberBrainHead size={24} />
-            <span className="font-bold text-white text-base">Menu MajorI.A</span>
+            <span className="font-bold text-white text-sm tracking-wide">Navigation & Modules</span>
           </div>
-          <button
-            onClick={onCloseMobile}
-            className="p-1 rounded-lg border-[0.5px] border-white/20 text-white bg-white/5"
-          >
-            <X className="w-4 h-4" />
-          </button>
+
+          <div className="flex items-center gap-1">
+            {/* Desktop Collapse Button */}
+            {onToggleCollapse && (
+              <button
+                onClick={() => {
+                  playCyberSound('click');
+                  onToggleCollapse();
+                }}
+                title="Replier le menu (Espace étendu)"
+                className="hidden lg:flex items-center gap-1 p-1.5 rounded-lg border-[0.5px] border-white/20 text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 text-xs transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                <span className="text-[11px] font-medium">Replier</span>
+              </button>
+            )}
+
+            {/* Mobile Close Button */}
+            {onCloseMobile && (
+              <button
+                onClick={onCloseMobile}
+                className="lg:hidden p-1 rounded-lg border-[0.5px] border-white/20 text-white bg-white/5"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Primary Navigation Menu */}
