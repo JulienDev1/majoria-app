@@ -1,7 +1,7 @@
 /**
  * Intelligent Action Extractor for MajorI.A
  * Extracts structured commands (Reminders, Tasks, Memory Notes, Favorites)
- * from both explicit ACTION_JSON blocks and natural conversational language.
+ * from explicit ACTION_JSON blocks as well as natural conversational French language.
  */
 
 export interface ExtractedAction {
@@ -22,6 +22,18 @@ export interface ExtractedAction {
 }
 
 /**
+ * Normalizes text to simplify NLP matching
+ */
+function normalizePrompt(text: string): string {
+  return (text || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // remove accents for robust matching
+    .replace(/[’']/g, ' ')
+    .trim();
+}
+
+/**
  * Parses and extracts actions from AI reply or User Prompt
  */
 export function extractActionsFromText(userPrompt: string, aiReply?: string): ExtractedAction[] {
@@ -33,27 +45,32 @@ export function extractActionsFromText(userPrompt: string, aiReply?: string): Ex
     /ACTION_JSON\s*:\s*```(?:json)?\s*([\s\S]*?)\s*```/i,
     /ACTION_JSON\s*:\s*(\{[\s\S]*?\})/i,
     /\[ACTION_JSON\]\s*(\{[\s\S]*?\})/i,
-    /```json\s*(\{\s*"actions"[\s\S]*?\})\s*```/i
+    /```json\s*(\{\s*"actions"[\s\S]*?\})\s*```/i,
+    /\{"actions"\s*:\s*\[[\s\S]*?\]\}/i
   ];
 
   for (const regex of jsonRegexes) {
     const match = (aiReply || '').match(regex) || combined.match(regex);
-    if (match && match[1]) {
+    if (match) {
+      const jsonStr = match[1] || match[0];
       try {
-        const parsed = JSON.parse(match[1]);
+        const parsed = JSON.parse(jsonStr);
         if (Array.isArray(parsed.actions) && parsed.actions.length > 0) {
           return parsed.actions;
         } else if (parsed.type) {
           return [parsed];
         }
       } catch (err) {
-        // Continue to fallback
+        // Fallthrough to NLP matching
       }
     }
   }
 
   // 2. Natural Language Intent Detection on User Prompt
   const cleanPrompt = (userPrompt || '').trim();
+  if (!cleanPrompt) return actions;
+
+  const norm = normalizePrompt(cleanPrompt);
   const lower = cleanPrompt.toLowerCase();
 
   // Helper date calculators
@@ -65,26 +82,33 @@ export function extractActionsFromText(userPrompt: string, aiReply?: string): Ex
     return d.toISOString().split('T')[0];
   };
 
-  // Check Reminder Intent: "rappelle-moi...", "ajoute un rappel...", "n'oublie pas..."
+  // -------------------------------------------------------------
+  // INTENT A: Reminder / Rappel
+  // -------------------------------------------------------------
   const isReminder = (
-    lower.startsWith('rappel') ||
-    lower.includes('rappelle-moi') ||
-    lower.includes('rappelle moi') ||
-    lower.includes('rappeler de') ||
-    lower.includes('ajoute un rappel') ||
-    lower.includes('ajouter un rappel') ||
-    lower.includes('crée un rappel') ||
-    lower.includes('créer un rappel') ||
-    lower.includes('programme un rappel') ||
-    lower.includes('mets une alerte') ||
-    lower.includes('mets une alarme') ||
-    lower.includes("n'oublie pas de me rappeler")
+    norm.startsWith('rappel') ||
+    norm.includes('rappelle moi') ||
+    norm.includes('rappelle-moi') ||
+    norm.includes('rappeler de') ||
+    norm.includes('me rappeler de') ||
+    norm.includes('peux tu me rappeler') ||
+    norm.includes('pourrais tu me rappeler') ||
+    norm.includes('ajoute un rappel') ||
+    norm.includes('ajouter un rappel') ||
+    norm.includes('cree un rappel') ||
+    norm.includes('creer un rappel') ||
+    norm.includes('programme un rappel') ||
+    norm.includes('programmer un rappel') ||
+    norm.includes('mets une alerte') ||
+    norm.includes('mettre une alerte') ||
+    norm.includes('mets une alarme') ||
+    norm.includes('n oublie pas de me rappeler')
   );
 
   if (isReminder) {
     let reminderTitle = cleanPrompt
-      .replace(/^(rappel|rappelle-moi|rappelle moi|ajoute un rappel|ajouter un rappel|crée un rappel|créer un rappel|programme un rappel|mets une alerte pour|mets une alarme pour|n'oublie pas de me rappeler)\s*:?\s*/i, '')
-      .replace(/^(de|que|pour|à)\s+/i, '')
+      .replace(/^(bonjour|salut|peux-tu|peux tu|pourrais-tu|pourrais tu|s il te plait|svp)?\s*(rappel|rappelle-moi|rappelle moi|me rappeler de|rappeler de|ajoute un rappel|ajouter un rappel|crée un rappel|créer un rappel|programme un rappel|programmer un rappel|mets une alerte pour|mets une alarme pour|n'oublie pas de me rappeler)\s*:?\s*/i, '')
+      .replace(/^(de|que|pour|à|a)\s+/i, '')
       .trim();
 
     // Extract potential time (ex: à 14h, à 14h30, vers 9:00, à 15:45)
@@ -96,11 +120,11 @@ export function extractActionsFromText(userPrompt: string, aiReply?: string): Ex
       reminderHour = `${h}:${m}`;
     }
 
-    // Extract potential date (demain, après-demain, aujourd'hui, date format)
+    // Extract potential date
     let reminderDate = getTodayStr();
-    if (lower.includes('demain')) {
+    if (norm.includes('demain')) {
       reminderDate = getTomorrowStr();
-    } else if (lower.includes('après-demain') || lower.includes('apres-demain')) {
+    } else if (norm.includes('apres demain') || norm.includes('apres-demain')) {
       const d = new Date(now);
       d.setDate(d.getDate() + 2);
       reminderDate = d.toISOString().split('T')[0];
@@ -116,17 +140,17 @@ export function extractActionsFromText(userPrompt: string, aiReply?: string): Ex
 
     // Clean extraneous date phrases from title
     reminderTitle = reminderTitle
-      .replace(/(?:demain|après-demain|aujourd'hui|(?:à|vers|pour)\s*\d{1,2}[h:]?\d{0,2})/gi, '')
+      .replace(/(?:demain|après-demain|apres-demain|aujourd'hui|(?:à|vers|pour|a)\s*\d{1,2}[h:]?\d{0,2})/gi, '')
       .trim();
 
     if (!reminderTitle) reminderTitle = 'Rappel programmé';
 
-    const isUrgent = lower.includes('urgent') || lower.includes('important') || lower.includes('prioritaire');
+    const isUrgent = norm.includes('urgent') || norm.includes('important') || norm.includes('prioritaire');
 
     actions.push({
       type: 'reminder',
       titre: reminderTitle,
-      description: `Rappel créé automatiquement pour ${reminderDate} à ${reminderHour}`,
+      description: `Rappel pour le ${reminderDate} à ${reminderHour}`,
       dateRappel: reminderDate,
       heure: reminderHour,
       priorite: isUrgent ? 'haute' : 'normale',
@@ -135,32 +159,35 @@ export function extractActionsFromText(userPrompt: string, aiReply?: string): Ex
     return actions;
   }
 
-  // Check Task Intent: "ajoute une tâche...", "tâche : ...", "todo..."
+  // -------------------------------------------------------------
+  // INTENT B: Task / Tâche
+  // -------------------------------------------------------------
   const isTask = (
-    lower.startsWith('tâche') ||
-    lower.startsWith('tache') ||
-    lower.includes('ajoute une tâche') ||
-    lower.includes('ajouter une tâche') ||
-    lower.includes('crée une tâche') ||
-    lower.includes('créer une tâche') ||
-    lower.includes('nouvelle tâche') ||
-    lower.includes('rajoute une tâche') ||
-    lower.includes('ajoute dans les tâches') ||
-    lower.includes('ajoute dans mes tâches') ||
-    lower.includes('ajoute à faire') ||
-    lower.startsWith('todo ') ||
-    (lower.startsWith('ajoute ') && !lower.includes('mémoire') && !lower.includes('favori') && !lower.includes('note'))
+    norm.startsWith('tache') ||
+    norm.startsWith('todo') ||
+    norm.includes('ajoute une tache') ||
+    norm.includes('ajouter une tache') ||
+    norm.includes('cree une tache') ||
+    norm.includes('creer une tache') ||
+    norm.includes('nouvelle tache') ||
+    norm.includes('rajoute une tache') ||
+    norm.includes('ajoute dans les taches') ||
+    norm.includes('ajoute dans mes taches') ||
+    norm.includes('ajoute a faire') ||
+    norm.includes('mettre dans mes taches') ||
+    norm.includes('inscris dans mes taches') ||
+    (norm.startsWith('ajoute ') && !norm.includes('memoire') && !norm.includes('favori') && !norm.includes('note') && !norm.includes('rappel'))
   );
 
   if (isTask) {
     let taskTitle = cleanPrompt
-      .replace(/^(tâche|tache|todo|ajoute une tâche|ajouter une tâche|crée une tâche|créer une tâche|nouvelle tâche|rajoute une tâche|ajoute dans les tâches|ajoute dans mes tâches|ajoute à faire|ajoute)\s*:?\s*/i, '')
+      .replace(/^(bonjour|salut|peux-tu|peux tu|pourrais-tu|pourrais tu|s il te plait|svp)?\s*(tâche|tache|todo|ajoute une tâche|ajouter une tâche|crée une tâche|créer une tâche|nouvelle tâche|rajoute une tâche|ajoute dans les tâches|ajoute dans mes tâches|ajoute à faire|mettre dans mes tâches|ajoute)\s*:?\s*/i, '')
       .replace(/^(de|pour|qui consiste à|dans le menu|dans les tâches|dans mes tâches)\s+/i, '')
       .trim();
 
-    if (!taskTitle) taskTitle = 'Nouvelle tâche';
+    if (!taskTitle) taskTitle = 'Nouvelle tâche planifiée';
 
-    const isUrgent = lower.includes('urgent') || lower.includes('important') || lower.includes('prioritaire');
+    const isUrgent = norm.includes('urgent') || norm.includes('important') || norm.includes('prioritaire');
 
     actions.push({
       type: 'task',
@@ -172,36 +199,58 @@ export function extractActionsFromText(userPrompt: string, aiReply?: string): Ex
     return actions;
   }
 
-  // Check Memory / Note Intent: "note que...", "note dans le menu...", "mémorise...", "garde en mémoire..."
+  // -------------------------------------------------------------
+  // INTENT C: Memory / Note / Enregistrement Menu
+  // -------------------------------------------------------------
   const isMemory = (
-    lower.startsWith('note ') ||
-    lower.startsWith('note que') ||
-    lower.startsWith('note dans le menu') ||
-    lower.includes('note dans le menu') ||
-    lower.includes('note dans ma mémoire') ||
-    lower.includes('note-moi') ||
-    lower.includes('note moi') ||
-    lower.startsWith('mémoire') ||
-    lower.startsWith('memoire') ||
-    lower.includes('mémorise') ||
-    lower.includes('mémoriser') ||
-    lower.includes('garde en mémoire') ||
-    lower.includes('garde en tête') ||
-    lower.includes('garde ceci en mémoire') ||
-    lower.includes('retiens que') ||
-    lower.includes('souviens-toi de') ||
-    lower.includes('souviens-toi que') ||
-    lower.includes('enregistre en mémoire') ||
-    lower.includes('enregistre dans la mémoire') ||
-    lower.includes('enregistre dans le menu') ||
-    lower.includes('mets en mémoire') ||
-    lower.includes('sauvegarde en mémoire') ||
-    lower.includes('sauvegarder en mémoire')
+    norm.startsWith('note ') ||
+    norm.startsWith('note que') ||
+    norm.startsWith('note ceci') ||
+    norm.startsWith('note ca') ||
+    norm.startsWith('note:') ||
+    norm.startsWith('note :') ||
+    norm.includes('note dans le menu') ||
+    norm.includes('note dans la memoire') ||
+    norm.includes('note dans ma memoire') ||
+    norm.includes('note-moi') ||
+    norm.includes('note moi') ||
+    norm.includes('peux tu noter') ||
+    norm.includes('peux-tu noter') ||
+    norm.includes('pourrais tu noter') ||
+    norm.includes('pourrais-tu noter') ||
+    norm.includes('je veux que tu notes') ||
+    norm.includes('je souhaite que tu notes') ||
+    norm.includes('je te demande de noter') ||
+    norm.includes('garde en note') ||
+    norm.includes('garde en memoire') ||
+    norm.includes('garde en tete') ||
+    norm.includes('garde ceci') ||
+    norm.includes('garde ca') ||
+    norm.startsWith('memoire') ||
+    norm.includes('memorise') ||
+    norm.includes('memoriser') ||
+    norm.includes('retiens que') ||
+    norm.includes('retiens ceci') ||
+    norm.includes('souviens toi') ||
+    norm.includes('souviens-toi') ||
+    norm.includes('enregistre en memoire') ||
+    norm.includes('enregistre dans la memoire') ||
+    norm.includes('enregistre dans le menu') ||
+    norm.includes('enregistre cette note') ||
+    norm.includes('enregistre ceci') ||
+    norm.includes('mets en memoire') ||
+    norm.includes('sauvegarde en memoire') ||
+    norm.includes('sauvegarder en memoire') ||
+    norm.includes('inscris dans mes notes') ||
+    norm.includes('ajoute a mes notes') ||
+    norm.includes('ajoute dans mes notes') ||
+    norm.includes('n oublie pas que')
   );
 
   if (isMemory) {
     let memoContent = cleanPrompt
-      .replace(/^(note dans le menu que|note dans le menu|note dans ma mémoire que|note dans ma mémoire|note-moi que|note moi que|note-moi|note moi|note que|note|mémoire|memoire|mémorise|mémoriser|garde en mémoire que|garde en mémoire|garde en tête que|garde en tête|garde ceci en mémoire|retiens que|souviens-toi de|souviens-toi que|enregistre en mémoire|enregistre dans la mémoire|enregistre dans le menu|mets en mémoire|sauvegarde en mémoire|sauvegarder en mémoire)\s*:?\s*/i, '')
+      .replace(/^(bonjour|salut|peux-tu|peux tu|pourrais-tu|pourrais tu|s il te plait|svp)?\s*(note dans le menu que|note dans le menu|note dans ma mémoire que|note dans ma mémoire|note-moi que|note moi que|note-moi|note moi|note que|note ceci|note ça|note :|note:|note|mémoire|memoire|mémorise|mémoriser|garde en mémoire que|garde en mémoire|garde en tête que|garde en tête|garde ceci en mémoire|garde en note|garde ceci|garde ça|retiens que|retiens ceci|souviens-toi de|souviens-toi que|souviens toi|enregistre en mémoire|enregistre dans la mémoire|enregistre dans le menu|enregistre cette note|enregistre ceci|mets en mémoire|sauvegarde en mémoire|sauvegarder en mémoire|inscris dans mes notes|ajoute à mes notes|ajoute dans mes notes|n'oublie pas que)\s*:?\s*/i, '')
+      .replace(/^(de|que|pour|ceci|cela)\s+/i, '')
       .trim();
 
     if (!memoContent) memoContent = cleanPrompt;
@@ -209,28 +258,30 @@ export function extractActionsFromText(userPrompt: string, aiReply?: string): Ex
     actions.push({
       type: 'memory',
       contenu: memoContent,
-      tags: ['ia-auto', 'mémoire', 'menu'],
+      tags: ['menu', 'mémoire', 'ia-auto'],
       importance: 4,
     });
 
     return actions;
   }
 
-  // Check Favorite Intent: "ajoute aux favoris...", "mets en favori..."
+  // -------------------------------------------------------------
+  // INTENT D: Favorite / Favori
+  // -------------------------------------------------------------
   const isFavorite = (
-    lower.includes('favori') ||
-    lower.includes('favoris') ||
-    lower.includes('ajoute aux favoris') ||
-    lower.includes('ajouter aux favoris') ||
-    lower.includes('mets en favori') ||
-    lower.includes('mettre en favori') ||
-    lower.includes('enregistre dans mes favoris') ||
-    lower.includes('marque comme favori')
+    norm.includes('favori') ||
+    norm.includes('favoris') ||
+    norm.includes('ajoute aux favoris') ||
+    norm.includes('ajouter aux favoris') ||
+    norm.includes('mets en favori') ||
+    norm.includes('mettre en favori') ||
+    norm.includes('enregistre dans mes favoris') ||
+    norm.includes('marque comme favori')
   );
 
   if (isFavorite) {
     let favTitle = cleanPrompt
-      .replace(/^(ajoute aux favoris|ajouter aux favoris|mets en favori|mettre en favori|enregistre dans mes favoris|marque comme favori|favori)\s*:?\s*/i, '')
+      .replace(/^(bonjour|salut|peux-tu|peux tu)?\s*(ajoute aux favoris|ajouter aux favoris|mets en favori|mettre en favori|enregistre dans mes favoris|marque comme favori|favori)\s*:?\s*/i, '')
       .replace(/^(de|que|pour|ceci)\s+/i, '')
       .trim();
 

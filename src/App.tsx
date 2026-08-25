@@ -1686,9 +1686,17 @@ export default function App() {
           {activePanel === 'memoire' && (
             <MemoirePanel
               memoire={memoire}
+              conversations={conversations}
               onAddMemoire={handleAddMemoire}
               onUpdateMemoire={handleUpdateMemoire}
               onDeleteMemoire={handleDeleteMemoire}
+              onSelectConversation={(id) => {
+                setActiveConversationId(id);
+                setActivePanel('chat');
+              }}
+              onAddTache={handleAddTache}
+              onAddRappel={handleAddRappel}
+              onGoToChat={() => setActivePanel('chat')}
             />
           )}
 

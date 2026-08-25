@@ -1140,24 +1140,35 @@ DIRECTIVES DE RÉPONSE :
 
     // 2. Intelligent Server Fallback: If Gemini did not generate ACTION_JSON, detect user intent
     if (actions.length === 0 && message) {
-      const lower = message.toLowerCase().trim();
       const cleanPrompt = message.trim();
+      const norm = cleanPrompt
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[’']/g, ' ')
+        .trim();
+      const lower = cleanPrompt.toLowerCase();
       const now = new Date();
       const todayStr = now.toISOString().split('T')[0];
 
       // Reminder detection
       if (
-        lower.startsWith('rappel') ||
-        lower.includes('rappelle-moi') ||
-        lower.includes('rappelle moi') ||
-        lower.includes('ajoute un rappel') ||
-        lower.includes('crée un rappel') ||
-        lower.includes('programme un rappel') ||
-        lower.includes("n'oublie pas de me rappeler")
+        norm.startsWith('rappel') ||
+        norm.includes('rappelle moi') ||
+        norm.includes('rappelle-moi') ||
+        norm.includes('rappeler de') ||
+        norm.includes('peux tu me rappeler') ||
+        norm.includes('pourrais tu me rappeler') ||
+        norm.includes('ajoute un rappel') ||
+        norm.includes('cree un rappel') ||
+        norm.includes('programme un rappel') ||
+        norm.includes('mets une alerte') ||
+        norm.includes('mets une alarme') ||
+        norm.includes('n oublie pas de me rappeler')
       ) {
         let reminderTitle = cleanPrompt
-          .replace(/^(rappel|rappelle-moi|rappelle moi|ajoute un rappel|crée un rappel|programme un rappel|n'oublie pas de me rappeler)\s*:?\s*/i, '')
-          .replace(/^(de|que|pour|à)\s+/i, '')
+          .replace(/^(bonjour|salut|peux-tu|peux tu|pourrais-tu|pourrais tu|s il te plait|svp)?\s*(rappel|rappelle-moi|rappelle moi|me rappeler de|rappeler de|ajoute un rappel|ajouter un rappel|crée un rappel|créer un rappel|programme un rappel|programmer un rappel|mets une alerte pour|mets une alarme pour|n'oublie pas de me rappeler)\s*:?\s*/i, '')
+          .replace(/^(de|que|pour|à|a)\s+/i, '')
           .trim();
 
         let reminderHour = '09:00';
@@ -1167,13 +1178,17 @@ DIRECTIVES DE RÉPONSE :
         }
 
         let reminderDate = todayStr;
-        if (lower.includes('demain')) {
+        if (norm.includes('demain')) {
           const d = new Date(now);
           d.setDate(d.getDate() + 1);
           reminderDate = d.toISOString().split('T')[0];
+        } else if (norm.includes('apres demain') || norm.includes('apres-demain')) {
+          const d = new Date(now);
+          d.setDate(d.getDate() + 2);
+          reminderDate = d.toISOString().split('T')[0];
         }
 
-        reminderTitle = reminderTitle.replace(/(?:demain|aujourd'hui|(?:à|vers|pour)\s*\d{1,2}[h:]?\d{0,2})/gi, '').trim();
+        reminderTitle = reminderTitle.replace(/(?:demain|après-demain|apres-demain|aujourd'hui|(?:à|vers|pour|a)\s*\d{1,2}[h:]?\d{0,2})/gi, '').trim();
         if (!reminderTitle) reminderTitle = 'Rappel programmé';
 
         actions.push({
@@ -1182,23 +1197,23 @@ DIRECTIVES DE RÉPONSE :
           description: `Rappel créé pour le ${reminderDate} à ${reminderHour}`,
           dateRappel: reminderDate,
           heure: reminderHour,
-          priorite: lower.includes('urgent') || lower.includes('important') ? 'haute' : 'normale',
+          priorite: norm.includes('urgent') || norm.includes('important') ? 'haute' : 'normale',
         });
       }
       // Task detection
       else if (
-        lower.startsWith('tâche') ||
-        lower.startsWith('tache') ||
-        lower.includes('ajoute une tâche') ||
-        lower.includes('crée une tâche') ||
-        lower.includes('nouvelle tâche') ||
-        lower.includes('ajoute dans mes tâches') ||
-        lower.includes('ajoute à faire') ||
-        lower.startsWith('todo ')
+        norm.startsWith('tache') ||
+        norm.startsWith('todo') ||
+        norm.includes('ajoute une tache') ||
+        norm.includes('cree une tache') ||
+        norm.includes('nouvelle tache') ||
+        norm.includes('ajoute dans mes taches') ||
+        norm.includes('ajoute dans les taches') ||
+        norm.includes('ajoute a faire')
       ) {
         let taskTitle = cleanPrompt
-          .replace(/^(tâche|tache|todo|ajoute une tâche|crée une tâche|nouvelle tâche|ajoute dans mes tâches|ajoute à faire)\s*:?\s*/i, '')
-          .replace(/^(de|pour|qui consiste à|dans le menu)\s+/i, '')
+          .replace(/^(bonjour|salut|peux-tu|peux tu|pourrais-tu|pourrais tu|s il te plait|svp)?\s*(tâche|tache|todo|ajoute une tâche|ajouter une tâche|crée une tâche|créer une tâche|nouvelle tâche|rajoute une tâche|ajoute dans les tâches|ajoute dans mes tâches|ajoute à faire)\s*:?\s*/i, '')
+          .replace(/^(de|pour|qui consiste à|dans le menu|dans mes tâches)\s+/i, '')
           .trim();
 
         if (!taskTitle) taskTitle = 'Nouvelle tâche';
@@ -1207,30 +1222,49 @@ DIRECTIVES DE RÉPONSE :
           type: 'task',
           titre: taskTitle,
           description: `Tâche créée par MajorI.A`,
-          priorite: lower.includes('urgent') || lower.includes('important') ? 'haute' : 'normale',
+          priorite: norm.includes('urgent') || norm.includes('important') ? 'haute' : 'normale',
         });
       }
       // Memory / Note detection
       else if (
-        lower.startsWith('note ') ||
-        lower.startsWith('note que') ||
-        lower.startsWith('note dans le menu') ||
-        lower.includes('note dans le menu') ||
-        lower.includes('note-moi') ||
-        lower.includes('note moi') ||
-        lower.startsWith('mémoire') ||
-        lower.startsWith('memoire') ||
-        lower.includes('mémorise') ||
-        lower.includes('garde en mémoire') ||
-        lower.includes('garde en tête') ||
-        lower.includes('retiens que') ||
-        lower.includes('souviens-toi de') ||
-        lower.includes('enregistre en mémoire') ||
-        lower.includes('enregistre dans le menu') ||
-        lower.includes('mets en mémoire')
+        norm.startsWith('note ') ||
+        norm.startsWith('note que') ||
+        norm.startsWith('note ceci') ||
+        norm.startsWith('note ca') ||
+        norm.startsWith('note:') ||
+        norm.startsWith('note :') ||
+        norm.includes('note dans le menu') ||
+        norm.includes('note dans la memoire') ||
+        norm.includes('note dans ma memoire') ||
+        norm.includes('note-moi') ||
+        norm.includes('note moi') ||
+        norm.includes('peux tu noter') ||
+        norm.includes('peux-tu noter') ||
+        norm.includes('pourrais tu noter') ||
+        norm.includes('pourrais-tu noter') ||
+        norm.includes('je veux que tu notes') ||
+        norm.includes('garde en note') ||
+        norm.includes('garde en memoire') ||
+        norm.includes('garde en tete') ||
+        norm.includes('garde ceci') ||
+        norm.startsWith('memoire') ||
+        norm.includes('memorise') ||
+        norm.includes('memoriser') ||
+        norm.includes('retiens que') ||
+        norm.includes('souviens toi') ||
+        norm.includes('souviens-toi') ||
+        norm.includes('enregistre en memoire') ||
+        norm.includes('enregistre dans la memoire') ||
+        norm.includes('enregistre dans le menu') ||
+        norm.includes('enregistre cette note') ||
+        norm.includes('mets en memoire') ||
+        norm.includes('sauvegarde en memoire') ||
+        norm.includes('ajoute a mes notes') ||
+        norm.includes('ajoute dans mes notes')
       ) {
         let memoContent = cleanPrompt
-          .replace(/^(note dans le menu que|note dans le menu|note-moi que|note moi que|note-moi|note moi|note que|note|mémoire|memoire|mémorise|garde en mémoire que|garde en mémoire|garde en tête|retiens que|souviens-toi de|enregistre en mémoire|enregistre dans le menu|mets en mémoire)\s*:?\s*/i, '')
+          .replace(/^(bonjour|salut|peux-tu|peux tu|pourrais-tu|pourrais tu|s il te plait|svp)?\s*(note dans le menu que|note dans le menu|note dans ma mémoire que|note dans ma mémoire|note-moi que|note moi que|note-moi|note moi|note que|note ceci|note ça|note :|note:|note|mémoire|memoire|mémorise|mémoriser|garde en mémoire que|garde en mémoire|garde en tête|garde en note|garde ceci|retiens que|souviens-toi de|souviens toi de|enregistre en mémoire|enregistre dans la mémoire|enregistre dans le menu|enregistre cette note|mets en mémoire|sauvegarde en mémoire|ajoute à mes notes|ajoute dans mes notes)\s*:?\s*/i, '')
+          .replace(/^(de|que|pour|ceci|cela)\s+/i, '')
           .trim();
 
         if (!memoContent) memoContent = cleanPrompt;
