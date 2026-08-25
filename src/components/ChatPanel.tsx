@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { Conversation, UserProfile, VoiceGender } from '../types';
 import { playCyberSound, cleanTextForSpeech, speakCyberResponse } from '../utils/security';
+import { cleanSpokenTranscript, mergeSpeechSegments, removeRepeatedWordsAndPhrases } from '../utils/speechCleaner';
 import { exportItemToPDF } from '../utils/pdfExport';
 import { CyberBrainHead } from './CyberBrainHead';
 import { CameraVideoModal } from './CameraVideoModal';
@@ -139,10 +140,11 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     shouldKeepListeningRef.current = false;
     const base = baseInputTextRef.current ? baseInputTextRef.current.trim() : '';
     const captured = capturedTextRef.current.trim();
-    const candidate = (forcedText !== undefined 
+    const rawCandidate = (forcedText !== undefined 
       ? forcedText 
-      : (captured ? (base ? `${base} ${captured}` : captured) : inputText)
+      : (captured ? (base ? mergeSpeechSegments(base, captured) : captured) : inputText)
     ).trim();
+    const candidate = cleanSpokenTranscript(rawCandidate);
     const imageToSend = selectedImage;
 
     stopAllMedia();
@@ -221,19 +223,27 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
           for (let i = 0; i < event.results.length; ++i) {
             const res = event.results[i];
+            const transcriptChunk = res[0]?.transcript || '';
             if (res.isFinal) {
-              currentFinal += res[0].transcript + ' ';
+              currentFinal = currentFinal ? mergeSpeechSegments(currentFinal, transcriptChunk) : transcriptChunk;
             } else {
-              currentInterim += res[0].transcript;
+              currentInterim = currentInterim ? mergeSpeechSegments(currentInterim, transcriptChunk) : transcriptChunk;
             }
           }
 
-          const combined = (currentFinal + currentInterim).trim();
-          if (combined) {
-            capturedTextRef.current = combined;
-            setLiveTranscript(combined);
+          const combined = currentInterim 
+            ? mergeSpeechSegments(currentFinal, currentInterim) 
+            : currentFinal;
+            
+          const cleanedTranscript = cleanSpokenTranscript(combined);
+
+          if (cleanedTranscript) {
+            capturedTextRef.current = cleanedTranscript;
+            setLiveTranscript(cleanedTranscript);
             const base = baseInputTextRef.current ? baseInputTextRef.current.trim() : '';
-            const fullCombined = base ? `${base} ${combined}` : combined;
+            const fullCombined = base 
+              ? mergeSpeechSegments(base, cleanedTranscript) 
+              : cleanedTranscript;
             setInputText(fullCombined);
 
             // Auto-send after a 2s natural pause in speaking
@@ -313,7 +323,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     if (isDictating) {
       stopAllMedia();
     }
-    const text = inputText.trim();
+    const text = cleanSpokenTranscript(inputText.trim());
     const image = selectedImage;
     if (!text && !image) return;
 

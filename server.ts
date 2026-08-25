@@ -1107,18 +1107,142 @@ DIRECTIVES DE RÉPONSE :
     let reply = fullText.trim();
     let actions: any[] = [];
 
-    // Extract ACTION_JSON if present
-    const match = fullText.match(/ACTION_JSON\s*:\s*(\{.*?\})/s) || fullText.match(/ACTION_JSON\s*:\s*(\{[\s\S]*?\})/);
-    if (match) {
-      try {
-        const parsed = JSON.parse(match[1]);
-        actions = parsed.actions || [];
-        reply = fullText.replace(/(?:Rappel|Tâche|Mémoire|Favori)?\s*:?\s*ACTION_JSON\s*:\s*\{[\s\S]*?\}/gi, '').trim();
-      } catch {
-        reply = fullText.replace(/(?:Rappel|Tâche|Mémoire|Favori)?\s*:?\s*ACTION_JSON\s*:[\s\S]*/gi, '').trim();
+    // 1. Extract ACTION_JSON if present in any format (code block, bare JSON, multiline)
+    const jsonRegexes = [
+      /ACTION_JSON\s*:\s*```(?:json)?\s*([\s\S]*?)\s*```/i,
+      /ACTION_JSON\s*:\s*(\{[\s\S]*?\})/i,
+      /\[ACTION_JSON\]\s*(\{[\s\S]*?\})/i,
+      /```json\s*(\{\s*"actions"[\s\S]*?\})\s*```/i
+    ];
+
+    for (const regex of jsonRegexes) {
+      const match = fullText.match(regex);
+      if (match && match[1]) {
+        try {
+          const parsed = JSON.parse(match[1]);
+          if (Array.isArray(parsed.actions) && parsed.actions.length > 0) {
+            actions = parsed.actions;
+            break;
+          }
+        } catch {
+          // Continue to next regex or fallback
+        }
       }
     }
-    reply = reply.replace(/(?:\r?\n)*(?:Rappel|Tâche|Mémoire|Favori)\s*:\s*$/i, '').trim();
+
+    // Clean ACTION_JSON remnants from display text
+    reply = fullText
+      .replace(/ACTION_JSON\s*:\s*```(?:json)?[\s\S]*?```/gi, '')
+      .replace(/(?:Rappel|Tâche|Mémoire|Favori)?\s*:?\s*ACTION_JSON\s*:?\s*\{[\s\S]*?\}/gi, '')
+      .replace(/(?:Rappel|Tâche|Mémoire|Favori)?\s*:?\s*ACTION_JSON\s*:[\s\S]*/gi, '')
+      .replace(/(?:\r?\n)*(?:Rappel|Tâche|Mémoire|Favori)\s*:\s*$/i, '')
+      .trim();
+
+    // 2. Intelligent Server Fallback: If Gemini did not generate ACTION_JSON, detect user intent
+    if (actions.length === 0 && message) {
+      const lower = message.toLowerCase().trim();
+      const cleanPrompt = message.trim();
+      const now = new Date();
+      const todayStr = now.toISOString().split('T')[0];
+
+      // Reminder detection
+      if (
+        lower.startsWith('rappel') ||
+        lower.includes('rappelle-moi') ||
+        lower.includes('rappelle moi') ||
+        lower.includes('ajoute un rappel') ||
+        lower.includes('crée un rappel') ||
+        lower.includes('programme un rappel') ||
+        lower.includes("n'oublie pas de me rappeler")
+      ) {
+        let reminderTitle = cleanPrompt
+          .replace(/^(rappel|rappelle-moi|rappelle moi|ajoute un rappel|crée un rappel|programme un rappel|n'oublie pas de me rappeler)\s*:?\s*/i, '')
+          .replace(/^(de|que|pour|à)\s+/i, '')
+          .trim();
+
+        let reminderHour = '09:00';
+        const timeMatch = lower.match(/(?:à|vers|a|pour)\s*(\d{1,2})[h:]?(\d{2})?/i);
+        if (timeMatch) {
+          reminderHour = `${timeMatch[1].padStart(2, '0')}:${(timeMatch[2] || '00').padStart(2, '0')}`;
+        }
+
+        let reminderDate = todayStr;
+        if (lower.includes('demain')) {
+          const d = new Date(now);
+          d.setDate(d.getDate() + 1);
+          reminderDate = d.toISOString().split('T')[0];
+        }
+
+        reminderTitle = reminderTitle.replace(/(?:demain|aujourd'hui|(?:à|vers|pour)\s*\d{1,2}[h:]?\d{0,2})/gi, '').trim();
+        if (!reminderTitle) reminderTitle = 'Rappel programmé';
+
+        actions.push({
+          type: 'reminder',
+          titre: reminderTitle,
+          description: `Rappel créé pour le ${reminderDate} à ${reminderHour}`,
+          dateRappel: reminderDate,
+          heure: reminderHour,
+          priorite: lower.includes('urgent') || lower.includes('important') ? 'haute' : 'normale',
+        });
+      }
+      // Task detection
+      else if (
+        lower.startsWith('tâche') ||
+        lower.startsWith('tache') ||
+        lower.includes('ajoute une tâche') ||
+        lower.includes('crée une tâche') ||
+        lower.includes('nouvelle tâche') ||
+        lower.includes('ajoute dans mes tâches') ||
+        lower.includes('ajoute à faire') ||
+        lower.startsWith('todo ')
+      ) {
+        let taskTitle = cleanPrompt
+          .replace(/^(tâche|tache|todo|ajoute une tâche|crée une tâche|nouvelle tâche|ajoute dans mes tâches|ajoute à faire)\s*:?\s*/i, '')
+          .replace(/^(de|pour|qui consiste à|dans le menu)\s+/i, '')
+          .trim();
+
+        if (!taskTitle) taskTitle = 'Nouvelle tâche';
+
+        actions.push({
+          type: 'task',
+          titre: taskTitle,
+          description: `Tâche créée par MajorI.A`,
+          priorite: lower.includes('urgent') || lower.includes('important') ? 'haute' : 'normale',
+        });
+      }
+      // Memory / Note detection
+      else if (
+        lower.startsWith('note ') ||
+        lower.startsWith('note que') ||
+        lower.startsWith('note dans le menu') ||
+        lower.includes('note dans le menu') ||
+        lower.includes('note-moi') ||
+        lower.includes('note moi') ||
+        lower.startsWith('mémoire') ||
+        lower.startsWith('memoire') ||
+        lower.includes('mémorise') ||
+        lower.includes('garde en mémoire') ||
+        lower.includes('garde en tête') ||
+        lower.includes('retiens que') ||
+        lower.includes('souviens-toi de') ||
+        lower.includes('enregistre en mémoire') ||
+        lower.includes('enregistre dans le menu') ||
+        lower.includes('mets en mémoire')
+      ) {
+        let memoContent = cleanPrompt
+          .replace(/^(note dans le menu que|note dans le menu|note-moi que|note moi que|note-moi|note moi|note que|note|mémoire|memoire|mémorise|garde en mémoire que|garde en mémoire|garde en tête|retiens que|souviens-toi de|enregistre en mémoire|enregistre dans le menu|mets en mémoire)\s*:?\s*/i, '')
+          .trim();
+
+        if (!memoContent) memoContent = cleanPrompt;
+
+        actions.push({
+          type: 'memory',
+          contenu: memoContent,
+          tags: ['ia-auto', 'mémoire', 'menu'],
+          importance: 4,
+        });
+      }
+    }
 
     // Deduplicate sources
     const uniqueSources: { title: string; uri: string }[] = [];

@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { TranscriptionItem } from '../types';
 import { playCyberSound, safeLoad, safeSave } from '../utils/security';
+import { cleanSpokenTranscript, mergeSpeechSegments } from '../utils/speechCleaner';
 
 interface TranscriptionPanelProps {
   onSendToChat: (text: string) => void;
@@ -238,19 +239,22 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
             let currentFinal = '';
 
             for (let i = event.resultIndex; i < event.results.length; ++i) {
+              const chunk = event.results[i][0]?.transcript || '';
               if (event.results[i].isFinal) {
-                currentFinal += event.results[i][0].transcript + ' ';
+                currentFinal = currentFinal ? mergeSpeechSegments(currentFinal, chunk) : chunk;
               } else {
-                currentInterim += event.results[i][0].transcript;
+                currentInterim = currentInterim ? mergeSpeechSegments(currentInterim, chunk) : chunk;
               }
             }
 
             if (currentFinal) {
-              const clean = currentFinal.trim();
-              liveRecognizedRef.current = (liveRecognizedRef.current ? `${liveRecognizedRef.current} ${clean}` : clean);
-              setTranscribedText((prev) => (prev ? `${prev.trim()} ${clean}` : clean));
+              const clean = cleanSpokenTranscript(currentFinal);
+              liveRecognizedRef.current = liveRecognizedRef.current 
+                ? mergeSpeechSegments(liveRecognizedRef.current, clean) 
+                : clean;
+              setTranscribedText((prev) => (prev ? mergeSpeechSegments(prev, clean) : clean));
             }
-            setInterimText(currentInterim);
+            setInterimText(cleanSpokenTranscript(currentInterim));
           };
 
           recognizer.onerror = (event: any) => {

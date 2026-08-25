@@ -46,6 +46,8 @@ import { ToastContainer } from './components/ToastContainer';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { useNetworkStatus } from './hooks/useNetworkStatus';
 import { generateOfflineResponse } from './utils/offlineAiEngine';
+import { extractActionsFromText } from './utils/actionExtractor';
+import { cleanSpokenTranscript } from './utils/speechCleaner';
 
 const API = '/api';
 
@@ -850,12 +852,13 @@ export default function App() {
       setActiveConversationId(newId);
     }
 
-    const safeMessageText = confidentialMode ? sanitizeConfidentialText(text) : text;
+    const cleanedText = cleanSpokenTranscript(text);
+    const safeMessageText = confidentialMode ? sanitizeConfidentialText(cleanedText) : cleanedText;
 
     // Append User message
     const userMessage = {
       role: 'user' as const,
-      contenu: text,
+      contenu: cleanedText,
       image,
       date: new Date().toISOString(),
     };
@@ -1031,7 +1034,10 @@ export default function App() {
 
         // Clean final reply text and persist state
         const cleanedReply = (finalReply || accumulatedRawText)
+          .replace(/ACTION_JSON\s*:\s*```(?:json)?[\s\S]*?```/gi, '')
+          .replace(/(?:Rappel|Tâche|Mémoire|Favori)?\s*:?\s*ACTION_JSON\s*:?\s*\{[\s\S]*?\}/gi, '')
           .replace(/(?:Rappel|Tâche|Mémoire|Favori)?\s*:?\s*ACTION_JSON\s*:[\s\S]*/gi, '')
+          .replace(/(?:\r?\n)*(?:Rappel|Tâche|Mémoire|Favori)\s*:\s*$/i, '')
           .trim();
 
         const finalizedContent = confidentialMode
@@ -1055,8 +1061,14 @@ export default function App() {
           currentConvs.map((c) => (c.id === finalizedConv.id ? finalizedConv : c))
         );
 
-        if (finalActions && finalActions.length > 0) {
-          await processAiActions(finalActions);
+        // Extract actions from server or fallback NLP extractor
+        let effectiveActions = finalActions;
+        if (!effectiveActions || effectiveActions.length === 0) {
+          effectiveActions = extractActionsFromText(safeMessageText, finalizedContent);
+        }
+
+        if (effectiveActions && effectiveActions.length > 0) {
+          await processAiActions(effectiveActions);
         }
 
         if (voiceAutoSpeak) {
@@ -1088,8 +1100,13 @@ export default function App() {
         );
         updateConversationsState(finalConvs);
 
-        if (data.actions && data.actions.length > 0) {
-          await processAiActions(data.actions);
+        let effectiveActions = data.actions;
+        if (!effectiveActions || effectiveActions.length === 0) {
+          effectiveActions = extractActionsFromText(safeMessageText, replyContent);
+        }
+
+        if (effectiveActions && effectiveActions.length > 0) {
+          await processAiActions(effectiveActions);
         }
 
         if (voiceAutoSpeak) {
@@ -1130,8 +1147,13 @@ export default function App() {
           updatedWithUser.map((c) => (c.id === fallbackConv.id ? fallbackConv : c))
         );
 
-        if (offlineFallback.actions && offlineFallback.actions.length > 0) {
-          await processAiActions(offlineFallback.actions);
+        let fallbackActions = offlineFallback.actions;
+        if (!fallbackActions || fallbackActions.length === 0) {
+          fallbackActions = extractActionsFromText(safeMessageText, finalizedFallback);
+        }
+
+        if (fallbackActions && fallbackActions.length > 0) {
+          await processAiActions(fallbackActions);
         }
 
         if (voiceAutoSpeak) {

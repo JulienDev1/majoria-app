@@ -302,6 +302,93 @@ export function cleanTextForSpeech(text: string): string {
 }
 
 /**
+ * Helper to identify genuinely masculine voices across iOS, Android, and Desktop
+ */
+export function isMaleVoiceCandidate(v: SpeechSynthesisVoice): boolean {
+  const name = (v.name || '').toLowerCase();
+  const lang = (v.lang || '').toLowerCase();
+
+  // Strictly exclude known female voice identifiers
+  const isFemaleName = 
+    name.includes('hortense') ||
+    name.includes('julie') ||
+    name.includes('denise') ||
+    name.includes('celine') ||
+    name.includes('céline') ||
+    name.includes('audrey') ||
+    name.includes('amelie') ||
+    name.includes('amélie') ||
+    name.includes('chantal') ||
+    name.includes('alice') ||
+    name.includes('virginie') ||
+    name.includes('corinne') ||
+    name.includes('elodie') ||
+    name.includes('élodie') ||
+    name.includes('brigitte') ||
+    name.includes('marie') ||
+    name.includes('lucile') ||
+    name.includes('aurélie') ||
+    name.includes('aurelie') ||
+    name.includes('chloé') ||
+    name.includes('chloe') ||
+    name.includes('lea') ||
+    name.includes('léa') ||
+    name.includes('manon') ||
+    name.includes('clara') ||
+    name.includes('sandra') ||
+    name.includes('valérie') ||
+    name.includes('valerie') ||
+    name.includes('charlotte') ||
+    name.includes('-fra-') ||
+    name.includes('-frb-') ||
+    name.includes('-fre-') ||
+    name.includes('female') ||
+    name.includes('femme') ||
+    name.includes('woman') ||
+    name.includes('girl');
+
+  if (isFemaleName) return false;
+
+  // Positive male identifiers
+  const isExplicitMale = 
+    name.includes('thomas') || // iOS Safari French Male
+    name.includes('nicolas') || // iOS / macOS Male
+    name.includes('henri') || // Windows / Edge Male
+    name.includes('paul') || // Windows / Edge Male
+    name.includes('claude') || // Windows Male
+    name.includes('alain') ||
+    name.includes('mathieu') ||
+    name.includes('pierre') ||
+    name.includes('louis') ||
+    name.includes('guy') ||
+    name.includes('david') ||
+    name.includes('antoine') ||
+    name.includes('bernard') ||
+    name.includes('arthur') ||
+    name.includes('julien') ||
+    name.includes('maxime') ||
+    name.includes('jean') ||
+    name.includes('gabriel') ||
+    name.includes('hugo') ||
+    name.includes('alexandre') ||
+    name.includes('sebastien') ||
+    name.includes('sébastien') ||
+    name.includes('jerome') ||
+    name.includes('jérôme') ||
+    name.includes('aurelien') ||
+    name.includes('aurélien') ||
+    name.includes('-frc-') || // Android Google TTS Male (Voice 3)
+    name.includes('-frd-') || // Android Google TTS Male (Voice 4)
+    name.includes('-cab-') || // Android Canadian Male
+    name.includes('-cad-') || // Android Canadian Male
+    name.includes('male') ||
+    name.includes('homme') ||
+    name.includes('man');
+
+  return isExplicitMale;
+}
+
+/**
  * Text-To-Speech with Male / Female voice customization
  * Fully compatible with Mobile (iOS Safari, Android Chrome/Samsung) & Desktop
  */
@@ -344,7 +431,7 @@ export function speakCyberResponse(
       const utterance = new SpeechSynthesisUtterance(cleanText);
       utterance.lang = 'fr-FR';
 
-      // CRITICAL MOBILE FIX: Prevent JavaScript engine garbage collection on iOS / Android
+      // CRITICAL MOBILE FIX: Retain active utterance to prevent garbage collection termination
       (window as any).__majorIAActiveUtterance = utterance;
 
       const allVoices = window.speechSynthesis.getVoices() || [];
@@ -354,47 +441,48 @@ export function speakCyberResponse(
       });
 
       if (gender === 'male') {
-        // Natural deeper masculine resonance
-        utterance.pitch = 0.82;
-        utterance.rate = 0.96;
+        // Deep masculine pitch and steady pace
+        utterance.pitch = 0.72;
+        utterance.rate = 0.95;
 
-        // Specific male voice matching
-        const explicitMaleVoice = frenchVoices.find((v) => {
-          const name = (v.name || '').toLowerCase();
-          return name.includes('henri') ||
-            name.includes('paul') ||
-            name.includes('claude') ||
-            name.includes('alain') ||
-            name.includes('thomas') ||
-            name.includes('nicolas') ||
-            name.includes('mathieu') ||
-            name.includes('pierre') ||
-            name.includes('louis') ||
-            name.includes('guy') ||
-            name.includes('david') ||
-            name.includes('antoine') ||
-            name.includes('bernard') ||
-            name.includes('male') ||
-            name.includes('homme') ||
-            name.includes('fr-fr-x-fra-network') ||
-            name.includes('fr-fr-x-frc-network') ||
-            name.includes('fr-fr-x-frd-network') ||
-            name.includes('frc') ||
-            name.includes('frd');
-        });
+        // 1. Try to find an explicit male voice
+        const maleVoice = frenchVoices.find(isMaleVoiceCandidate);
 
-        if (explicitMaleVoice) {
-          utterance.voice = explicitMaleVoice;
-        } else if (frenchVoices.length > 1) {
-          // Choose non-default voice if available for variety
-          utterance.voice = frenchVoices[1] || frenchVoices[0];
-        } else if (frenchVoices.length > 0) {
-          utterance.voice = frenchVoices[0];
+        if (maleVoice) {
+          utterance.voice = maleVoice;
+        } else {
+          // 2. Filter out explicit female voices
+          const nonFemaleVoices = frenchVoices.filter((v) => {
+            const name = (v.name || '').toLowerCase();
+            return !name.includes('marie') &&
+              !name.includes('audrey') &&
+              !name.includes('amelie') &&
+              !name.includes('amélie') &&
+              !name.includes('celine') &&
+              !name.includes('céline') &&
+              !name.includes('hortense') &&
+              !name.includes('julie') &&
+              !name.includes('denise') &&
+              !name.includes('chantal') &&
+              !name.includes('alice') &&
+              !name.includes('virginie') &&
+              !name.includes('-fra-') &&
+              !name.includes('-frb-') &&
+              !name.includes('-fre-') &&
+              !name.includes('female') &&
+              !name.includes('femme');
+          });
+
+          if (nonFemaleVoices.length > 0) {
+            utterance.voice = nonFemaleVoices[0];
+          }
+          // If all voices on mobile are female, leaving utterance.voice unset allows the OS
+          // to synthesize fr-FR with the low masculine pitch (0.72).
         }
       } else {
         // Clear, melodic feminine voice settings
-        utterance.pitch = 1.10;
-        utterance.rate = 1.02;
+        utterance.pitch = 1.08;
+        utterance.rate = 1.0;
 
         const femaleVoice = frenchVoices.find((v) => {
           const name = (v.name || '').toLowerCase();
@@ -409,8 +497,9 @@ export function speakCyberResponse(
             name.includes('chantal') ||
             name.includes('alice') ||
             name.includes('virginie') ||
-            name.includes('fra') ||
-            name.includes('frb') ||
+            name.includes('marie') ||
+            name.includes('-fra-') ||
+            name.includes('-frb-') ||
             name.includes('female') ||
             name.includes('femme') ||
             name.includes('google français');
@@ -427,9 +516,12 @@ export function speakCyberResponse(
       };
 
       utterance.onend = finishHandler;
-      utterance.onerror = finishHandler;
+      utterance.onerror = (err) => {
+        console.warn('Utterance error or interrupted:', err);
+        finishHandler();
+      };
 
-      // Resume in case mobile browser paused audio
+      // Resume in case mobile browser suspended audio context
       if (window.speechSynthesis.paused) {
         window.speechSynthesis.resume();
       }
@@ -454,6 +546,6 @@ export function speakCyberResponse(
     // Fast fallback timer for iOS Safari (which doesn't always trigger onvoiceschanged)
     setTimeout(() => {
       selectAndSpeak();
-    }, 120);
+    }, 80);
   }
 }
