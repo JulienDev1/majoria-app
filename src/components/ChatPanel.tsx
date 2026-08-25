@@ -24,7 +24,9 @@ import {
   BatteryWarning,
   BatteryCharging,
   Flame,
-  Battery
+  Battery,
+  WifiOff,
+  Cpu
 } from 'lucide-react';
 import { Conversation, UserProfile, VoiceGender } from '../types';
 import { playCyberSound, cleanTextForSpeech, speakCyberResponse } from '../utils/security';
@@ -48,6 +50,7 @@ interface ChatPanelProps {
   onOpenTranscription?: () => void;
   energyPercent?: number | null;
   onOpenForfaits?: () => void;
+  isOnline?: boolean;
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
@@ -61,6 +64,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   voiceGender = 'female',
   energyPercent = 80,
   onOpenForfaits,
+  isOnline = true,
 }) => {
   const { t } = useLanguage();
   const [inputText, setInputText] = useState('');
@@ -79,16 +83,13 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const recognitionRef = useRef<any>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const streamRef = useRef<MediaStream | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const animFrameRef = useRef<number | null>(null);
   const timerRef = useRef<any>(null);
   const silenceTimerRef = useRef<any>(null);
+  const waveAnimTimerRef = useRef<any>(null);
   const isSendingVoiceRef = useRef<boolean>(false);
   const baseInputTextRef = useRef<string>('');
   const capturedTextRef = useRef<string>('');
+  const shouldKeepListeningRef = useRef<boolean>(false);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -111,35 +112,21 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   };
 
   const stopAllMedia = () => {
+    shouldKeepListeningRef.current = false;
     clearSilenceTimer();
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-    if (animFrameRef.current) {
-      cancelAnimationFrame(animFrameRef.current);
-      animFrameRef.current = null;
-    }
-    if (audioCtxRef.current) {
-      try {
-        audioCtxRef.current.close();
-      } catch (e) {}
-      audioCtxRef.current = null;
+    if (waveAnimTimerRef.current) {
+      clearInterval(waveAnimTimerRef.current);
+      waveAnimTimerRef.current = null;
     }
     if (recognitionRef.current) {
       try {
-        recognitionRef.current.stop();
+        recognitionRef.current.abort();
       } catch (e) {}
       recognitionRef.current = null;
-    }
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      try {
-        mediaRecorderRef.current.stop();
-      } catch (e) {}
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
     }
     setAudioLevel(0);
     setIsDictating(false);
@@ -149,9 +136,13 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     clearSilenceTimer();
     if (isSendingVoiceRef.current) return;
 
+    shouldKeepListeningRef.current = false;
     const base = baseInputTextRef.current ? baseInputTextRef.current.trim() : '';
     const captured = capturedTextRef.current.trim();
-    const candidate = (forcedText !== undefined ? forcedText : (captured ? (base ? `${base} ${captured}` : captured) : inputText)).trim();
+    const candidate = (forcedText !== undefined 
+      ? forcedText 
+      : (captured ? (base ? `${base} ${captured}` : captured) : inputText)
+    ).trim();
     const imageToSend = selectedImage;
 
     stopAllMedia();
@@ -202,21 +193,21 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     e.target.value = '';
   };
 
-  // Synchronous Start Dictation for real-time transcription
+  // Synchronous Start Dictation for real-time transcription across Mobile and Desktop
   const startRecording = () => {
     setMicErrorMessage(null);
     clearSilenceTimer();
     isSendingVoiceRef.current = false;
+    shouldKeepListeningRef.current = true;
     playCyberSound('beep');
     baseInputTextRef.current = inputText;
     capturedTextRef.current = '';
     setLiveTranscript('');
-    audioChunksRef.current = [];
     setDictationSeconds(0);
     setIsDictating(true);
 
-    // 1. Start SpeechRecognition with real-time continuous streaming
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    
     if (SpeechRecognition) {
       try {
         const recognizer = new SpeechRecognition();
@@ -229,10 +220,11 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           let currentInterim = '';
 
           for (let i = 0; i < event.results.length; ++i) {
-            if (event.results[i].isFinal) {
-              currentFinal += event.results[i][0].transcript + ' ';
+            const res = event.results[i];
+            if (res.isFinal) {
+              currentFinal += res[0].transcript + ' ';
             } else {
-              currentInterim += event.results[i][0].transcript;
+              currentInterim += res[0].transcript;
             }
           }
 
@@ -244,114 +236,63 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             const fullCombined = base ? `${base} ${combined}` : combined;
             setInputText(fullCombined);
 
-            // Auto-send immediately once user stops speaking (natural pause)
+            // Auto-send after a 2s natural pause in speaking
             clearSilenceTimer();
             silenceTimerRef.current = setTimeout(() => {
               if (capturedTextRef.current.trim()) {
-                stopRecordingAndSend(fullCombined);
+                stopRecordingAndSend();
               }
-            }, 1200);
+            }, 2000);
           }
         };
 
-        recognizer.onspeechend = () => {
-          clearSilenceTimer();
-          silenceTimerRef.current = setTimeout(() => {
-            if (capturedTextRef.current.trim()) {
-              const base = baseInputTextRef.current ? baseInputTextRef.current.trim() : '';
-              const fullText = base ? `${base} ${capturedTextRef.current.trim()}` : capturedTextRef.current.trim();
-              stopRecordingAndSend(fullText);
-            }
-          }, 500);
-        };
-
         recognizer.onerror = (event: any) => {
-          console.warn('SpeechRecognition notice:', event.error);
+          console.warn('SpeechRecognition status:', event.error);
           if (event.error === 'not-allowed') {
             setMicErrorMessage("Autorisation du micro refusée par le navigateur.");
+            stopAllMedia();
+          } else if (event.error === 'no-speech') {
+            // Ignored, continue listening
+          }
+        };
+
+        recognizer.onend = () => {
+          // If dictation is still active and user hasn't clicked stop yet, keep listening or send
+          if (shouldKeepListeningRef.current) {
+            if (capturedTextRef.current.trim()) {
+              // We have text and recognition ended -> auto-send
+              stopRecordingAndSend();
+            } else {
+              try {
+                recognizer.start();
+              } catch (e) {}
+            }
           }
         };
 
         recognizer.start();
         recognitionRef.current = recognizer;
       } catch (err) {
-        console.warn('SpeechRecognition error:', err);
+        console.warn('SpeechRecognition initialization error:', err);
+        setMicErrorMessage("La reconnaissance vocale n'a pas pu démarrer.");
       }
+    } else {
+      setMicErrorMessage("La reconnaissance vocale Web Speech n'est pas supportée par ce navigateur.");
     }
 
-    // 2. Start MediaStream & MediaRecorder concurrently
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      navigator.mediaDevices.getUserMedia({ audio: true })
-        .then((stream) => {
-          streamRef.current = stream;
+    // Timer & Visualizer animation
+    timerRef.current = setInterval(() => {
+      setDictationSeconds((prev) => prev + 1);
+    }, 1000);
 
-          // Setup Audio Visualizer
-          try {
-            const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-            if (AudioCtx) {
-              const audioCtx = new AudioCtx();
-              if (audioCtx.state === 'suspended') {
-                audioCtx.resume().catch(() => {});
-              }
-              audioCtxRef.current = audioCtx;
-              const analyser = audioCtx.createAnalyser();
-              analyser.fftSize = 32;
-              const source = audioCtx.createMediaStreamSource(stream);
-              source.connect(analyser);
-
-              const dataArray = new Uint8Array(analyser.frequencyBinCount);
-              const updateLevel = () => {
-                if (!streamRef.current) return;
-                analyser.getByteFrequencyData(dataArray);
-                let sum = 0;
-                for (let i = 0; i < dataArray.length; i++) {
-                  sum += dataArray[i];
-                }
-                const avg = sum / dataArray.length;
-                setAudioLevel(Math.min(100, Math.round((avg / 128) * 100)));
-                animFrameRef.current = requestAnimationFrame(updateLevel);
-              };
-              updateLevel();
-            }
-          } catch (e) {}
-
-          let mimeType = 'audio/webm';
-          if (typeof MediaRecorder !== 'undefined') {
-            if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-              mimeType = 'audio/webm;codecs=opus';
-            } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
-              mimeType = 'audio/mp4';
-            }
-          }
-
-          const recorder = new MediaRecorder(stream, { mimeType });
-          mediaRecorderRef.current = recorder;
-
-          recorder.ondataavailable = (e) => {
-            if (e.data && e.data.size > 0) {
-              audioChunksRef.current.push(e.data);
-            }
-          };
-
-          recorder.start(250);
-
-          timerRef.current = setInterval(() => {
-            setDictationSeconds((prev) => prev + 1);
-          }, 1000);
-        })
-        .catch((err) => {
-          console.warn('getUserMedia micro non disponible:', err);
-          if (!recognitionRef.current) {
-            setMicErrorMessage("Impossible d'accéder au microphone.");
-            setIsDictating(false);
-          }
-        });
-    }
+    waveAnimTimerRef.current = setInterval(() => {
+      setAudioLevel(Math.floor(25 + Math.random() * 65));
+    }, 120);
   };
 
   const handleToggleDictation = () => {
     if (isDictating) {
-      // Direct send of captured text upon finishing dictation without delay
+      // Direct send of captured text upon clicking stop dictation
       const base = baseInputTextRef.current ? baseInputTextRef.current.trim() : '';
       const textToSend = capturedTextRef.current.trim()
         ? (base ? `${base} ${capturedTextRef.current.trim()}` : capturedTextRef.current.trim())
@@ -417,9 +358,22 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           <h2 className="font-bold text-white text-sm sm:text-base truncate">
             {conversation?.titre || `${t('nav.chat')} (${userName})`}
           </h2>
+          {!isOnline && (
+            <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 border-[0.5px] border-amber-400/40 text-[10px] text-amber-300 font-mono">
+              <WifiOff className="w-3 h-3" />
+              <span>Mode Hors-Ligne</span>
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
+          {!isOnline && (
+            <span className="sm:hidden flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 border-[0.5px] border-amber-400/40 text-[10px] text-amber-300 font-mono">
+              <WifiOff className="w-3 h-3" />
+              <span>Hors-ligne</span>
+            </span>
+          )}
+
           <button
             onClick={() => {
               playCyberSound('alert');
@@ -546,7 +500,15 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
                   {/* Bottom Message Actions */}
                   <div className="mt-2 pt-1 flex items-center justify-between text-[10px] text-slate-400 border-t border-white/5">
-                    <span>{new Date(msg.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                    <div className="flex items-center gap-2">
+                      <span>{new Date(msg.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                      {msg.offline && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 border-[0.5px] border-amber-400/30 text-[9px] text-amber-300 font-mono">
+                          <Cpu className="w-2.5 h-2.5" />
+                          Mode Local
+                        </span>
+                      )}
+                    </div>
                     
                     <div className="flex items-center gap-1.5">
                       <button
@@ -615,7 +577,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               <div>
                 <div className="font-bold text-white text-xs">Microphone actif ({dictationSeconds}s)</div>
                 <div className="text-[11px] text-rose-200 truncate max-w-xs sm:max-w-md">
-                  {liveTranscript ? `"${liveTranscript}"` : "Parlez maintenant..."}
+                  {liveTranscript ? `"${liveTranscript}"` : "Parlez, le texte s'inscrit en direct..."}
                 </div>
               </div>
             </div>
@@ -624,7 +586,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               <div className="w-16 sm:w-24 h-2 bg-black/40 rounded-full overflow-hidden border-[0.5px] border-white/20">
                 <div 
                   className="h-full bg-rose-400 transition-all duration-75"
-                  style={{ width: `${Math.max(15, audioLevel)}%` }}
+                  style={{ width: `${Math.max(20, audioLevel)}%` }}
                 />
               </div>
               <button

@@ -44,10 +44,13 @@ import { AuthModal } from './components/AuthModal';
 import { ForfaitsModal } from './components/ForfaitsModal';
 import { ToastContainer } from './components/ToastContainer';
 import { MobileBottomNav } from './components/MobileBottomNav';
+import { useNetworkStatus } from './hooks/useNetworkStatus';
+import { generateOfflineResponse } from './utils/offlineAiEngine';
 
 const API = '/api';
 
 export default function App() {
+  const isOnline = useNetworkStatus();
   // Navigation State with URL routing support
   const [activePanel, setActivePanel] = useState<PanelId>(() => {
     if (typeof window !== 'undefined') {
@@ -841,6 +844,53 @@ export default function App() {
 
     setIsChatLoading(true);
 
+    // 4. Hybrid Chat Engine: If client is offline, process immediately with local offline engine
+    if (!isOnline) {
+      try {
+        const offlineRes = generateOfflineResponse(safeMessageText, {
+          userProfile,
+          user,
+          taches,
+          rappels,
+          memoire,
+          favoris,
+        });
+
+        const finalizedContent = confidentialMode
+          ? sanitizeConfidentialText(offlineRes.reply)
+          : offlineRes.reply;
+
+        const offlineAiMessage = {
+          role: 'neo' as const,
+          contenu: finalizedContent,
+          offline: true,
+          date: new Date().toISOString(),
+        };
+
+        const finalizedConv: Conversation = {
+          ...convWithUserMsg,
+          messages: [...convWithUserMsg.messages, offlineAiMessage],
+        };
+
+        updateConversationsState(
+          currentConvs.map((c) => (c.id === finalizedConv.id ? finalizedConv : c))
+        );
+
+        if (offlineRes.actions && offlineRes.actions.length > 0) {
+          await processAiActions(offlineRes.actions);
+        }
+
+        if (voiceAutoSpeak) {
+          speakCyberResponse(finalizedContent, voiceGender);
+        }
+      } catch (offlineErr) {
+        console.error('Erreur moteur local hors-ligne:', offlineErr);
+      } finally {
+        setIsChatLoading(false);
+      }
+      return;
+    }
+
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -1019,20 +1069,61 @@ export default function App() {
         }
       }
     } catch (e: any) {
-      console.error('Erreur envoi chat via /api/chat:', e);
-      const errorMessage = {
-        role: 'neo' as const,
-        contenu: e?.message || "Désolé, une erreur de communication est survenue. Veuillez vérifier votre clé API Gemini ou renvoyer votre message.",
-        date: new Date().toISOString(),
-      };
-      const errorConv = {
-        ...convWithUserMsg,
-        messages: [...convWithUserMsg.messages, errorMessage],
-      };
-      updateConversationsState(
-        updatedWithUser.map((c) => (c.id === errorConv.id ? errorConv : c))
-      );
-      showToast(e?.message?.includes('Clé API') ? '⚠️ Clé API Gemini manquante' : '⚠️ Erreur de communication avec le serveur IA', 'danger');
+      console.warn('Requête en ligne échouée, activation du basculement automatique hors-ligne:', e);
+      
+      // Automatic Fallback to lightweight local AI engine
+      try {
+        const offlineFallback = generateOfflineResponse(safeMessageText, {
+          userProfile,
+          user,
+          taches,
+          rappels,
+          memoire,
+          favoris,
+        });
+
+        const finalizedFallback = confidentialMode
+          ? sanitizeConfidentialText(offlineFallback.reply)
+          : offlineFallback.reply;
+
+        const fallbackMessage = {
+          role: 'neo' as const,
+          contenu: finalizedFallback,
+          offline: true,
+          date: new Date().toISOString(),
+        };
+
+        const fallbackConv = {
+          ...convWithUserMsg,
+          messages: [...convWithUserMsg.messages, fallbackMessage],
+        };
+
+        updateConversationsState(
+          updatedWithUser.map((c) => (c.id === fallbackConv.id ? fallbackConv : c))
+        );
+
+        if (offlineFallback.actions && offlineFallback.actions.length > 0) {
+          await processAiActions(offlineFallback.actions);
+        }
+
+        if (voiceAutoSpeak) {
+          speakCyberResponse(finalizedFallback, voiceGender);
+        }
+      } catch (fallbackError) {
+        const errorMessage = {
+          role: 'neo' as const,
+          contenu: e?.message || "Désolé, une erreur de communication est survenue. Veuillez vérifier votre réseau ou renvoyer votre message.",
+          date: new Date().toISOString(),
+        };
+        const errorConv = {
+          ...convWithUserMsg,
+          messages: [...convWithUserMsg.messages, errorMessage],
+        };
+        updateConversationsState(
+          updatedWithUser.map((c) => (c.id === errorConv.id ? errorConv : c))
+        );
+        showToast('⚠️ Réseau indisponible : basculement de secours', 'danger');
+      }
     } finally {
       setIsChatLoading(false);
     }
@@ -1500,6 +1591,7 @@ export default function App() {
               energyPercent={energyPercent}
               onOpenForfaits={() => setIsForfaitsOpen(true)}
               onOpenTranscription={() => setActivePanel('transcription')}
+              isOnline={isOnline}
             />
           )}
 

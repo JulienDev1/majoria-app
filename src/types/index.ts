@@ -129,6 +129,7 @@ export interface Message {
   image?: string;
   sources?: MessageSource[];
   searchQueries?: string[];
+  offline?: boolean;
   date: string;
 }
 

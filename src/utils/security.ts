@@ -303,14 +303,25 @@ export function cleanTextForSpeech(text: string): string {
 
 /**
  * Text-To-Speech with Male / Female voice customization
+ * Fully compatible with Mobile (iOS Safari, Android Chrome/Samsung) & Desktop
  */
 export function speakCyberResponse(
   text: string, 
   voiceGenderOverride?: VoiceGender, 
   onEnd?: () => void
 ) {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-  window.speechSynthesis.cancel();
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+    if (onEnd) onEnd();
+    return;
+  }
+
+  // Cancel previous speech safely and unstick mobile synthesizer
+  try {
+    window.speechSynthesis.cancel();
+    if (window.speechSynthesis.paused) {
+      window.speechSynthesis.resume();
+    }
+  } catch (e) {}
 
   const cleanText = cleanTextForSpeech(text);
   if (!cleanText) {
@@ -321,119 +332,149 @@ export function speakCyberResponse(
   const utterance = new SpeechSynthesisUtterance(cleanText);
   utterance.lang = 'fr-FR';
 
+  // CRITICAL MOBILE FIX: Prevent JavaScript engine garbage collection on iOS / Android
+  (window as any).__majorIAActiveUtterance = utterance;
+
   const gender: VoiceGender = 
     voiceGenderOverride || 
     (localStorage.getItem('neo-voice-gender') as VoiceGender) || 
     'female';
 
+  let hasSpoken = false;
+
   const selectAndSpeak = () => {
-    const voices = window.speechSynthesis.getVoices();
-    const frenchVoices = voices.filter((v) => v.lang && v.lang.toLowerCase().startsWith('fr'));
+    if (hasSpoken) return;
+    hasSpoken = true;
 
-    if (gender === 'male') {
-      // Deeper masculine timbre with genuine warm resonance
-      utterance.pitch = 0.78;
-      utterance.rate = 1.0;
-
-      // Filter out explicitly female voice names
-      const nonFemaleVoices = frenchVoices.filter((v) => {
-        const name = v.name.toLowerCase();
-        return !name.includes('hortense') &&
-          !name.includes('julie') &&
-          !name.includes('denise') &&
-          !name.includes('celine') &&
-          !name.includes('céline') &&
-          !name.includes('audrey') &&
-          !name.includes('amelie') &&
-          !name.includes('amélie') &&
-          !name.includes('chantal') &&
-          !name.includes('alice') &&
-          !name.includes('virginie') &&
-          !name.includes('corinne') &&
-          !name.includes('elodie') &&
-          !name.includes('élodie') &&
-          !name.includes('brigitte') &&
-          !name.includes('female') &&
-          !name.includes('femme') &&
-          !name.includes('woman');
+    try {
+      const allVoices = window.speechSynthesis.getVoices() || [];
+      const frenchVoices = allVoices.filter((v) => {
+        const lang = (v.lang || '').toLowerCase();
+        return lang.startsWith('fr') || lang.includes('french');
       });
 
-      // Priority matching for authentic French male voices
-      const maleVoice = nonFemaleVoices.find((v) => {
-        const name = v.name.toLowerCase();
-        return name.includes('henri') ||
-          name.includes('paul') ||
-          name.includes('claude') ||
-          name.includes('alain') ||
-          name.includes('thomas') ||
-          name.includes('nicolas') ||
-          name.includes('sebastien') ||
-          name.includes('sébastien') ||
-          name.includes('jerome') ||
-          name.includes('jérôme') ||
-          name.includes('aurelien') ||
-          name.includes('aurélien') ||
-          name.includes('mathieu') ||
-          name.includes('pierre') ||
-          name.includes('louis') ||
-          name.includes('guy') ||
-          name.includes('david') ||
-          name.includes('antoine') ||
-          name.includes('bernard') ||
-          name.includes('male') ||
-          name.includes('homme') ||
-          name.includes('#male');
-      }) || nonFemaleVoices[0] || frenchVoices[0];
+      if (gender === 'male') {
+        // Natural deep masculine voice settings compatible with mobile engines
+        utterance.pitch = 0.86;
+        utterance.rate = 0.98;
 
-      if (maleVoice) {
-        utterance.voice = maleVoice;
+        // Filter out explicitly feminine voice signatures
+        const nonFemaleVoices = frenchVoices.filter((v) => {
+          const name = (v.name || '').toLowerCase();
+          return !name.includes('hortense') &&
+            !name.includes('julie') &&
+            !name.includes('denise') &&
+            !name.includes('celine') &&
+            !name.includes('céline') &&
+            !name.includes('audrey') &&
+            !name.includes('amelie') &&
+            !name.includes('amélie') &&
+            !name.includes('chantal') &&
+            !name.includes('alice') &&
+            !name.includes('virginie') &&
+            !name.includes('corinne') &&
+            !name.includes('elodie') &&
+            !name.includes('élodie') &&
+            !name.includes('brigitte') &&
+            !name.includes('marie') &&
+            !name.includes('lucile') &&
+            !name.includes('fra-local') &&
+            !name.includes('fra-network') &&
+            !name.includes('frb-local') &&
+            !name.includes('frb-network') &&
+            !name.includes('female') &&
+            !name.includes('femme') &&
+            !name.includes('woman');
+        });
+
+        // Priority lookup for standard iOS, Android and Desktop masculine voices
+        const maleVoice = nonFemaleVoices.find((v) => {
+          const name = (v.name || '').toLowerCase();
+          return name.includes('henri') ||
+            name.includes('paul') ||
+            name.includes('claude') ||
+            name.includes('alain') ||
+            name.includes('thomas') ||
+            name.includes('nicolas') ||
+            name.includes('mathieu') ||
+            name.includes('pierre') ||
+            name.includes('louis') ||
+            name.includes('guy') ||
+            name.includes('david') ||
+            name.includes('antoine') ||
+            name.includes('bernard') ||
+            name.includes('frc') || // Android Google TTS Male voice 3
+            name.includes('frd') || // Android Google TTS Male voice 4
+            name.includes('male') ||
+            name.includes('homme');
+        }) || nonFemaleVoices[0] || frenchVoices[0];
+
+        if (maleVoice) {
+          utterance.voice = maleVoice;
+        }
+      } else {
+        // Clear, melodic feminine voice settings
+        utterance.pitch = 1.10;
+        utterance.rate = 1.02;
+
+        const femaleVoice = frenchVoices.find((v) => {
+          const name = (v.name || '').toLowerCase();
+          return name.includes('hortense') ||
+            name.includes('julie') ||
+            name.includes('denise') ||
+            name.includes('celine') ||
+            name.includes('céline') ||
+            name.includes('audrey') ||
+            name.includes('amelie') ||
+            name.includes('amélie') ||
+            name.includes('chantal') ||
+            name.includes('alice') ||
+            name.includes('virginie') ||
+            name.includes('fra') ||
+            name.includes('frb') ||
+            name.includes('female') ||
+            name.includes('femme') ||
+            name.includes('google français');
+        }) || frenchVoices[0];
+
+        if (femaleVoice) {
+          utterance.voice = femaleVoice;
+        }
       }
-    } else {
-      // Natural female voice with clear, soft timbre
-      utterance.pitch = 1.15;
-      utterance.rate = 1.04;
 
-      const femaleVoice = frenchVoices.find((v) => {
-        const name = v.name.toLowerCase();
-        return name.includes('hortense') ||
-          name.includes('julie') ||
-          name.includes('denise') ||
-          name.includes('celine') ||
-          name.includes('céline') ||
-          name.includes('audrey') ||
-          name.includes('amelie') ||
-          name.includes('amélie') ||
-          name.includes('female') ||
-          name.includes('femme') ||
-          name.includes('google français');
-      }) || frenchVoices[0];
+      const finishHandler = () => {
+        (window as any).__majorIAActiveUtterance = null;
+        if (onEnd) onEnd();
+      };
 
-      if (femaleVoice) {
-        utterance.voice = femaleVoice;
+      utterance.onend = finishHandler;
+      utterance.onerror = finishHandler;
+
+      // Resume in case mobile browser paused audio
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
       }
-    }
 
-    if (onEnd) {
-      utterance.onend = onEnd;
-      utterance.onerror = onEnd;
+      window.speechSynthesis.speak(utterance);
+    } catch (err) {
+      console.warn('Speech synthesis error:', err);
+      (window as any).__majorIAActiveUtterance = null;
+      if (onEnd) onEnd();
     }
-
-    window.speechSynthesis.speak(utterance);
   };
 
   const currentVoices = window.speechSynthesis.getVoices();
-  if (currentVoices.length > 0) {
+  if (currentVoices && currentVoices.length > 0) {
     selectAndSpeak();
   } else {
+    // Listen for async voices on Android/Chrome
     window.speechSynthesis.onvoiceschanged = () => {
       selectAndSpeak();
       window.speechSynthesis.onvoiceschanged = null;
     };
-    // Fallback if event doesn't fire
+    // Fast fallback timer for iOS Safari (which doesn't always trigger onvoiceschanged)
     setTimeout(() => {
-      if (!window.speechSynthesis.speaking) {
-        selectAndSpeak();
-      }
-    }, 100);
+      selectAndSpeak();
+    }, 120);
   }
 }
