@@ -34,10 +34,10 @@ if ('serviceWorker' in navigator) {
   registerSW({
     immediate: true,
     onNeedRefresh() {
-      console.log('Majori.A: Nouvelle mise à jour PWA disponible.');
+      console.log('MajorI.A: Nouvelle mise à jour PWA disponible.');
     },
     onOfflineReady() {
-      console.log('Majori.A: Application prête pour une utilisation hors-ligne.');
+      console.log('MajorI.A: Application prête pour une utilisation hors-ligne.');
     },
   });
 }

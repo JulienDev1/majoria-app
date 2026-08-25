@@ -14,9 +14,9 @@ export default defineConfig(() => {
         injectRegister: 'auto',
         includeAssets: ['maskable_icon.png', 'manifest.json', 'favicon.ico', 'robots.txt'],
         manifest: {
-          name: 'Majori.A',
-          short_name: 'Majori.A',
-          description: 'Assistant IA Majori.A',
+          name: 'MajorI.A',
+          short_name: 'MajorI.A',
+          description: 'Assistant IA MajorI.A',
           start_url: '/',
           scope: '/',
           display: 'standalone',
