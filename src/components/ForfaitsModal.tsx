@@ -15,6 +15,7 @@ interface ForfaitsModalProps {
   onOpenAuth: () => void;
   energyPercent?: number | null;
   rolloverInfo?: RolloverEnergyInfo;
+  onPerformRollover?: () => void;
   onRecharge?: (amount: number) => void;
 }
 
@@ -28,6 +29,7 @@ export const ForfaitsModal: React.FC<ForfaitsModalProps> = ({
   onOpenAuth,
   energyPercent = 80,
   rolloverInfo,
+  onPerformRollover,
 }) => {
   const { t } = useLanguage();
   if (!isOpen) return null;
@@ -73,6 +75,7 @@ export const ForfaitsModal: React.FC<ForfaitsModalProps> = ({
           onOpenAuth={onOpenAuth}
           energyPercent={energyPercent}
           rolloverInfo={rolloverInfo}
+          onPerformRollover={onPerformRollover}
           isModalMode={true}
           onCloseModal={onClose}
         />

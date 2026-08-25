@@ -7,7 +7,6 @@ import {
   Search, 
   Settings, 
   User,
-  Smartphone,
   Flame
 } from 'lucide-react';
 import { playCyberSound } from '../utils/security';
@@ -25,7 +24,6 @@ interface CyberHeaderProps {
   onOpenSettings: () => void;
   onOpenAuth: () => void;
   onOpenForfaits?: () => void;
-  onOpenMobileBridge?: () => void;
   user: { nom: string } | null;
   userProfile?: UserProfile;
   energyPercent?: number | null;
@@ -48,7 +46,6 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
   onOpenSettings,
   onOpenAuth,
   onOpenForfaits,
-  onOpenMobileBridge,
   user,
   userProfile,
   energyPercent = 80,
@@ -133,21 +130,6 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
 
         {/* Right Side: Quick Action Controls (Transparent / Glassmorphic) */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {/* Mobile Bridge / Phone Connector Button */}
-          {onOpenMobileBridge && (
-            <button
-              onClick={() => {
-                playCyberSound('click');
-                onOpenMobileBridge();
-              }}
-              title={t('header.mobileBridgeTitle')}
-              className="p-2 sm:px-2.5 sm:py-2 rounded-xl bg-white/[0.07] hover:bg-white/[0.14] border-[0.5px] border-white/20 text-sky-300 text-xs sm:text-sm font-semibold transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
-            >
-              <Smartphone className="w-4 h-4 text-sky-400" />
-              <span className="hidden xl:inline">{t('header.mobileBridgeBtn')}</span>
-            </button>
-          )}
-
           {/* Confidential Mode Toggle */}
           <button
             onClick={() => {

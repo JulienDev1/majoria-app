@@ -85,6 +85,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   const audioCtxRef = useRef<AudioContext | null>(null);
   const animFrameRef = useRef<number | null>(null);
   const timerRef = useRef<any>(null);
+  const silenceTimerRef = useRef<any>(null);
+  const isSendingVoiceRef = useRef<boolean>(false);
   const baseInputTextRef = useRef<string>('');
   const capturedTextRef = useRef<string>('');
 
@@ -101,7 +103,15 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     };
   }, []);
 
+  const clearSilenceTimer = () => {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+  };
+
   const stopAllMedia = () => {
+    clearSilenceTimer();
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -135,6 +145,32 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     setIsDictating(false);
   };
 
+  const stopRecordingAndSend = async (forcedText?: string) => {
+    clearSilenceTimer();
+    if (isSendingVoiceRef.current) return;
+
+    const base = baseInputTextRef.current ? baseInputTextRef.current.trim() : '';
+    const captured = capturedTextRef.current.trim();
+    const candidate = (forcedText !== undefined ? forcedText : (captured ? (base ? `${base} ${captured}` : captured) : inputText)).trim();
+    const imageToSend = selectedImage;
+
+    stopAllMedia();
+
+    if (candidate || imageToSend) {
+      isSendingVoiceRef.current = true;
+      setInputText('');
+      setSelectedImage(null);
+      setSelectedImageName(null);
+      setLiveTranscript('');
+      capturedTextRef.current = '';
+      baseInputTextRef.current = '';
+
+      playCyberSound('success');
+      await onSendMessage(candidate, imageToSend || undefined);
+      isSendingVoiceRef.current = false;
+    }
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -166,9 +202,11 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     e.target.value = '';
   };
 
-  // Synchronous Start Dictation for user-gesture compliance
+  // Synchronous Start Dictation for real-time transcription
   const startRecording = () => {
     setMicErrorMessage(null);
+    clearSilenceTimer();
+    isSendingVoiceRef.current = false;
     playCyberSound('beep');
     baseInputTextRef.current = inputText;
     capturedTextRef.current = '';
@@ -177,7 +215,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     setDictationSeconds(0);
     setIsDictating(true);
 
-    // 1. Start SpeechRecognition SYNCHRONOUSLY to preserve user gesture context
+    // 1. Start SpeechRecognition with real-time continuous streaming
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (SpeechRecognition) {
       try {
@@ -203,8 +241,28 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             capturedTextRef.current = combined;
             setLiveTranscript(combined);
             const base = baseInputTextRef.current ? baseInputTextRef.current.trim() : '';
-            setInputText(base ? `${base} ${combined}` : combined);
+            const fullCombined = base ? `${base} ${combined}` : combined;
+            setInputText(fullCombined);
+
+            // Auto-send immediately once user stops speaking (natural pause)
+            clearSilenceTimer();
+            silenceTimerRef.current = setTimeout(() => {
+              if (capturedTextRef.current.trim()) {
+                stopRecordingAndSend(fullCombined);
+              }
+            }, 1200);
           }
+        };
+
+        recognizer.onspeechend = () => {
+          clearSilenceTimer();
+          silenceTimerRef.current = setTimeout(() => {
+            if (capturedTextRef.current.trim()) {
+              const base = baseInputTextRef.current ? baseInputTextRef.current.trim() : '';
+              const fullText = base ? `${base} ${capturedTextRef.current.trim()}` : capturedTextRef.current.trim();
+              stopRecordingAndSend(fullText);
+            }
+          }, 500);
         };
 
         recognizer.onerror = (event: any) => {
@@ -291,76 +349,19 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     }
   };
 
-  const stopRecording = async () => {
-    setIsDictating(false);
-    playCyberSound('beep');
-
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    if (animFrameRef.current) {
-      cancelAnimationFrame(animFrameRef.current);
-      animFrameRef.current = null;
-    }
-    if (audioCtxRef.current) {
-      try { audioCtxRef.current.close(); } catch (e) {}
-      audioCtxRef.current = null;
-    }
-
-    if (recognitionRef.current) {
-      try { recognitionRef.current.stop(); } catch (e) {}
-      recognitionRef.current = null;
-    }
-
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-
-    // Process audio recorded if recognition didn't yield text
-    const recorder = mediaRecorderRef.current;
-    if (recorder && recorder.state !== 'inactive') {
-      const mime = recorder.mimeType || 'audio/webm';
-      recorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: mime });
-        audioChunksRef.current = [];
-        if (!capturedTextRef.current && audioBlob.size > 1000) {
-          setIsTranscribingAudio(true);
-          try {
-            const reader = new FileReader();
-            reader.onloadend = async () => {
-              const base64Data = reader.result as string;
-              const res = await fetch('/api/transcribe', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ audioData: base64Data, mimeType: mime }),
-              });
-              if (res.ok) {
-                const data = await res.json();
-                if (data.transcription) {
-                  setInputText((prev) => {
-                    const base = baseInputTextRef.current ? baseInputTextRef.current.trim() : '';
-                    return base ? `${base} ${data.transcription}` : data.transcription;
-                  });
-                  playCyberSound('success');
-                }
-              }
-              setIsTranscribingAudio(false);
-            };
-            reader.readAsDataURL(audioBlob);
-          } catch (e) {
-            setIsTranscribingAudio(false);
-          }
-        }
-      };
-      recorder.stop();
-    }
-  };
-
   const handleToggleDictation = () => {
     if (isDictating) {
-      stopRecording();
+      // Direct send of captured text upon finishing dictation without delay
+      const base = baseInputTextRef.current ? baseInputTextRef.current.trim() : '';
+      const textToSend = capturedTextRef.current.trim()
+        ? (base ? `${base} ${capturedTextRef.current.trim()}` : capturedTextRef.current.trim())
+        : inputText.trim();
+
+      if (textToSend) {
+        stopRecordingAndSend(textToSend);
+      } else {
+        stopAllMedia();
+      }
     } else {
       startRecording();
     }
@@ -369,7 +370,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isDictating) {
-      await stopRecording();
+      stopAllMedia();
     }
     const text = inputText.trim();
     const image = selectedImage;
@@ -419,19 +420,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
-          {onOpenTranscription && (
-            <button
-              onClick={() => {
-                playCyberSound('click');
-                onOpenTranscription();
-              }}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/[0.07] hover:bg-white/[0.14] border-[0.5px] border-white/15 text-rose-300 text-xs font-semibold transition-all cursor-pointer"
-            >
-              <Mic className="w-3.5 h-3.5 text-rose-400" />
-              <span className="hidden sm:inline">{t('nav.transcription')}</span>
-            </button>
-          )}
-
           <button
             onClick={() => {
               playCyberSound('alert');
@@ -641,11 +629,11 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               </div>
               <button
                 type="button"
-                onClick={stopRecording}
-                className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg font-bold text-xs border-[0.5px] border-white/30 flex items-center gap-1"
+                onClick={() => stopRecordingAndSend()}
+                className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg font-bold text-xs border-[0.5px] border-white/30 flex items-center gap-1 cursor-pointer"
               >
                 <Square className="w-3 h-3 fill-current" />
-                <span>Terminer</span>
+                <span>Terminer & Envoyer</span>
               </button>
             </div>
           </div>

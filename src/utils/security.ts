@@ -326,52 +326,114 @@ export function speakCyberResponse(
     (localStorage.getItem('neo-voice-gender') as VoiceGender) || 
     'female';
 
-  const voices = window.speechSynthesis.getVoices();
-  const frenchVoices = voices.filter((v) => v.lang.startsWith('fr'));
+  const selectAndSpeak = () => {
+    const voices = window.speechSynthesis.getVoices();
+    const frenchVoices = voices.filter((v) => v.lang && v.lang.toLowerCase().startsWith('fr'));
 
-  if (gender === 'male') {
-    // Select male voice or adapt pitch for male cadence
-    utterance.pitch = 0.88;
-    utterance.rate = 1.02;
+    if (gender === 'male') {
+      // Deeper masculine timbre with genuine warm resonance
+      utterance.pitch = 0.78;
+      utterance.rate = 1.0;
 
-    const maleVoice = frenchVoices.find((v) => 
-      v.name.toLowerCase().includes('thomas') || 
-      v.name.toLowerCase().includes('sebastien') || 
-      v.name.toLowerCase().includes('nicolas') || 
-      v.name.toLowerCase().includes('paul') || 
-      v.name.toLowerCase().includes('male') || 
-      v.name.toLowerCase().includes('homme')
-    );
-    if (maleVoice) {
-      utterance.voice = maleVoice;
-    } else if (frenchVoices.length > 0) {
-      utterance.voice = frenchVoices[0];
+      // Filter out explicitly female voice names
+      const nonFemaleVoices = frenchVoices.filter((v) => {
+        const name = v.name.toLowerCase();
+        return !name.includes('hortense') &&
+          !name.includes('julie') &&
+          !name.includes('denise') &&
+          !name.includes('celine') &&
+          !name.includes('céline') &&
+          !name.includes('audrey') &&
+          !name.includes('amelie') &&
+          !name.includes('amélie') &&
+          !name.includes('chantal') &&
+          !name.includes('alice') &&
+          !name.includes('virginie') &&
+          !name.includes('corinne') &&
+          !name.includes('elodie') &&
+          !name.includes('élodie') &&
+          !name.includes('brigitte') &&
+          !name.includes('female') &&
+          !name.includes('femme') &&
+          !name.includes('woman');
+      });
+
+      // Priority matching for authentic French male voices
+      const maleVoice = nonFemaleVoices.find((v) => {
+        const name = v.name.toLowerCase();
+        return name.includes('henri') ||
+          name.includes('paul') ||
+          name.includes('claude') ||
+          name.includes('alain') ||
+          name.includes('thomas') ||
+          name.includes('nicolas') ||
+          name.includes('sebastien') ||
+          name.includes('sébastien') ||
+          name.includes('jerome') ||
+          name.includes('jérôme') ||
+          name.includes('aurelien') ||
+          name.includes('aurélien') ||
+          name.includes('mathieu') ||
+          name.includes('pierre') ||
+          name.includes('louis') ||
+          name.includes('guy') ||
+          name.includes('david') ||
+          name.includes('antoine') ||
+          name.includes('bernard') ||
+          name.includes('male') ||
+          name.includes('homme') ||
+          name.includes('#male');
+      }) || nonFemaleVoices[0] || frenchVoices[0];
+
+      if (maleVoice) {
+        utterance.voice = maleVoice;
+      }
+    } else {
+      // Natural female voice with clear, soft timbre
+      utterance.pitch = 1.15;
+      utterance.rate = 1.04;
+
+      const femaleVoice = frenchVoices.find((v) => {
+        const name = v.name.toLowerCase();
+        return name.includes('hortense') ||
+          name.includes('julie') ||
+          name.includes('denise') ||
+          name.includes('celine') ||
+          name.includes('céline') ||
+          name.includes('audrey') ||
+          name.includes('amelie') ||
+          name.includes('amélie') ||
+          name.includes('female') ||
+          name.includes('femme') ||
+          name.includes('google français');
+      }) || frenchVoices[0];
+
+      if (femaleVoice) {
+        utterance.voice = femaleVoice;
+      }
     }
+
+    if (onEnd) {
+      utterance.onend = onEnd;
+      utterance.onerror = onEnd;
+    }
+
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const currentVoices = window.speechSynthesis.getVoices();
+  if (currentVoices.length > 0) {
+    selectAndSpeak();
   } else {
-    // Select female voice or soft natural pitch
-    utterance.pitch = 1.15;
-    utterance.rate = 1.04;
-
-    const femaleVoice = frenchVoices.find((v) => 
-      v.name.toLowerCase().includes('hortense') || 
-      v.name.toLowerCase().includes('julie') || 
-      v.name.toLowerCase().includes('denise') || 
-      v.name.toLowerCase().includes('celine') || 
-      v.name.toLowerCase().includes('female') || 
-      v.name.toLowerCase().includes('femme') ||
-      v.name.toLowerCase().includes('google français')
-    );
-    if (femaleVoice) {
-      utterance.voice = femaleVoice;
-    } else if (frenchVoices.length > 0) {
-      utterance.voice = frenchVoices[0];
-    }
+    window.speechSynthesis.onvoiceschanged = () => {
+      selectAndSpeak();
+      window.speechSynthesis.onvoiceschanged = null;
+    };
+    // Fallback if event doesn't fire
+    setTimeout(() => {
+      if (!window.speechSynthesis.speaking) {
+        selectAndSpeak();
+      }
+    }, 100);
   }
-
-  if (onEnd) {
-    utterance.onend = onEnd;
-    utterance.onerror = onEnd;
-  }
-
-  window.speechSynthesis.speak(utterance);
 }

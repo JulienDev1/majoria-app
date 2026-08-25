@@ -18,12 +18,14 @@ import {
   CheckCircle2,
   Send,
   HelpCircle,
-  ChevronRight
+  ChevronRight,
+  Layers
 } from 'lucide-react';
 import { SUBSCRIPTION_PLANS, createCheckoutSession, createCustomerPortalSession, fetchUserSubscription } from '../utils/stripe';
 import { SubscriptionPlan, BillingInterval, UserSubscription, UserProfile, RolloverEnergyInfo } from '../types';
 import { playCyberSound } from '../utils/security';
 import { LegalDisclaimerModal } from './LegalDisclaimerModal';
+import { useLanguage } from '../context/LanguageContext';
 
 interface PricingViewProps {
   user: { nom: string } | null;
@@ -34,6 +36,7 @@ interface PricingViewProps {
   onBackToDashboard?: () => void;
   energyPercent?: number | null;
   rolloverInfo?: RolloverEnergyInfo;
+  onPerformRollover?: () => void;
   isModalMode?: boolean;
   onCloseModal?: () => void;
 }
@@ -47,9 +50,11 @@ export const PricingView: React.FC<PricingViewProps> = ({
   onBackToDashboard,
   energyPercent = 80,
   rolloverInfo,
+  onPerformRollover,
   isModalMode = false,
   onCloseModal
 }) => {
+  const { t } = useLanguage();
   const [billingInterval, setBillingInterval] = useState<BillingInterval>('month');
   const [subscription, setSubscription] = useState<UserSubscription | null>(propSubscription || null);
   const [loadingPlanId, setLoadingPlanId] = useState<string | null>(null);
@@ -423,7 +428,76 @@ export const PricingView: React.FC<PricingViewProps> = ({
         })}
       </div>
 
-      {/* Enterprise Contact Modal if clicked */}
+      {/* Consumption System & Automatic Monthly Rollover Box (Under 4 plans) */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-white/[0.03] border-[0.5px] border-emerald-500/30 space-y-4 shadow-xl">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-emerald-500/10 border-[0.5px] border-emerald-400/30 text-emerald-400">
+              <BatteryCharging className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-white font-bold text-sm sm:text-base flex items-center gap-2">
+                <span>{t('settings.energyTitle')}</span>
+              </h3>
+              <p className="text-xs text-slate-400">
+                Suivi de votre jauge d'énergie et accumulation de vos crédits reportés
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-950/90 border-[0.5px] border-white/20 text-xs sm:text-sm font-mono shadow-inner">
+            <span className="text-emerald-400 font-bold">{energyPercent}%</span>
+            <span className="text-slate-300">{t('header.remaining')}</span>
+          </div>
+        </div>
+
+        {/* Battery Gauge Bar */}
+        <div className="space-y-1.5">
+          <div className="flex justify-between text-xs text-slate-300">
+            <span className="font-medium">{t('settings.energyLevel')} :</span>
+            <span className="text-white font-bold font-mono">{energyPercent}% {t('settings.energyAvailable')}</span>
+          </div>
+          <div className="w-full h-3.5 bg-slate-950 rounded-full overflow-hidden border-[0.5px] border-white/20 p-0.5 shadow-inner">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-teal-400 to-sky-400 transition-all duration-500 shadow-sm"
+              style={{ width: `${Math.min(100, energyPercent || 80)}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Monthly Rollover Logic Box */}
+        <div className="p-3.5 rounded-xl bg-slate-950/80 border-[0.5px] border-emerald-500/30 space-y-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <span className="text-slate-300 font-medium flex items-center gap-1.5">
+              <Layers className="w-4 h-4 text-emerald-400" />
+              <strong className="text-white">{t('settings.rolloverTitle')} :</strong>
+            </span>
+            <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-xs border-[0.5px] border-emerald-400/40">
+              +{rolloverInfo?.rolloverEnergy || 35}% {t('settings.rolloverCarried')}
+            </span>
+          </div>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            {t('settings.rolloverDesc')}
+          </p>
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-white/5">
+            <span className="text-xs text-slate-300">
+              {t('settings.totalEnergyAvailable')} : <strong className="text-emerald-300 font-mono text-sm">{(energyPercent || 80) + (rolloverInfo?.rolloverEnergy || 35)}%</strong>
+            </span>
+            {onPerformRollover && (
+              <button
+                type="button"
+                onClick={() => {
+                  onPerformRollover();
+                  playCyberSound('success');
+                }}
+                className="px-3 py-1.5 rounded-lg bg-emerald-600/30 hover:bg-emerald-600/50 border-[0.5px] border-emerald-400 text-emerald-200 text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>{t('settings.simulateRollover')}</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
       {selectedCustomPlan && (
         <div className="p-5 sm:p-6 rounded-2xl bg-[#030914]/95 border-[0.5px] border-sky-400/40 max-w-xl mx-auto space-y-4 shadow-2xl animate-in zoom-in-95">
           <div className="flex items-center justify-between border-b border-white/10 pb-3">

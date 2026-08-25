@@ -17,7 +17,6 @@ import {
   ShieldCheck,
   Battery,
   BatteryCharging,
-  Smartphone,
   Flame,
   Layers
 } from 'lucide-react';
@@ -48,7 +47,6 @@ interface NavigationSidebarProps {
   energyPercent?: number | null;
   rolloverPercent?: number;
   onOpenForfaits?: () => void;
-  onOpenMobileBridge?: () => void;
   isOpenMobile?: boolean;
   onCloseMobile?: () => void;
 }
@@ -75,7 +73,6 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
   energyPercent = 100,
   rolloverPercent = 0,
   onOpenForfaits,
-  onOpenMobileBridge,
   isOpenMobile = false,
   onCloseMobile,
 }) => {
@@ -238,26 +235,6 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
               </button>
             );
           })}
-
-          {/* Mobile Bridge Shortcut */}
-          {onOpenMobileBridge && (
-            <button
-              onClick={() => {
-                playCyberSound('click');
-                onOpenMobileBridge();
-                if (onCloseMobile) onCloseMobile();
-              }}
-              className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all border-[0.5px] border-white/10 text-sky-300 hover:text-white hover:bg-sky-500/10 cursor-pointer backdrop-blur-xl mt-1"
-            >
-              <div className="flex items-center gap-2.5">
-                <Smartphone className="w-4 h-4 text-sky-400" />
-                <span>Pont Mobile</span>
-              </div>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-950/80 border-[0.5px] border-emerald-400/40 text-emerald-300 font-bold">
-                Actif
-              </span>
-            </button>
-          )}
         </div>
 
         {/* Conversation List section if in Chat Panel */}

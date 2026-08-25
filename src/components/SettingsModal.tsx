@@ -9,18 +9,13 @@ import {
   Sparkles, 
   Image as ImageIcon,
   Database,
-  Battery,
-  BatteryCharging,
   CheckCircle2,
   AlertCircle,
   RefreshCw,
   User,
   Volume2,
   Bell,
-  Smartphone,
   Calendar,
-  Layers,
-  ArrowRight,
   Globe
 } from 'lucide-react';
 import { playCyberSound, playAlertSound, speakCyberResponse } from '../utils/security';
@@ -56,7 +51,6 @@ interface SettingsModalProps {
   onUpdateVoiceGender?: (gender: VoiceGender) => void;
   alertSound?: AlertSound;
   onUpdateAlertSound?: (sound: AlertSound) => void;
-  onOpenMobileBridge?: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -85,7 +79,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onUpdateVoiceGender,
   alertSound = 'zen-crystal',
   onUpdateAlertSound,
-  onOpenMobileBridge,
 }) => {
   const { t, language } = useLanguage();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -186,28 +179,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     } finally {
       setIsTestingRpc(false);
     }
-  };
-
-  const handleManualRecharge = async (amount: number) => {
-    try {
-      const res = await fetch('/api/supabase/recharge', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (onUpdateEnergy && typeof data.balance === 'number') {
-          onUpdateEnergy(data.balance);
-        }
-      }
-    } catch {}
-
-    const cur = typeof energyPercent === 'number' ? energyPercent : 80;
-    const updated = Math.min(150, cur + amount);
-    if (onUpdateEnergy) onUpdateEnergy(updated);
-    playCyberSound('success');
-    setRpcStatus(`🔋 Batterie rechargée à ${updated}% (+${amount}%).`);
   };
 
   const BG_PRESETS = [
@@ -480,133 +451,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
-          {/* Section 4: Battery / Consumption System & Automatic Monthly Rollover */}
-          <div className="p-3.5 rounded-xl bg-white/[0.03] border-[0.5px] border-white/10 space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 text-emerald-300 font-bold text-sm">
-                <BatteryCharging className="w-4 h-4 text-emerald-400" />
-                <span>{t('settings.energyTitle')}</span>
-              </label>
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-950 border-[0.5px] border-white/20 text-xs font-mono">
-                <span className="text-white font-bold">{energyPercent}% {t('header.remaining')}</span>
-              </div>
-            </div>
-
-            {/* Battery Gauge Bar */}
-            <div>
-              <div className="flex justify-between text-xs text-slate-300 mb-1.5">
-                <span>{t('settings.energyLevel')} :</span>
-                <span className="text-white font-bold font-mono">{energyPercent}% {t('settings.energyAvailable')}</span>
-              </div>
-              <div className="w-full h-3 bg-slate-950 rounded-full overflow-hidden border-[0.5px] border-white/20 p-0.5">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-500"
-                  style={{ width: `${Math.min(100, energyPercent || 80)}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Monthly Rollover Logic Box */}
-            <div className="p-3 rounded-lg bg-slate-950/80 border-[0.5px] border-emerald-500/30 space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-300 font-medium flex items-center gap-1.5">
-                  <Layers className="w-3.5 h-3.5 text-emerald-400" />
-                  {t('settings.rolloverTitle')} :
-                </span>
-                <span className="text-emerald-300 font-bold">
-                  {rolloverInfo?.rolloverEnergy || 35}% {t('settings.rolloverCarried')}
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400 leading-relaxed">
-                {t('settings.rolloverDesc')}
-              </p>
-              <div className="flex items-center justify-between pt-1">
-                <span className="text-[11px] text-slate-300">
-                  {t('settings.totalEnergyAvailable')} : <strong>{(energyPercent || 80) + (rolloverInfo?.rolloverEnergy || 35)}%</strong>
-                </span>
-                {onPerformRollover && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onPerformRollover();
-                      playCyberSound('success');
-                    }}
-                    className="px-2.5 py-1 rounded-md bg-emerald-600/30 hover:bg-emerald-600/50 border-[0.5px] border-emerald-400 text-emerald-200 text-[11px] font-semibold transition-all cursor-pointer"
-                  >
-                    {t('settings.simulateRollover')}
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Quick Recharge Test Bar */}
-            <div className="pt-2 border-t border-white/10 flex items-center justify-between">
-              <span className="text-xs text-slate-300">{t('settings.quickRecharge')} :</span>
-              <button
-                type="button"
-                onClick={() => handleManualRecharge(20)}
-                className="px-3 py-1.5 rounded-lg bg-emerald-950 border-[0.5px] border-emerald-400 text-emerald-300 font-bold text-xs cursor-pointer flex items-center gap-1.5 hover:bg-emerald-900/60 transition-colors"
-              >
-                <Battery className="w-3.5 h-3.5" />
-                <span>+20% Batterie (Test)</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Section 4b: Architecture Sécurisée Serveur (Vercel & Express) */}
-          <div className="p-3.5 rounded-xl bg-white/[0.03] border-[0.5px] border-white/10 space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 text-sky-300 font-bold text-sm">
-                <Sparkles className="w-4 h-4 text-sky-400" />
-                <span>Moteur IA & Sécurité Serveur</span>
-              </label>
-              <span className="text-[11px] text-emerald-400 font-mono flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                Route /api/chat Active
-              </span>
-            </div>
-
-            <p className="text-[11px] text-slate-300 leading-relaxed">
-              Votre clé d'API <code className="text-sky-300 font-mono">GEMINI_API_KEY</code> est protégée sur le serveur (Vercel / Backend). Aucune clé API n'est injectée ni exposée dans le navigateur client.
-            </p>
-
-            <div className="p-2.5 rounded-lg bg-slate-950/70 border border-emerald-500/30 text-[11px] text-slate-400 space-y-1">
-              <div className="flex items-center justify-between text-slate-300">
-                <span>Point de terminaison :</span>
-                <span className="font-mono text-emerald-400">POST /api/chat</span>
-              </div>
-              <div className="flex items-center justify-between text-slate-300">
-                <span>Emplacement de la clé :</span>
-                <span className="font-mono text-sky-300">process.env.GEMINI_API_KEY</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Section 5: Mobile Bridge Shortcut */}
-          {onOpenMobileBridge && (
-            <div className="p-3.5 rounded-xl bg-white/[0.03] border-[0.5px] border-white/10 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <Smartphone className="w-4 h-4 text-sky-400" />
-                <div>
-                  <div className="font-bold text-white text-xs">{t('settings.mobileBridgeTitle')}</div>
-                  <div className="text-[11px] text-slate-400">{t('settings.mobileBridgeDesc')}</div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onOpenMobileBridge();
-                }}
-                className="px-3 py-1.5 rounded-lg bg-sky-600/40 hover:bg-sky-600/70 border-[0.5px] border-sky-400 text-white text-xs font-semibold flex items-center gap-1 cursor-pointer"
-              >
-                <span>{t('settings.open')}</span>
-                <ArrowRight className="w-3 h-3" />
-              </button>
-            </div>
-          )}
-
-          {/* Section 6: Theme & Background */}
+          {/* Section 4: Theme & Background */}
           <div className="p-3.5 rounded-xl bg-white/[0.03] border-[0.5px] border-white/10 space-y-3">
             <label className="flex items-center gap-2 text-white font-semibold">
               <Palette className="w-4 h-4 text-pink-400" />

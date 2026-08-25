@@ -42,7 +42,6 @@ import { SuccessView } from './components/SuccessView';
 import { SettingsModal } from './components/SettingsModal';
 import { AuthModal } from './components/AuthModal';
 import { ForfaitsModal } from './components/ForfaitsModal';
-import { MobileBridgeModal } from './components/MobileBridgeModal';
 import { ToastContainer } from './components/ToastContainer';
 import { MobileBottomNav } from './components/MobileBottomNav';
 
@@ -149,7 +148,6 @@ export default function App() {
   // Modals & UI State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isForfaitsOpen, setIsForfaitsOpen] = useState(false);
-  const [isMobileBridgeOpen, setIsMobileBridgeOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
       const authUser = localStorage.getItem('neo-auth-user');
@@ -1449,7 +1447,6 @@ export default function App() {
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenAuth={() => setIsAuthOpen(true)}
         onOpenForfaits={() => setIsForfaitsOpen(true)}
-        onOpenMobileBridge={() => setIsMobileBridgeOpen(true)}
         onQuickSearch={handleQuickSearch}
       />
 
@@ -1482,7 +1479,6 @@ export default function App() {
           energyPercent={energyPercent}
           rolloverPercent={rolloverInfo.rolloverEnergy}
           onOpenForfaits={() => setIsForfaitsOpen(true)}
-          onOpenMobileBridge={() => setIsMobileBridgeOpen(true)}
           isOpenMobile={isMobileSidebarOpen}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
         />
@@ -1610,6 +1606,7 @@ export default function App() {
                 onBackToDashboard={() => setActivePanel('chat')}
                 energyPercent={energyPercent}
                 rolloverInfo={rolloverInfo}
+                onPerformRollover={handlePerformRollover}
               />
             </div>
           )}
@@ -1688,16 +1685,8 @@ export default function App() {
         onOpenAuth={() => setIsAuthOpen(true)}
         energyPercent={energyPercent}
         rolloverInfo={rolloverInfo}
+        onPerformRollover={handlePerformRollover}
         onRecharge={handleRechargeEnergy}
-      />
-
-      {/* Mobile Bridge / Smartphone Connector Modal */}
-      <MobileBridgeModal
-        isOpen={isMobileBridgeOpen}
-        onClose={() => setIsMobileBridgeOpen(false)}
-        user={user}
-        userProfile={userProfile}
-        energyPercent={energyPercent}
       />
 
       {/* Settings Modal */}
@@ -1730,7 +1719,6 @@ export default function App() {
         onUpdateVoiceGender={handleUpdateVoiceGender}
         alertSound={alertSound}
         onUpdateAlertSound={handleUpdateAlertSound}
-        onOpenMobileBridge={() => setIsMobileBridgeOpen(true)}
       />
 
       {/* Auth Modal */}

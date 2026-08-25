@@ -8,8 +8,7 @@ import {
   Database,
   CheckSquare,
   Layers,
-  Sparkles,
-  Smartphone
+  Sparkles
 } from 'lucide-react';
 import { Favori, Memoire, Rappel, Tache, Conversation, RolloverEnergyInfo, UserProfile } from '../types';
 
@@ -189,8 +188,8 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({
           <span>MajorI.A Neural 2026 • Système optimisé et sécurisé</span>
         </div>
         <div className="flex items-center gap-2 text-slate-300">
-          <Smartphone className="w-3.5 h-3.5 text-sky-400" />
-          <span>Pont mobile synchronisé</span>
+          <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+          <span>Moteur IA & Base de données connectés</span>
         </div>
       </div>
     </div>
