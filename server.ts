@@ -986,15 +986,17 @@ DIRECTIVES DE RÉPONSE :
 2. Formule ta réponse de manière fluide, vivante et concrète, sans préambule superflu, sans répéter inutilement la date du jour en introduction sauf si l'utilisateur la demande explicitement ou si c'est indispensable pour le contexte temporel.
 3. Exploite pleinement les informations en temps réel de la recherche Google pour les faits d'actualité, la météo, les événements et données récentes en te basant sur la temporalité réelle actuelle.
 4. Évite toute structure rigide ou scolaire de type "Définition / Contexte / Analyse". Va droit au but avec un ton naturel.
-5. Si et seulement si l'utilisateur demande explicitement d'enregistrer une action (rappel, tâche, mémoire, favori), termine ton message par exactement :
-   ACTION_JSON:{"actions":[{"type":"reminder","titre":"...","dateRappel":"YYYY-MM-DD","heure":"HH:MM","dateFinRappel":"YYYY-MM-DD","heureFin":"HH:MM","priorite":"haute"}]}
-   ou
+5. GESTION AUTOMATIQUE DES ENREGISTREMENTS DANS LE MENU :
+   Si l'utilisateur te demande de noter, enregistrer, programmer, rappeler, ajouter une tâche, retenir ou mettre en favori (ex: "note que...", "ajoute dans le menu...", "rappelle-moi...", "crée une tâche...", "mémorise..."), tu DOIS TOUJOURS inclure à la toute fin de ton message le bloc JSON structuré sous ce format exact :
+   Pour un rappel :
+   ACTION_JSON:{"actions":[{"type":"reminder","titre":"...","dateRappel":"YYYY-MM-DD","heure":"HH:MM","priorite":"haute"}]}
+   Pour une tâche :
    ACTION_JSON:{"actions":[{"type":"task","titre":"...","priorite":"normale"}]}
-   ou
+   Pour une note mémorisée :
    ACTION_JSON:{"actions":[{"type":"memory","contenu":"...","importance":3}]}
-   ou
+   Pour un favori :
    ACTION_JSON:{"actions":[{"type":"favorite","titre":"...","contenu":"..."}]}
-   Sinon, ne produis aucun bloc ACTION_JSON.`.trim();
+   Si aucune action d'enregistrement n'est demandée, ne produis aucun bloc ACTION_JSON.`.trim();
 
     const contents = buildGeminiContents(history, message || '', image);
     const ai = getGenAI();

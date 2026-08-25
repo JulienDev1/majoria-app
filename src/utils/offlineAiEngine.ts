@@ -31,7 +31,44 @@ export function generateOfflineResponse(
   const actions: any[] = [];
   let reply = '';
 
-  // 1. Task intent: create/add a task
+  // 1. Note / Memory intent: "note que...", "note dans le menu...", "mémorise...", "enregistre..."
+  if (
+    lower.startsWith('note ') ||
+    lower.startsWith('note que') ||
+    lower.startsWith('note dans le menu') ||
+    lower.includes('note dans le menu') ||
+    lower.includes('note-moi') ||
+    lower.includes('note moi') ||
+    lower.startsWith('mémoire') ||
+    lower.startsWith('memoire') ||
+    lower.includes('mémorise') ||
+    lower.includes('mémoriser') ||
+    lower.includes('retiens que') ||
+    lower.includes('souviens-toi de') ||
+    lower.includes('enregistre en mémoire') ||
+    lower.includes('enregistre dans le menu')
+  ) {
+    let memoContent = cleanPrompt
+      .replace(/^(note dans le menu que|note dans le menu|note-moi que|note moi que|note-moi|note moi|note que|note|mémoire|memoire|mémorise|mémoriser|retiens que|souviens-toi de|enregistre en mémoire|enregistre dans le menu)\s*:?\s*/i, '')
+      .trim();
+
+    if (!memoContent) memoContent = cleanPrompt;
+
+    actions.push({
+      type: 'memoire',
+      action: 'add',
+      item: {
+        contenu: memoContent,
+        tags: ['hors-ligne', 'menu'],
+        importance: 4,
+      },
+    });
+
+    reply = `⚡ **[Mode Hors-Ligne] Note enregistrée avec succès dans le menu Mémoire.**\n\n> *"${memoContent}"*\n\nCette information a été ajoutée à vos données neuronales locales et reste immédiatement accessible dans le panneau **Mémoire** du menu.`;
+    return { reply, actions, offline: true };
+  }
+
+  // 2. Task intent: create/add a task
   if (
     lower.startsWith('tâche') ||
     lower.startsWith('tache') ||
@@ -41,11 +78,12 @@ export function generateOfflineResponse(
     lower.includes('créer une tâche') ||
     lower.includes('nouvelle tâche') ||
     lower.includes('rajoute une tâche') ||
-    lower.startsWith('todo ')
+    lower.startsWith('todo ') ||
+    (lower.startsWith('ajoute ') && !lower.includes('rappel') && !lower.includes('favori'))
   ) {
     let taskTitle = cleanPrompt
-      .replace(/^(tâche|tache|todo|ajoute une tâche|ajouter une tâche|crée une tâche|créer une tâche|nouvelle tâche|rajoute une tâche)\s*:?\s*/i, '')
-      .replace(/^(de|pour|qui consiste à)\s+/i, '')
+      .replace(/^(tâche|tache|todo|ajoute une tâche|ajouter une tâche|crée une tâche|créer une tâche|nouvelle tâche|rajoute une tâche|ajoute)\s*:?\s*/i, '')
+      .replace(/^(de|pour|qui consiste à|dans le menu)\s+/i, '')
       .trim();
 
     if (!taskTitle) taskTitle = 'Nouvelle tâche planifiée';
@@ -64,7 +102,7 @@ export function generateOfflineResponse(
       },
     });
 
-    reply = `⚡ **[Mode Hors-Ligne] Tâche enregistrée avec succès.**\n\n- **Intitulé :** ${taskTitle}\n- **Priorité :** ${priority === 'haute' ? '🔴 Haute' : '🔵 Normale'}\n- **Statut :** En attente\n\n*La tâche a été intégrée directement à votre espace de travail local.*`;
+    reply = `⚡ **[Mode Hors-Ligne] Tâche enregistrée avec succès dans le menu Tâches.**\n\n- **Intitulé :** ${taskTitle}\n- **Priorité :** ${priority === 'haute' ? '🔴 Haute' : '🔵 Normale'}\n- **Statut :** ⏳ En attente\n\n*La tâche est visible immédiatement dans la section **Tâches** de votre menu.*`;
     return { reply, actions, offline: true };
   }
 

@@ -329,12 +329,6 @@ export function speakCyberResponse(
     return;
   }
 
-  const utterance = new SpeechSynthesisUtterance(cleanText);
-  utterance.lang = 'fr-FR';
-
-  // CRITICAL MOBILE FIX: Prevent JavaScript engine garbage collection on iOS / Android
-  (window as any).__majorIAActiveUtterance = utterance;
-
   const gender: VoiceGender = 
     voiceGenderOverride || 
     (localStorage.getItem('neo-voice-gender') as VoiceGender) || 
@@ -347,6 +341,12 @@ export function speakCyberResponse(
     hasSpoken = true;
 
     try {
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.lang = 'fr-FR';
+
+      // CRITICAL MOBILE FIX: Prevent JavaScript engine garbage collection on iOS / Android
+      (window as any).__majorIAActiveUtterance = utterance;
+
       const allVoices = window.speechSynthesis.getVoices() || [];
       const frenchVoices = allVoices.filter((v) => {
         const lang = (v.lang || '').toLowerCase();
@@ -354,41 +354,12 @@ export function speakCyberResponse(
       });
 
       if (gender === 'male') {
-        // Natural deep masculine voice settings compatible with mobile engines
-        utterance.pitch = 0.86;
-        utterance.rate = 0.98;
+        // Natural deeper masculine resonance
+        utterance.pitch = 0.82;
+        utterance.rate = 0.96;
 
-        // Filter out explicitly feminine voice signatures
-        const nonFemaleVoices = frenchVoices.filter((v) => {
-          const name = (v.name || '').toLowerCase();
-          return !name.includes('hortense') &&
-            !name.includes('julie') &&
-            !name.includes('denise') &&
-            !name.includes('celine') &&
-            !name.includes('céline') &&
-            !name.includes('audrey') &&
-            !name.includes('amelie') &&
-            !name.includes('amélie') &&
-            !name.includes('chantal') &&
-            !name.includes('alice') &&
-            !name.includes('virginie') &&
-            !name.includes('corinne') &&
-            !name.includes('elodie') &&
-            !name.includes('élodie') &&
-            !name.includes('brigitte') &&
-            !name.includes('marie') &&
-            !name.includes('lucile') &&
-            !name.includes('fra-local') &&
-            !name.includes('fra-network') &&
-            !name.includes('frb-local') &&
-            !name.includes('frb-network') &&
-            !name.includes('female') &&
-            !name.includes('femme') &&
-            !name.includes('woman');
-        });
-
-        // Priority lookup for standard iOS, Android and Desktop masculine voices
-        const maleVoice = nonFemaleVoices.find((v) => {
+        // Specific male voice matching
+        const explicitMaleVoice = frenchVoices.find((v) => {
           const name = (v.name || '').toLowerCase();
           return name.includes('henri') ||
             name.includes('paul') ||
@@ -403,14 +374,22 @@ export function speakCyberResponse(
             name.includes('david') ||
             name.includes('antoine') ||
             name.includes('bernard') ||
-            name.includes('frc') || // Android Google TTS Male voice 3
-            name.includes('frd') || // Android Google TTS Male voice 4
             name.includes('male') ||
-            name.includes('homme');
-        }) || nonFemaleVoices[0] || frenchVoices[0];
+            name.includes('homme') ||
+            name.includes('fr-fr-x-fra-network') ||
+            name.includes('fr-fr-x-frc-network') ||
+            name.includes('fr-fr-x-frd-network') ||
+            name.includes('frc') ||
+            name.includes('frd');
+        });
 
-        if (maleVoice) {
-          utterance.voice = maleVoice;
+        if (explicitMaleVoice) {
+          utterance.voice = explicitMaleVoice;
+        } else if (frenchVoices.length > 1) {
+          // Choose non-default voice if available for variety
+          utterance.voice = frenchVoices[1] || frenchVoices[0];
+        } else if (frenchVoices.length > 0) {
+          utterance.voice = frenchVoices[0];
         }
       } else {
         // Clear, melodic feminine voice settings

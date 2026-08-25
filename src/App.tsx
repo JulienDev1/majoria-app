@@ -650,99 +650,127 @@ export default function App() {
     showToast(`🏷️ Tag #${cleanTag} ajouté`, 'success');
   };
 
-  // Process AI Automated Actions
+  // Process AI Automated Actions (Tâches, Rappels, Mémoire, Favoris)
   const processAiActions = async (actions: any[]) => {
-    for (const action of actions) {
+    if (!Array.isArray(actions) || actions.length === 0) return;
+
+    for (const rawAction of actions) {
       try {
-        if (action.type === 'memory') {
+        // Normalize action structure (handles both flat { type: 'task', titre: '...' } and nested { type: 'tache', action: 'add', item: { ... } })
+        const actType = (rawAction.type || '').toLowerCase();
+        const itemData = rawAction.item || rawAction;
+
+        if (actType === 'memory' || actType === 'memoire') {
           const item: Memoire = {
-            id: Date.now(),
-            contenu: action.contenu || action.titre || 'Note mémorisée',
-            tags: action.tags || ['ia-auto'],
-            importance: action.importance || 3,
-            date: new Date().toISOString(),
+            id: itemData.id || Date.now() + Math.floor(Math.random() * 1000),
+            contenu: itemData.contenu || itemData.titre || itemData.description || 'Note mémorisée',
+            tags: Array.isArray(itemData.tags) && itemData.tags.length > 0 ? itemData.tags : ['ia-auto'],
+            importance: typeof itemData.importance === 'number' ? itemData.importance : 3,
+            date: itemData.date || new Date().toISOString(),
           };
-          try {
-            await fetch(`${API}/memoire`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(item),
-            });
-          } catch {}
+
+          // 1. Update React state immediately
           setMemoire((prev) => {
-            const next = [item, ...prev];
+            const next = [item, ...prev.filter((m) => m.id !== item.id)];
             safeSave('neo-memoire', next);
             return next;
           });
-          showToast('🧠 Nouvelle note mémorisée', 'success');
-        } else if (action.type === 'reminder') {
-          const item: Rappel = {
-            id: Date.now(),
-            titre: action.titre || 'Rappel MajorI.A',
-            description: action.description || '',
-            dateRappel: action.dateRappel || new Date().toISOString().split('T')[0],
-            heure: action.heure || '12:00',
-            priorite: (action.priorite as Priority) || 'normale',
-            statut: 'actif',
-            dateCreation: new Date().toISOString(),
-          };
+
+          // 2. Sync with backend if available
           try {
-            await fetch(`${API}/rappels`, {
+            fetch(`${API}/memoire`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(item),
-            });
+            }).catch(() => {});
           } catch {}
+
+          showToast('🧠 Nouvelle note mémorisée', 'success');
+        } else if (actType === 'reminder' || actType === 'rappel') {
+          const item: Rappel = {
+            id: itemData.id || Date.now() + Math.floor(Math.random() * 1000),
+            titre: itemData.titre || itemData.nom || 'Rappel MajorI.A',
+            description: itemData.description || '',
+            dateRappel: itemData.dateRappel || new Date().toISOString().split('T')[0],
+            heure: itemData.heure || '12:00',
+            dateFinRappel: itemData.dateFinRappel || undefined,
+            heureFin: itemData.heureFin || undefined,
+            priorite: (itemData.priorite as Priority) || 'normale',
+            statut: itemData.statut || 'actif',
+            dateCreation: itemData.dateCreation || new Date().toISOString(),
+          };
+
+          // 1. Update React state immediately
           setRappels((prev) => {
-            const next = [item, ...prev];
+            const next = [item, ...prev.filter((r) => r.id !== item.id)];
             safeSave('neo-rappels', next);
             return next;
           });
-          playAlertSound(alertSound);
-          showToast(`🔔 Rappel créé : ${item.titre}`, 'success');
-        } else if (action.type === 'task') {
-          const item: Tache = {
-            id: Date.now(),
-            titre: action.titre || 'Tâche MajorI.A',
-            description: action.description || '',
-            priorite: (action.priorite as Priority) || 'normale',
-            status: 'attente',
-            echeance: action.echeance || '',
-            dateCreation: new Date().toISOString(),
-          };
+
+          // 2. Sync with backend if available
           try {
-            await fetch(`${API}/taches`, {
+            fetch(`${API}/rappels`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(item),
-            });
+            }).catch(() => {});
           } catch {}
+
+          playAlertSound(alertSound);
+          showToast(`🔔 Rappel créé : ${item.titre}`, 'success');
+        } else if (actType === 'task' || actType === 'tache') {
+          const item: Tache = {
+            id: itemData.id || Date.now() + Math.floor(Math.random() * 1000),
+            titre: itemData.titre || itemData.nom || 'Tâche MajorI.A',
+            description: itemData.description || '',
+            priorite: (itemData.priorite as Priority) || 'normale',
+            status: itemData.status || 'attente',
+            echeance: itemData.echeance || itemData.dateRappel || '',
+            dateCreation: itemData.dateCreation || new Date().toISOString(),
+          };
+
+          // 1. Update React state immediately
           setTaches((prev) => {
-            const next = [item, ...prev];
+            const next = [item, ...prev.filter((t) => t.id !== item.id)];
             safeSave('neo-taches', next);
             return next;
           });
-          showToast(`✅ Tâche ajoutée : ${item.titre}`, 'success');
-        } else if (action.type === 'favorite') {
-          const item: Favori = {
-            id: Date.now(),
-            titre: action.titre || 'Favori',
-            contenu: action.contenu || '',
-            categorie: action.categorie || 'général',
-            date: new Date().toISOString(),
-          };
+
+          // 2. Sync with backend if available
           try {
-            await fetch(`${API}/favoris`, {
+            fetch(`${API}/taches`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(item),
-            });
+            }).catch(() => {});
           } catch {}
+
+          showToast(`✅ Tâche ajoutée : ${item.titre}`, 'success');
+        } else if (actType === 'favorite' || actType === 'favori') {
+          const item: Favori = {
+            id: itemData.id || Date.now() + Math.floor(Math.random() * 1000),
+            titre: itemData.titre || itemData.nom || 'Favori',
+            contenu: itemData.contenu || itemData.description || '',
+            categorie: itemData.categorie || 'général',
+            date: itemData.date || new Date().toISOString(),
+          };
+
+          // 1. Update React state immediately
           setFavoris((prev) => {
-            const next = [item, ...prev];
+            const next = [item, ...prev.filter((f) => f.id !== item.id)];
             safeSave('neo-favoris', next);
             return next;
           });
+
+          // 2. Sync with backend if available
+          try {
+            fetch(`${API}/favoris`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(item),
+            }).catch(() => {});
+          } catch {}
+
           showToast(`⭐ Favori enregistré : ${item.titre}`, 'success');
         }
       } catch (err) {
