@@ -282,6 +282,12 @@ export interface TranslationsSchema {
     clearDataConfirm: string;
     theme: string;
     themeTitle: string;
+    themeMode: string;
+    themeLight: string;
+    themeDark: string;
+    themeSystem: string;
+    themeToggle: string;
+    themeModeDesc: string;
     sounds: string;
     notifications: string;
     profileSaved: string;
@@ -691,6 +697,12 @@ export const translations: Record<Language, TranslationsSchema> = {
       clearDataConfirm: 'Attention : toutes vos discussions, tâches et favoris seront définitivement effacés.',
       theme: 'Thème & Couleurs',
       themeTitle: 'Arrière-plan & Thème',
+      themeMode: 'Mode d’affichage',
+      themeLight: 'Mode Clair (Light)',
+      themeDark: 'Mode Sombre (Dark)',
+      themeSystem: 'Automatique (Système)',
+      themeToggle: 'Basculer le thème',
+      themeModeDesc: 'Alternez entre le mode clair et le mode sombre pour un confort visuel optimal.',
       sounds: 'Effets Sonores Cyber',
       notifications: 'Notifications du navigateur',
       profileSaved: 'Profil sauvegardé ! Le chatbot utilisera votre prénom.',
@@ -1098,6 +1110,12 @@ export const translations: Record<Language, TranslationsSchema> = {
       clearDataConfirm: 'Warning: All discussions, tasks, and notes will be permanently erased.',
       theme: 'Theme & Colors',
       themeTitle: 'Background & Theme',
+      themeMode: 'Display Mode',
+      themeLight: 'Light Mode',
+      themeDark: 'Dark Mode',
+      themeSystem: 'Automatic (System)',
+      themeToggle: 'Toggle Theme',
+      themeModeDesc: 'Switch between light mode and dark mode for optimal visual comfort.',
       sounds: 'Cyber Sound Effects',
       notifications: 'Browser Notifications',
       profileSaved: 'Profile saved! The chatbot will greet you personally.',

@@ -3,18 +3,17 @@ import {
   Shield, 
   Volume2, 
   VolumeX, 
-  Search, 
   Settings, 
   User,
   Flame,
-  PanelLeftClose,
-  PanelLeftOpen,
   ChevronRight,
   ChevronUp,
-  Maximize2
+  Maximize2,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { playCyberSound } from '../utils/security';
-import { UserProfile } from '../types';
+import { UserProfile, ThemeMode } from '../types';
 import { useLanguage } from '../context/LanguageContext';
 import { LanguageSelector } from './LanguageSelector';
 
@@ -30,11 +29,14 @@ interface CyberHeaderProps {
   onOpenSettings: () => void;
   onOpenAuth: () => void;
   onOpenForfaits?: () => void;
-  onQuickSearch: (query: string) => void;
+  onQuickSearch?: (query: string) => void;
   onToggleSidebar?: () => void;
   isSidebarOpen?: boolean;
   isCollapsed?: boolean;
   onToggleCollapseHeader?: () => void;
+  themeMode?: ThemeMode;
+  resolvedTheme?: 'light' | 'dark';
+  onToggleTheme?: () => void;
 }
 
 export const CyberHeader: React.FC<CyberHeaderProps> = ({
@@ -49,14 +51,13 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
   onOpenForfaits,
   energyPercent = 80,
   rolloverPercent = 0,
-  onQuickSearch,
-  onToggleSidebar,
-  isSidebarOpen = true,
   isCollapsed = false,
   onToggleCollapseHeader,
+  themeMode = 'system',
+  resolvedTheme = 'light',
+  onToggleTheme,
 }) => {
   const { language, t } = useLanguage();
-  const [searchQuery, setSearchQuery] = useState('');
   const [cyberClock, setCyberClock] = useState('');
 
   useEffect(() => {
@@ -70,98 +71,46 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
     return () => clearInterval(interval);
   }, [language]);
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      playCyberSound('beep');
-      onQuickSearch(searchQuery.trim());
-      setSearchQuery('');
-    }
-  };
-
-  const effectiveEnergy = typeof energyPercent === 'number' ? Math.max(0, energyPercent) : 100;
-
   const displayName = userProfile?.prenom 
     ? `${userProfile.prenom}${userProfile.nom ? ` ${userProfile.nom}` : ''}`
     : user?.nom || t('header.login');
 
   return (
     <header 
-      className={`sticky top-0 z-30 border-b border-white/10 bg-[#030914]/90 backdrop-blur-xl px-3 sm:px-5 transition-all duration-300 ease-in-out shrink-0 ${
+      className={`sticky top-0 z-30 border-b border-[var(--fb-border)] bg-[var(--fb-surface)] text-[var(--fb-text-primary)] px-3 sm:px-4 transition-all duration-300 ease-in-out shrink-0 ${
         isCollapsed 
           ? '-translate-y-full max-h-0 py-0 border-b-0 opacity-0 overflow-hidden pointer-events-none' 
-          : 'translate-y-0 max-h-28 py-2.5 sm:py-3 opacity-100 shadow-lg'
+          : 'translate-y-0 max-h-20 py-1.5 opacity-100 shadow-sm'
       }`}
     >
-      <div className="max-w-7xl mx-auto flex items-center justify-between gap-2.5 sm:gap-4">
-        {/* Left Side: Sidebar Toggle + Pure Brand Typography (No Icon Logo) */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          {/* Toggle Sidebar Button */}
-          {onToggleSidebar && (
-            <button
-              onClick={() => {
-                playCyberSound('click');
-                onToggleSidebar();
-              }}
-              title={isSidebarOpen ? "Replier le menu (Agrandir l'espace)" : "Dérouler le menu vers la droite"}
-              className={`flex items-center gap-1.5 p-2 rounded-xl border-[0.5px] transition-all text-xs font-semibold active:scale-95 cursor-pointer ${
-                isSidebarOpen
-                  ? 'bg-white/[0.08] border-white/20 text-slate-200 hover:bg-white/[0.15] hover:text-white'
-                  : 'bg-sky-600/30 border-sky-400/50 text-sky-200 hover:bg-sky-600/40 shadow-sm'
-              }`}
-            >
-              {isSidebarOpen ? (
-                <PanelLeftClose className="w-5 h-5 text-slate-300" />
-              ) : (
-                <>
-                  <PanelLeftOpen className="w-5 h-5 text-sky-300" />
-                  <span className="hidden sm:inline font-medium text-xs text-sky-200">Dérouler</span>
-                  <ChevronRight className="w-3.5 h-3.5 text-sky-300 hidden sm:inline" />
-                </>
-              )}
-            </button>
-          )}
+      <div className="max-w-[1920px] mx-auto flex items-center justify-between gap-2 sm:gap-4 h-12">
+        {/* Left Side: Logo maskable_icon.png */}
+        <div className="flex items-center gap-3 shrink-0">
+          <img 
+            src="/maskable_icon.png" 
+            alt="MajorI.A Logo" 
+            className="w-10 h-10 rounded-full object-cover shadow-sm cursor-pointer hover:opacity-95 transition-opacity"
+            title="MajorI.A"
+          />
+        </div>
 
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-lg sm:text-xl md:text-2xl text-white tracking-tight">
-                {t('header.appName')}
-              </span>
-              <span className="hidden sm:inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full bg-white/[0.1] text-white border-[0.5px] border-white/20">
-                {t('header.assistantBadge')}
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5 text-xs text-slate-300 font-medium leading-none mt-0.5">
-              <span className="hidden sm:flex items-center gap-1 text-emerald-400 font-semibold">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
-                <span>{t('header.online')}</span>
-              </span>
-              <span className="hidden sm:inline text-slate-500">|</span>
-              <span className="text-white font-mono text-xs sm:text-sm">{cyberClock}</span>
-            </div>
+        {/* Center: Status & Live Time Badge */}
+        <div className="hidden sm:flex items-center gap-3">
+          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[var(--fb-surface-secondary)] text-xs font-semibold text-[var(--fb-text-secondary)]">
+            <span className="flex items-center gap-1.5 text-[var(--fb-green)]">
+              <span className="w-2 h-2 rounded-full bg-[var(--fb-green)] animate-pulse inline-block" />
+              <span>{t('header.online')}</span>
+            </span>
+            <span className="text-[var(--fb-border)]">|</span>
+            <span className="font-mono text-[var(--fb-text-primary)]">{cyberClock}</span>
           </div>
         </div>
 
-        {/* Center: Global Instant Search Bar (Glassmorphic) */}
-        <form 
-          onSubmit={handleSearchSubmit} 
-          className="hidden md:flex relative flex-1 max-w-xs lg:max-w-md items-center group mx-2"
-        >
-          <Search className="absolute left-3.5 w-4 h-4 text-slate-400 pointer-events-none group-focus-within:text-white transition-colors" />
-          <input
-            type="text"
-            placeholder={t('header.searchPlaceholder')}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full h-10 lg:h-11 bg-white/[0.06] border-[0.5px] border-white/20 focus:border-white/50 rounded-xl pl-10 pr-4 text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-white/30 transition-all font-sans"
-          />
-        </form>
-
-        {/* Right Side: Language + Forfaits + Controls + Collapse Header */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
+        {/* Right Side: Action Icons + Profile in pure Facebook Style */}
+        <div className="flex items-center gap-1 sm:gap-2">
           {/* FR / EN Language Selector */}
           <div className="hidden sm:block">
-            <LanguageSelector variant="header" />
+            <LanguageSelector variant="compact" className="bg-[var(--fb-surface-secondary)] hover:bg-[var(--fb-hover)] text-[var(--fb-text-primary)] border-[var(--fb-border)]" />
           </div>
 
           {/* Bouton Forfaits / Abonnements */}
@@ -172,10 +121,27 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
                 onOpenForfaits();
               }}
               title={t('header.plansTitle')}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl border-[0.5px] border-red-400/50 bg-gradient-to-r from-red-600/90 via-rose-600/90 to-red-600/90 hover:from-red-500 hover:to-rose-500 text-white font-bold text-xs shadow-md active:scale-95 transition-all cursor-pointer shrink-0"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--fb-blue)] hover:bg-[var(--fb-blue-hover)] text-white font-bold text-xs shadow-sm active:scale-95 transition-all cursor-pointer shrink-0"
             >
               <Flame className="w-4 h-4 text-white" />
-              <span className="hidden sm:inline">{t('header.plansBtn')}</span>
+              <span className="hidden md:inline">{t('header.plansBtn')}</span>
+            </button>
+          )}
+
+          {/* Sun / Moon Quick Theme Toggle Button */}
+          {onToggleTheme && (
+            <button
+              onClick={() => {
+                onToggleTheme();
+              }}
+              title={resolvedTheme === 'dark' ? 'Passer en Mode Clair (Light)' : 'Passer en Mode Sombre (Dark)'}
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[var(--fb-surface-secondary)] hover:bg-[var(--fb-hover)] text-[var(--fb-text-primary)] flex items-center justify-center transition-all cursor-pointer active:scale-95"
+            >
+              {resolvedTheme === 'dark' ? (
+                <Sun className="w-4.5 h-4.5 text-amber-400" />
+              ) : (
+                <Moon className="w-4.5 h-4.5 text-indigo-600" />
+              )}
             </button>
           )}
 
@@ -186,16 +152,13 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
               onToggleConfidential();
             }}
             title={confidentialMode ? t('header.confidentialActive') : t('header.confidentialInactive')}
-            className={`p-2 rounded-xl border-[0.5px] transition-all text-xs flex items-center gap-1.5 active:scale-95 cursor-pointer ${
+            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all cursor-pointer ${
               confidentialMode
-                ? 'bg-rose-950/80 border-rose-400/50 text-rose-300 shadow-sm'
-                : 'bg-white/[0.06] border-white/15 text-slate-300 hover:text-white hover:bg-white/[0.12]'
+                ? 'bg-[#fa383e]/15 text-[#fa383e]'
+                : 'bg-[var(--fb-surface-secondary)] hover:bg-[var(--fb-hover)] text-[var(--fb-text-primary)]'
             }`}
           >
-            <Shield className="w-4 h-4" />
-            <span className="hidden xl:inline font-medium">
-              {confidentialMode ? t('header.confidentialBadge') : t('header.confidentialOff')}
-            </span>
+            <Shield className="w-4.5 h-4.5" />
           </button>
 
           {/* Voice Auto Speak */}
@@ -205,16 +168,13 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
               onToggleVoiceAuto();
             }}
             title={voiceAutoSpeak ? t('header.voiceAutoActive') : t('header.voiceAutoInactive')}
-            className={`p-2 rounded-xl border-[0.5px] transition-all text-xs flex items-center gap-1.5 active:scale-95 cursor-pointer ${
+            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all cursor-pointer ${
               voiceAutoSpeak
-                ? 'bg-cyan-950/80 border-cyan-400/50 text-cyan-300 shadow-sm'
-                : 'bg-white/[0.06] border-white/15 text-slate-300 hover:text-white hover:bg-white/[0.12]'
+                ? 'bg-[var(--fb-blue-light)] text-[var(--fb-blue)]'
+                : 'bg-[var(--fb-surface-secondary)] hover:bg-[var(--fb-hover)] text-[var(--fb-text-primary)]'
             }`}
           >
-            {voiceAutoSpeak ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-            <span className="hidden xl:inline font-medium">
-              {voiceAutoSpeak ? t('header.voiceBadge') : t('header.voiceOff')}
-            </span>
+            {voiceAutoSpeak ? <Volume2 className="w-4.5 h-4.5" /> : <VolumeX className="w-4.5 h-4.5" />}
           </button>
 
           {/* User Account Button */}
@@ -224,10 +184,12 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
               onOpenAuth();
             }}
             title={t('header.userAccount')}
-            className="flex items-center gap-2 p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border-[0.5px] border-white/20 text-white transition-all text-xs font-semibold cursor-pointer"
+            className="flex items-center gap-2 p-1 sm:px-2 rounded-full hover:bg-[var(--fb-hover)] text-[var(--fb-text-primary)] transition-all cursor-pointer"
           >
-            <User className="w-4 h-4 text-sky-400" />
-            <span className="hidden md:inline max-w-[100px] truncate">{displayName}</span>
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[var(--fb-blue)] text-white flex items-center justify-center font-bold text-xs shadow-sm">
+              {userProfile?.prenom ? userProfile.prenom[0].toUpperCase() : <User className="w-4 h-4" />}
+            </div>
+            <span className="hidden xl:inline text-xs font-semibold max-w-[120px] truncate">{displayName}</span>
           </button>
 
           {/* Settings Button */}
@@ -237,23 +199,22 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
               onOpenSettings();
             }}
             title={t('header.settings')}
-            className="p-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border-[0.5px] border-white/20 text-slate-300 hover:text-white transition-all cursor-pointer"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[var(--fb-surface-secondary)] hover:bg-[var(--fb-hover)] text-[var(--fb-text-primary)] flex items-center justify-center transition-all cursor-pointer"
           >
-            <Settings className="w-4 h-4" />
+            <Settings className="w-4.5 h-4.5" />
           </button>
 
-          {/* Collapse Header Button -> Only Chat View */}
+          {/* Collapse Header Button -> Fullscreen View */}
           {onToggleCollapseHeader && (
             <button
               onClick={() => {
                 playCyberSound('click');
                 onToggleCollapseHeader();
               }}
-              title="Replier l'en-tête (Ne voir que le chat)"
-              className="flex items-center gap-1 p-2 rounded-xl bg-white/[0.08] hover:bg-white/[0.16] border-[0.5px] border-white/20 text-slate-200 hover:text-white transition-all text-xs cursor-pointer active:scale-95"
+              title="Plein écran (Masquer l'en-tête)"
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[var(--fb-surface-secondary)] hover:bg-[var(--fb-hover)] text-[var(--fb-text-secondary)] hover:text-[var(--fb-text-primary)] flex items-center justify-center transition-all cursor-pointer active:scale-95"
             >
-              <ChevronUp className="w-4 h-4 text-sky-300" />
-              <span className="hidden lg:inline text-[11px] font-medium">Plein écran</span>
+              <ChevronUp className="w-4.5 h-4.5" />
             </button>
           )}
         </div>

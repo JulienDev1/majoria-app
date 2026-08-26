@@ -16,18 +16,26 @@ import {
   Volume2,
   Bell,
   Calendar,
-  Globe
+  Globe,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { playCyberSound, playAlertSound, speakCyberResponse } from '../utils/security';
 import { GalaxyColorScheme } from './MilkyWayGalaxy';
 import { getSupabaseConfig, saveSupabaseConfig, callUseCredit } from '../utils/supabase';
-import { AlertSound, RolloverEnergyInfo, UserProfile, VoiceGender } from '../types';
+import { AlertSound, RolloverEnergyInfo, UserProfile, VoiceGender, ThemeMode } from '../types';
 import { useLanguage } from '../context/LanguageContext';
 import { LanguageSelector } from './LanguageSelector';
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  themeMode?: ThemeMode;
+  resolvedTheme?: 'light' | 'dark';
+  onSetThemeMode?: (mode: ThemeMode) => void;
+  onToggleTheme?: () => void;
+  chatBgImage?: string | null;
+  onSetChatBgImage?: (image: string | null) => void;
   bgColor: string;
   onSetBgColor: (color: string) => void;
   galaxyEnabled: boolean;
@@ -56,6 +64,12 @@ interface SettingsModalProps {
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
   onClose,
+  themeMode = 'system',
+  resolvedTheme = 'light',
+  onSetThemeMode,
+  onToggleTheme,
+  chatBgImage,
+  onSetChatBgImage,
   bgColor,
   onSetBgColor,
   galaxyEnabled,
@@ -82,6 +96,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   const { t, language } = useLanguage();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const bgInputRef = useRef<HTMLInputElement | null>(null);
   const jsonInputRef = useRef<HTMLInputElement | null>(null);
 
   // Profile Form state
@@ -150,57 +165,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     playAlertSound(sound);
   };
 
-  const handleSaveSupabase = () => {
-    saveSupabaseConfig(supabaseUrl, supabaseKey);
-    playCyberSound('success');
-    setRpcStatus('Configuration Supabase enregistrée.');
-  };
-
-  const handleTestRpc = async () => {
-    setIsTestingRpc(true);
-    setRpcStatus(null);
-    try {
-      saveSupabaseConfig(supabaseUrl, supabaseKey);
-      const res = await callUseCredit();
-      if (res.isExhausted || res.balance === -1) {
-        setRpcStatus('❌ Batterie IA déchargée (0% restant).');
-        playCyberSound('alert');
-        if (onUpdateEnergy) onUpdateEnergy(0);
-      } else if (res.balance !== null) {
-        setRpcStatus(`✅ RPC use_credit réussi ! Niveau de batterie actuel : ${res.balance}% (${res.source})`);
-        playCyberSound('success');
-        if (onUpdateEnergy) onUpdateEnergy(res.balance);
-      } else {
-        setRpcStatus(`⚠️ Réponse inattendue de Supabase : ${res.error || 'Erreur inconnue'}`);
-      }
-    } catch (err: any) {
-      setRpcStatus(`❌ Erreur lors de l'appel RPC : ${err?.message || err}`);
-      playCyberSound('alert');
-    } finally {
-      setIsTestingRpc(false);
-    }
-  };
-
-  const BG_PRESETS = [
-    { label: 'Espace Cosmique', val: '#020612' },
-    { label: 'Obsidian Tech', val: '#0b1329' },
-    { label: 'Deep Slate', val: '#0f172a' },
-    { label: 'Cyber Violet', val: '#190a2e' },
-    { label: 'Dark Neon', val: '#030805' },
-    { label: 'Noir Pur', val: '#000000' },
-  ];
-
   const handleCustomBgUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert("Veuillez sélectionner un fichier image valide (JPG, PNG, WEBP, etc.).");
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = (event) => {
       const rawDataUrl = event.target?.result as string;
       const img = new Image();
       img.onload = () => {
-        const maxW = 3840;
-        const maxH = 2160;
+        const maxW = 1920;
+        const maxH = 1080;
         let width = img.width;
         let height = img.height;
 
@@ -208,27 +188,35 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           const ratio = Math.min(maxW / width, maxH / height);
           width = Math.round(width * ratio);
           height = Math.round(height * ratio);
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.imageSmoothingEnabled = true;
-            ctx.imageSmoothingQuality = 'high';
-            ctx.drawImage(img, 0, 0, width, height);
-            const highResDataUrl = canvas.toDataURL('image/jpeg', 0.96);
-            onSetBgColor(`url("${highResDataUrl}")`);
-            playCyberSound('success');
-            return;
-          }
         }
 
-        // If within standard high resolution or canvas not needed, use raw full quality
-        onSetBgColor(`url("${rawDataUrl}")`);
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, width, height);
+          const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.88);
+          if (onSetChatBgImage) {
+            onSetChatBgImage(optimizedDataUrl);
+          } else {
+            onSetBgColor(`url("${optimizedDataUrl}")`);
+          }
+          playCyberSound('success');
+          return;
+        }
+
+        if (onSetChatBgImage) {
+          onSetChatBgImage(rawDataUrl);
+        } else {
+          onSetBgColor(`url("${rawDataUrl}")`);
+        }
         playCyberSound('success');
       };
       img.onerror = () => {
-        alert("Erreur lors de la lecture de l'image");
+        alert("Erreur lors du chargement de l'image.");
       };
       img.src = rawDataUrl;
     };
@@ -254,13 +242,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
-      <div className="max-w-2xl w-full border-[0.5px] border-white/20 rounded-2xl bg-[#030914]/95 p-5 sm:p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
+      <div className="max-w-2xl w-full border border-[var(--fb-border)] rounded-2xl bg-[var(--fb-surface)] text-[var(--fb-text-primary)] p-5 sm:p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
         
         {/* Modal Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-white/10">
-          <div className="flex items-center gap-2 font-bold text-white text-base">
-            <Settings className="w-5 h-5 text-sky-400" />
+        <div className="flex items-center justify-between pb-3 border-b border-[var(--fb-border-light)]">
+          <div className="flex items-center gap-2 font-bold text-[var(--fb-text-primary)] text-base sm:text-lg">
+            <div className="w-8 h-8 rounded-full bg-[var(--fb-blue)] text-white flex items-center justify-center shadow-xs">
+              <Settings className="w-4 h-4" />
+            </div>
             <span>{t('settings.title')}</span>
           </div>
           <button
@@ -268,21 +258,112 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               playCyberSound('click');
               onClose();
             }}
-            className="p-1.5 rounded-xl border-[0.5px] border-white/15 bg-white/5 hover:bg-white/10 text-white cursor-pointer transition-all"
+            className="w-8 h-8 rounded-full bg-[var(--fb-surface-secondary)] hover:bg-[var(--fb-hover)] text-[var(--fb-text-secondary)] hover:text-[var(--fb-text-primary)] flex items-center justify-center cursor-pointer transition-all"
+            title={t('common.close')}
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="space-y-5 text-xs">
-          {/* Section 0: Multi-language Support */}
-          <div className="p-3.5 rounded-xl bg-white/[0.03] border-[0.5px] border-white/10 space-y-3">
+        <div className="space-y-4 text-xs">
+          
+          {/* Section 0: Theme Mode (Light / Dark / Auto) */}
+          <div className="p-4 rounded-2xl bg-[var(--fb-surface-tertiary)] border border-[var(--fb-border-light)] space-y-3">
             <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 text-sky-300 font-bold text-sm">
-                <Globe className="w-4 h-4 text-sky-400" />
+              <label className="flex items-center gap-2 text-[var(--fb-text-primary)] font-bold text-sm">
+                {resolvedTheme === 'dark' ? (
+                  <Moon className="w-4 h-4 text-indigo-400" />
+                ) : (
+                  <Sun className="w-4 h-4 text-amber-500" />
+                )}
+                <span>{t('settings.themeMode')} (Mode Clair / Mode Sombre)</span>
+              </label>
+              <span className="text-[11px] text-[var(--fb-text-secondary)] font-medium">
+                {resolvedTheme === 'dark' ? t('settings.themeDark') : t('settings.themeLight')}
+              </span>
+            </div>
+
+            <p className="text-xs text-[var(--fb-text-secondary)] leading-relaxed">
+              {t('settings.themeModeDesc')}
+            </p>
+
+            {/* Quick 1-Click Action Button */}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              {onToggleTheme && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onToggleTheme();
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-[var(--fb-blue)] hover:bg-[var(--fb-blue-hover)] text-white font-bold text-xs shadow-sm transition-all cursor-pointer active:scale-95"
+                >
+                  {resolvedTheme === 'dark' ? (
+                    <>
+                      <Sun className="w-4 h-4 text-amber-300 animate-spin-slow" />
+                      <span>{language === 'en' ? 'Switch to Light Mode' : 'Basculer en Mode Clair'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Moon className="w-4 h-4 text-indigo-200" />
+                      <span>{language === 'en' ? 'Switch to Dark Mode' : 'Basculer en Mode Sombre'}</span>
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+
+            {/* 2-Way Theme Choices: Light & Dark Mode */}
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              {/* Light Mode Choice */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (onSetThemeMode) onSetThemeMode('light');
+                  playCyberSound('click');
+                }}
+                className={`p-3.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1.5 ${
+                  themeMode === 'light'
+                    ? 'border-[var(--fb-blue)] bg-[var(--fb-blue-light)] text-[var(--fb-blue)] font-bold shadow-xs ring-1 ring-[var(--fb-blue)]'
+                    : 'border-[var(--fb-border)] bg-[var(--fb-surface)] text-[var(--fb-text-primary)] hover:bg-[var(--fb-surface-secondary)]'
+                }`}
+              >
+                <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shadow-2xs">
+                  <Sun className="w-4.5 h-4.5" />
+                </div>
+                <span className="text-xs font-bold">{t('settings.themeLight')}</span>
+                <span className="text-[11px] text-[var(--fb-text-secondary)]">Fond clair Facebook</span>
+              </button>
+
+              {/* Dark Mode Choice */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (onSetThemeMode) onSetThemeMode('dark');
+                  playCyberSound('click');
+                }}
+                className={`p-3.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1.5 ${
+                  themeMode === 'dark'
+                    ? 'border-[var(--fb-blue)] bg-[var(--fb-blue-light)] text-[var(--fb-blue)] font-bold shadow-xs ring-1 ring-[var(--fb-blue)]'
+                    : 'border-[var(--fb-border)] bg-[var(--fb-surface)] text-[var(--fb-text-primary)] hover:bg-[var(--fb-surface-secondary)]'
+                }`}
+              >
+                <div className="w-8 h-8 rounded-full bg-indigo-900/60 text-indigo-300 flex items-center justify-center shadow-2xs">
+                  <Moon className="w-4.5 h-4.5" />
+                </div>
+                <span className="text-xs font-bold">{t('settings.themeDark')}</span>
+                <span className="text-[11px] text-[var(--fb-text-secondary)]">Repos visuel sombre</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Section 1: Multi-language Support */}
+          <div className="p-4 rounded-2xl bg-[var(--fb-surface-tertiary)] border border-[var(--fb-border-light)] space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 text-[var(--fb-text-primary)] font-bold text-sm">
+                <Globe className="w-4 h-4 text-[var(--fb-blue)]" />
                 <span>{t('settings.languageTitle')}</span>
               </label>
-              <span className="text-[11px] text-slate-400">
+              <span className="text-[11px] text-[var(--fb-text-secondary)] font-medium">
                 {t('settings.languageDesc')}
               </span>
             </div>
@@ -290,14 +371,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <LanguageSelector variant="settings" />
           </div>
 
-          {/* Section 1: User Profile Customization for Chatbot */}
-          <div className="p-3.5 rounded-xl bg-white/[0.03] border-[0.5px] border-white/10 space-y-3">
+          {/* Section 2: User Profile Customization for Chatbot */}
+          <div className="p-4 rounded-2xl bg-[var(--fb-surface-tertiary)] border border-[var(--fb-border-light)] space-y-3">
             <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 text-sky-300 font-bold text-sm">
-                <User className="w-4 h-4 text-sky-400" />
+              <label className="flex items-center gap-2 text-[var(--fb-text-primary)] font-bold text-sm">
+                <User className="w-4 h-4 text-[var(--fb-blue)]" />
                 <span>{t('settings.identityTitle')}</span>
               </label>
-              <span className="text-[11px] text-slate-400">
+              <span className="text-[11px] text-[var(--fb-text-secondary)] font-medium">
                 {t('settings.identityDesc')}
               </span>
             </div>
@@ -305,41 +386,47 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <form onSubmit={handleSaveProfile} className="space-y-2.5">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div>
-                  <label className="block text-slate-300 font-medium mb-1">{t('settings.firstName')} :</label>
+                  <label className="block text-[var(--fb-text-secondary)] font-bold mb-1">{t('settings.firstName')} :</label>
                   <input
                     type="text"
                     placeholder="Ex: Julien"
                     value={prenom}
                     onChange={(e) => setPrenom(e.target.value)}
-                    className="w-full bg-slate-950/70 border-[0.5px] border-white/20 rounded-xl px-3 py-2 text-white placeholder-slate-500 font-sans text-xs focus:outline-none focus:ring-1 focus:ring-sky-400"
+                    className="w-full bg-[var(--fb-surface)] border border-[var(--fb-border)] focus:border-[var(--fb-blue)] rounded-xl px-3 py-2 text-[var(--fb-text-primary)] placeholder-[var(--fb-text-muted)] font-sans text-xs focus:outline-none focus:ring-1 focus:ring-[var(--fb-blue)]"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-300 font-medium mb-1">{t('settings.lastName')} :</label>
+                  <label className="block text-[var(--fb-text-secondary)] font-bold mb-1">{t('settings.lastName')} :</label>
                   <input
                     type="text"
                     placeholder="Ex: Dupont"
                     value={nom}
                     onChange={(e) => setNom(e.target.value)}
-                    className="w-full bg-slate-950/70 border-[0.5px] border-white/20 rounded-xl px-3 py-2 text-white placeholder-slate-500 font-sans text-xs focus:outline-none focus:ring-1 focus:ring-sky-400"
+                    className="w-full bg-[var(--fb-surface)] border border-[var(--fb-border)] focus:border-[var(--fb-blue)] rounded-xl px-3 py-2 text-[var(--fb-text-primary)] placeholder-[var(--fb-text-muted)] font-sans text-xs focus:outline-none focus:ring-1 focus:ring-[var(--fb-blue)]"
                   />
                 </div>
               </div>
 
               <div className="flex items-center justify-between pt-1">
-                <div className="text-[11px] text-slate-400 italic">
-                  {prenom ? `${t('settings.preview')} : "Bonjour ${prenom} !"` : t('settings.previewPrompt')}
+                <div className="text-[11px] text-[var(--fb-text-secondary)] italic font-medium">
+                  {prenom.trim() ? (
+                    <span className="text-[var(--fb-blue)] font-semibold">
+                      👋 "Bonjour {prenom.trim()}, comment puis-je vous aider aujourd'hui ?"
+                    </span>
+                  ) : (
+                    <span>{t('settings.previewPrompt')}</span>
+                  )}
                 </div>
                 <button
                   type="submit"
-                  className="px-3.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs border-[0.5px] border-white/30 transition-all cursor-pointer"
+                  className="px-4 py-2 rounded-full bg-[var(--fb-blue)] hover:bg-[var(--fb-blue-hover)] text-white font-bold text-xs shadow-sm transition-all cursor-pointer shrink-0"
                 >
                   {t('settings.saveProfile')}
                 </button>
               </div>
 
               {profileSavedMsg && (
-                <div className="p-2 rounded-lg bg-emerald-950/80 border-[0.5px] border-emerald-400/40 text-emerald-300 text-xs flex items-center gap-1.5 animate-in fade-in">
+                <div className="p-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-bold text-xs flex items-center gap-1.5 animate-in fade-in">
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   <span>{t('settings.profileSaved')}</span>
                 </div>
@@ -347,17 +434,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </form>
           </div>
 
-          {/* Section 2: Voice Customization (Homme / Femme) */}
-          <div className="p-3.5 rounded-xl bg-white/[0.03] border-[0.5px] border-white/10 space-y-3">
+          {/* Section 3: Voice Selection */}
+          <div className="p-4 rounded-2xl bg-[var(--fb-surface-tertiary)] border border-[var(--fb-border-light)] space-y-3">
             <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 text-purple-300 font-bold text-sm">
-                <Volume2 className="w-4 h-4 text-purple-400" />
+              <label className="flex items-center gap-2 text-[var(--fb-text-primary)] font-bold text-sm">
+                <Volume2 className="w-4 h-4 text-[var(--fb-blue)]" />
                 <span>{t('settings.voiceTitle')}</span>
               </label>
-              <span className="text-[11px] text-slate-400">{t('settings.voiceDesc')}</span>
+              <span className="text-[11px] text-[var(--fb-text-secondary)] font-medium">{t('settings.voiceDesc')}</span>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <button
                 type="button"
                 onClick={() => {
@@ -365,17 +452,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   if (onUpdateVoiceGender) onUpdateVoiceGender('female');
                   playCyberSound('click');
                 }}
-                className={`p-3 rounded-xl border-[0.5px] text-left transition-all cursor-pointer ${
+                className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
                   selectedVoice === 'female'
-                    ? 'border-pink-400 bg-pink-500/15 text-pink-200 ring-1 ring-pink-400/50'
-                    : 'border-white/15 bg-white/[0.03] text-slate-300 hover:bg-white/[0.08]'
+                    ? 'border-[var(--fb-blue)] bg-[var(--fb-blue-light)] text-[var(--fb-blue)] font-semibold'
+                    : 'border-[var(--fb-border)] bg-[var(--fb-surface)] text-[var(--fb-text-primary)] hover:bg-[var(--fb-surface-secondary)]'
                 }`}
               >
                 <div className="font-bold text-sm flex items-center justify-between">
                   <span>{t('settings.voiceFemale')}</span>
-                  {selectedVoice === 'female' && <CheckCircle2 className="w-4 h-4 text-pink-400" />}
+                  {selectedVoice === 'female' && <CheckCircle2 className="w-4 h-4 text-[var(--fb-blue)]" />}
                 </div>
-                <div className="text-[11px] text-slate-400 mt-1">{t('settings.voiceFemaleDesc')}</div>
+                <div className="text-[11px] text-[var(--fb-text-secondary)] mt-1 font-medium">{t('settings.voiceFemaleDesc')}</div>
               </button>
 
               <button
@@ -385,17 +472,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   if (onUpdateVoiceGender) onUpdateVoiceGender('male');
                   playCyberSound('click');
                 }}
-                className={`p-3 rounded-xl border-[0.5px] text-left transition-all cursor-pointer ${
+                className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
                   selectedVoice === 'male'
-                    ? 'border-sky-400 bg-sky-500/15 text-sky-200 ring-1 ring-sky-400/50'
-                    : 'border-white/15 bg-white/[0.03] text-slate-300 hover:bg-white/[0.08]'
+                    ? 'border-[var(--fb-blue)] bg-[var(--fb-blue-light)] text-[var(--fb-blue)] font-semibold'
+                    : 'border-[var(--fb-border)] bg-[var(--fb-surface)] text-[var(--fb-text-primary)] hover:bg-[var(--fb-surface-secondary)]'
                 }`}
               >
                 <div className="font-bold text-sm flex items-center justify-between">
                   <span>{t('settings.voiceMale')}</span>
-                  {selectedVoice === 'male' && <CheckCircle2 className="w-4 h-4 text-sky-400" />}
+                  {selectedVoice === 'male' && <CheckCircle2 className="w-4 h-4 text-[var(--fb-blue)]" />}
                 </div>
-                <div className="text-[11px] text-slate-400 mt-1">{t('settings.voiceMaleDesc')}</div>
+                <div className="text-[11px] text-[var(--fb-text-secondary)] mt-1 font-medium">{t('settings.voiceMaleDesc')}</div>
               </button>
             </div>
 
@@ -404,22 +491,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 type="button"
                 onClick={handleTestVoice}
                 disabled={isSpeakingTest}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600/80 hover:bg-purple-500 text-white font-bold text-xs border-[0.5px] border-white/20 transition-all cursor-pointer"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[var(--fb-surface-secondary)] hover:bg-[var(--fb-hover)] text-[var(--fb-text-primary)] font-bold text-xs transition-all cursor-pointer"
               >
-                <Volume2 className={`w-3.5 h-3.5 ${isSpeakingTest ? 'animate-bounce' : ''}`} />
+                <Volume2 className={`w-3.5 h-3.5 ${isSpeakingTest ? 'animate-bounce text-[var(--fb-blue)]' : ''}`} />
                 <span>{isSpeakingTest ? t('settings.voiceListening') : t('settings.voiceListen')}</span>
               </button>
             </div>
           </div>
 
-          {/* Section 3: Notification System & Custom Alert Sounds */}
-          <div className="p-3.5 rounded-xl bg-white/[0.03] border-[0.5px] border-white/10 space-y-3">
+          {/* Section 4: Notification System & Custom Alert Sounds */}
+          <div className="p-4 rounded-2xl bg-[var(--fb-surface-tertiary)] border border-[var(--fb-border-light)] space-y-3">
             <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 text-amber-300 font-bold text-sm">
-                <Bell className="w-4 h-4 text-amber-400" />
+              <label className="flex items-center gap-2 text-[var(--fb-text-primary)] font-bold text-sm">
+                <Bell className="w-4 h-4 text-[var(--fb-gold)]" />
                 <span>{t('settings.alertTitle')}</span>
               </label>
-              <span className="text-[11px] text-slate-400">{t('settings.alertDesc')}</span>
+              <span className="text-[11px] text-[var(--fb-text-secondary)] font-medium">{t('settings.alertDesc')}</span>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -436,14 +523,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   key={s.id}
                   type="button"
                   onClick={() => handleTestSound(s.id)}
-                  className={`p-2.5 rounded-xl border-[0.5px] text-left transition-all cursor-pointer flex flex-col justify-between ${
+                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
                     selectedAlertSound === s.id
-                      ? 'border-amber-400 bg-amber-500/15 text-amber-200 ring-1 ring-amber-400/40'
-                      : 'border-white/15 bg-white/[0.02] text-slate-300 hover:bg-white/[0.06]'
+                      ? 'border-[var(--fb-gold)] bg-amber-500/15 text-amber-700 dark:text-amber-300 font-semibold'
+                      : 'border-[var(--fb-border)] bg-[var(--fb-surface)] text-[var(--fb-text-primary)] hover:bg-[var(--fb-surface-secondary)]'
                   }`}
                 >
-                  <span className="font-semibold text-xs">{s.label}</span>
-                  <span className="text-[10px] text-amber-400/80 mt-1 flex items-center gap-1">
+                  <span className="font-bold text-xs">{s.label}</span>
+                  <span className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1 font-medium">
                     <Volume2 className="w-3 h-3" /> {t('settings.testSound')}
                   </span>
                 </button>
@@ -451,84 +538,87 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
-          {/* Section 4: Theme & Background */}
-          <div className="p-3.5 rounded-xl bg-white/[0.03] border-[0.5px] border-white/10 space-y-3">
-            <label className="flex items-center gap-2 text-white font-semibold">
-              <Palette className="w-4 h-4 text-pink-400" />
-              {t('settings.themeTitle')}
-            </label>
-
-            <div className="grid grid-cols-3 gap-2">
-              {BG_PRESETS.map((preset) => (
-                <button
-                  key={preset.val}
-                  type="button"
-                  onClick={() => {
-                    playCyberSound('click');
-                    onSetBgColor(preset.val);
-                  }}
-                  className={`p-2 rounded-xl border-[0.5px] text-left flex items-center gap-2 transition-all cursor-pointer ${
-                    bgColor === preset.val
-                      ? 'border-white/60 bg-white/20 text-white font-bold ring-1 ring-white/40'
-                      : 'border-white/10 bg-white/[0.02] text-slate-300 hover:bg-white/[0.06]'
-                  }`}
-                >
-                  <span
-                    className="w-3 h-3 rounded-full border-[0.5px] border-white/40 shrink-0"
-                    style={{ background: preset.val }}
-                  />
-                  <span className="truncate text-xs">{preset.label}</span>
-                </button>
-              ))}
+          {/* Section 5: Chat Background Image Customization */}
+          <div className="p-4 rounded-2xl bg-[var(--fb-surface-tertiary)] border border-[var(--fb-border-light)] space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 text-[var(--fb-text-primary)] font-bold text-sm">
+                <ImageIcon className="w-4 h-4 text-[var(--fb-blue)]" />
+                <span>Image de fond du Chat</span>
+              </label>
+              <span className="text-[11px] text-[var(--fb-text-secondary)] font-medium">Personnalisation</span>
             </div>
 
-            <div className="flex items-center gap-2 pt-1">
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleCustomBgUpload}
-                accept="image/*"
-                className="hidden"
-              />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 border-[0.5px] border-white/20 text-white hover:bg-white/10 font-semibold cursor-pointer"
-              >
-                <ImageIcon className="w-3.5 h-3.5 text-pink-400" />
-                <span>{t('settings.customImage')}</span>
-              </button>
+            <p className="text-xs text-[var(--fb-text-secondary)] leading-relaxed">
+              Importez une photo ou image personnalisée depuis votre appareil pour l'afficher en fond d'écran du chat.
+            </p>
+
+            {/* Hidden Background File Input */}
+            <input
+              type="file"
+              ref={bgInputRef}
+              accept="image/*"
+              className="hidden"
+              onChange={handleCustomBgUpload}
+            />
+
+            {/* Action Buttons & Preview */}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => {
                   playCyberSound('click');
-                  onSetBgColor('#020612');
+                  bgInputRef.current?.click();
                 }}
-                className="px-3 py-1.5 rounded-xl bg-white/5 border-[0.5px] border-white/20 text-slate-300 hover:text-white font-semibold cursor-pointer"
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-[var(--fb-blue)] hover:bg-[var(--fb-blue-hover)] text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
               >
-                {t('settings.reset')}
+                <Upload className="w-3.5 h-3.5" />
+                <span>Importer une image de fond</span>
               </button>
-              {/* Hidden file input for import if triggered programmatically */}
-              <input
-                type="file"
-                ref={jsonInputRef}
-                onChange={handleJsonImport}
-                accept=".json"
-                className="hidden"
-              />
+
+              {chatBgImage && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    playCyberSound('alert');
+                    if (onSetChatBgImage) {
+                      onSetChatBgImage(null);
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-rose-500/15 border border-rose-500/30 text-[var(--fb-red)] hover:bg-rose-500/25 font-bold text-xs transition-all cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Supprimer l'image</span>
+                </button>
+              )}
             </div>
+
+            {/* Thumbnail Preview when background image is set */}
+            {chatBgImage && (
+              <div className="relative rounded-xl overflow-hidden border border-[var(--fb-border)] h-28 w-full sm:w-64 mt-2 shadow-xs group">
+                <img 
+                  src={chatBgImage.startsWith('url(') ? chatBgImage.slice(5, -2) : chatBgImage} 
+                  alt="Aperçu fond du chat" 
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                />
+                <div className="absolute inset-0 bg-black/30 flex items-end p-2">
+                  <span className="text-[10px] text-white font-bold bg-black/60 px-2 py-0.5 rounded-md backdrop-blur-xs flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-[var(--fb-green)]" /> Fond actif
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Reset Zone */}
-          <div className="pt-2 border-t border-white/10 flex items-center justify-between">
-            <span className="text-xs text-rose-400">{t('settings.resetZone')} :</span>
+          <div className="pt-2 border-t border-[var(--fb-border-light)] flex items-center justify-between">
+            <span className="text-xs text-[var(--fb-red)] font-bold">{t('settings.resetZone')} :</span>
             <button
               type="button"
               onClick={() => {
                 playCyberSound('alert');
                 onClearAllData();
               }}
-              className="px-3 py-1.5 rounded-xl bg-rose-950/60 border-[0.5px] border-rose-400/40 text-rose-200 hover:bg-rose-900 text-xs font-bold cursor-pointer"
+              className="px-3.5 py-1.5 rounded-full bg-rose-500/15 border border-rose-500/30 text-[var(--fb-red)] hover:bg-rose-500/25 text-xs font-bold cursor-pointer transition-all"
             >
               {t('settings.clearAllData')}
             </button>
@@ -536,14 +626,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="pt-3 border-t border-white/10 flex justify-end">
+        <div className="pt-3 border-t border-[var(--fb-border-light)] flex justify-end">
           <button
             type="button"
             onClick={() => {
               playCyberSound('click');
               onClose();
             }}
-            className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs border-[0.5px] border-white/30 shadow-md transition-all cursor-pointer"
+            className="px-5 py-2 rounded-full bg-[var(--fb-blue)] hover:bg-[var(--fb-blue-hover)] text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
           >
             {t('common.close')}
           </button>

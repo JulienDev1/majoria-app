@@ -30,26 +30,26 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
 
   return (
     <nav 
-      className={`md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#030914]/90 backdrop-blur-xl border-t border-white/10 px-2 py-1.5 shadow-lg pb-[calc(0.35rem+env(safe-area-inset-bottom,0px))] transition-all duration-300 ease-in-out ${
+      className={`md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-[#ced0d4]/80 px-2 py-1 shadow-md pb-[calc(0.35rem+env(safe-area-inset-bottom,0px))] transition-all duration-300 ease-in-out ${
         isCollapsed 
           ? 'translate-y-full opacity-0 pointer-events-none' 
           : 'translate-y-0 opacity-100'
       }`}
     >
-      <div className="flex items-center justify-around gap-1.5 max-w-lg mx-auto">
+      <div className="flex items-center justify-around gap-1 max-w-lg mx-auto">
         {/* Bouton Chat */}
         <button
           onClick={() => {
             playCyberSound('click');
             setActivePanel('chat');
           }}
-          className={`relative flex flex-col items-center justify-center py-1.5 px-3 rounded-xl transition-all border-[0.5px] ${
+          className={`relative flex flex-col items-center justify-center py-1.5 px-3 rounded-lg transition-all ${
             activePanel === 'chat'
-              ? 'border-white/40 bg-white/20 text-white shadow-md font-bold'
-              : 'border-transparent text-slate-300 hover:text-white'
+              ? 'text-[#1877f2] font-bold border-b-2 border-[#1877f2]'
+              : 'text-[#65676b] hover:bg-[#f0f2f5]'
           }`}
         >
-          <MessageSquare className="w-4.5 h-4.5" />
+          <MessageSquare className="w-5 h-5" />
           <span className="text-[11px] font-semibold mt-0.5">{t('nav.chat')}</span>
         </button>
 
@@ -64,10 +64,10 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             if (onOpenForfaits) onOpenForfaits();
           }}
           title={t('header.plansTitle')}
-          className="relative flex flex-col items-center justify-center py-1.5 px-3 rounded-xl border-[0.5px] border-red-400/50 bg-gradient-to-r from-red-600/90 via-rose-600/90 to-red-600/90 text-white shadow-md active:scale-95 transition-all cursor-pointer shrink-0"
+          className="relative flex flex-col items-center justify-center py-1.5 px-3 rounded-lg text-[#1877f2] hover:bg-[#f0f2f5] active:scale-95 transition-all cursor-pointer shrink-0"
         >
-          <Flame className="w-4.5 h-4.5 text-white" />
-          <span className="text-[11px] font-bold text-white mt-0.5">
+          <Flame className="w-5 h-5 text-[#1877f2]" />
+          <span className="text-[11px] font-bold mt-0.5">
             {t('header.plansBtn')}
           </span>
         </button>
@@ -80,11 +80,11 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             onOpenMobileMenu();
           }}
           title={isMobileSidebarOpen ? t('common.close') : 'Menu'}
-          className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl border-[0.5px] transition-all active:scale-95 shadow-sm ${
-            isMobileSidebarOpen ? 'border-rose-400/50 bg-rose-500/20 text-rose-300' : 'border-white/15 bg-white/[0.07] text-white hover:bg-white/10'
+          className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-lg transition-all active:scale-95 ${
+            isMobileSidebarOpen ? 'text-[#fa383e]' : 'text-[#65676b] hover:bg-[#f0f2f5]'
           }`}
         >
-          {isMobileSidebarOpen ? <X className="w-4.5 h-4.5 text-rose-400" /> : <Menu className="w-4.5 h-4.5 text-white" />}
+          {isMobileSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           <span className="text-[11px] font-semibold mt-0.5">{isMobileSidebarOpen ? t('common.close') : 'Menu'}</span>
         </button>
       </div>

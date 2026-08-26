@@ -119,14 +119,14 @@ export const TachesPanel: React.FC<TachesPanelProps> = ({
   const getPriorityBadge = (p: Priority) => {
     switch (p) {
       case 'critique':
-        return 'bg-rose-500/40 text-rose-100 border-white font-bold';
+        return 'bg-[#fa383e]/15 text-[#fa383e] font-bold';
       case 'haute':
-        return 'bg-amber-500/40 text-amber-100 border-white font-bold';
+        return 'bg-[#f7b125]/20 text-[#b47d00] font-bold';
       case 'basse':
-        return 'bg-sky-500/30 text-sky-100 border-white';
+        return 'bg-[#e7f3ff] text-[#1877f2] font-semibold';
       case 'normale':
       default:
-        return 'bg-slate-700/60 text-slate-100 border-white';
+        return 'bg-[#f0f2f5] text-[#65676b] font-semibold';
     }
   };
 
@@ -139,19 +139,19 @@ export const TachesPanel: React.FC<TachesPanelProps> = ({
     { 
       id: 'attente', 
       title: 'En Attente', 
-      badgeColor: 'bg-amber-500/30 text-amber-200 border-white',
+      badgeColor: 'bg-[#f7b125]/20 text-[#b47d00]',
       count: enAttente 
     },
     { 
       id: 'cours', 
       title: 'En Cours', 
-      badgeColor: 'bg-sky-500/30 text-sky-200 border-white',
+      badgeColor: 'bg-[#e7f3ff] text-[#1877f2]',
       count: enCours 
     },
     { 
       id: 'termine', 
       title: 'Terminé', 
-      badgeColor: 'bg-emerald-500/30 text-emerald-200 border-white',
+      badgeColor: 'bg-[#42b72a]/20 text-[#42b72a]',
       count: terminees 
     },
   ];
@@ -159,24 +159,26 @@ export const TachesPanel: React.FC<TachesPanelProps> = ({
   const displayColumns = mobileTab === 'tous' ? columns : columns.filter(c => c.id === mobileTab);
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col h-full bg-[#030914]/50 p-3 sm:p-5 md:p-6 overflow-y-auto">
-      {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 sm:pb-4 border-b border-white">
+    <div className="flex-1 min-h-0 flex flex-col h-full bg-[#f0f2f5] p-3 sm:p-5 md:p-6 overflow-y-auto">
+      {/* Header Bar in Facebook Card Style */}
+      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-[#e4e6eb] shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2">
-            <CheckSquare className="w-5 h-5 text-emerald-400" />
-            <h1 className="text-xl md:text-2xl font-bold text-white">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-full bg-[#42b72a] text-white flex items-center justify-center shadow-xs">
+              <CheckSquare className="w-5 h-5" />
+            </div>
+            <h1 className="text-xl md:text-2xl font-bold text-[#050505]">
               Tableau des Tâches & Projets
             </h1>
           </div>
-          <p className="text-sm text-slate-300 mt-0.5 font-medium">
-            Organisez, modifiez ✏️, suivez et complétez vos activités en toute simplicité.
+          <p className="text-xs sm:text-sm text-[#65676b] mt-1 font-medium">
+            Organisez, suivez et complétez vos activités en toute simplicité.
           </p>
         </div>
 
         <button
           onClick={handleOpenAdd}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm shadow-md transition-all border border-white active:scale-95"
+          className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-[#1877f2] hover:bg-[#166fe5] text-white font-bold text-sm shadow-sm transition-all cursor-pointer shrink-0"
         >
           <Plus className="w-4 h-4" />
           <span>Nouvelle Tâche</span>
@@ -184,20 +186,20 @@ export const TachesPanel: React.FC<TachesPanelProps> = ({
       </div>
 
       {/* Progress Metric Bar */}
-      <div className="my-3 sm:my-4 p-3.5 border border-white rounded-2xl bg-slate-900/90 shadow-md">
+      <div className="my-3 sm:my-4 p-4 border border-[#e4e6eb] rounded-2xl bg-white shadow-sm">
         <div className="flex items-center justify-between text-xs font-semibold mb-2">
-          <span className="flex items-center gap-1.5 text-white">
-            <Layers className="w-4 h-4 text-sky-400 shrink-0" />
+          <span className="flex items-center gap-1.5 text-[#050505] font-bold">
+            <Layers className="w-4 h-4 text-[#1877f2] shrink-0" />
             <span>Progression globale</span>
           </span>
-          <span className="text-white font-bold text-xs sm:text-sm shrink-0">
+          <span className="text-[#050505] font-bold text-xs sm:text-sm shrink-0">
             {pourcentage}% ({terminees}/{total})
           </span>
         </div>
 
-        <div className="w-full h-3 bg-slate-950 rounded-full overflow-hidden border border-white p-0.5">
+        <div className="w-full h-2.5 bg-[#f0f2f5] rounded-full overflow-hidden border border-[#e4e6eb]">
           <div 
-            className="h-full bg-emerald-500 transition-all duration-500 rounded-full shadow-sm"
+            className="h-full bg-[#42b72a] transition-all duration-500 rounded-full"
             style={{ width: `${pourcentage}%` }}
           />
         </div>
@@ -207,10 +209,10 @@ export const TachesPanel: React.FC<TachesPanelProps> = ({
       <div className="flex sm:hidden items-center gap-1.5 mb-3 overflow-x-auto pb-1 no-scrollbar">
         <button
           onClick={() => setMobileTab('tous')}
-          className={`text-xs px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap border border-white transition-all ${
+          className={`text-xs px-3.5 py-1.5 rounded-full font-bold whitespace-nowrap transition-all cursor-pointer ${
             mobileTab === 'tous'
-              ? 'bg-white/25 text-white font-bold ring-2 ring-white'
-              : 'bg-slate-900 text-slate-300'
+              ? 'bg-[#1877f2] text-white shadow-xs'
+              : 'bg-white border border-[#ced0d4] text-[#65676b]'
           }`}
         >
           Toutes ({total})
@@ -219,10 +221,10 @@ export const TachesPanel: React.FC<TachesPanelProps> = ({
           <button
             key={c.id}
             onClick={() => setMobileTab(c.id)}
-            className={`text-xs px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap border border-white transition-all ${
+            className={`text-xs px-3.5 py-1.5 rounded-full font-bold whitespace-nowrap transition-all cursor-pointer ${
               mobileTab === c.id
-                ? `${c.badgeColor} ring-2 ring-white font-bold`
-                : 'bg-slate-900 text-slate-300'
+                ? 'bg-[#1877f2] text-white shadow-xs'
+                : 'bg-white border border-[#ced0d4] text-[#65676b]'
             }`}
           >
             {c.title} ({c.count})
@@ -238,14 +240,14 @@ export const TachesPanel: React.FC<TachesPanelProps> = ({
           return (
             <div
               key={col.id}
-              className="flex flex-col bg-slate-900/90 rounded-2xl border border-white p-3.5 shadow-md min-h-[300px]"
+              className="flex flex-col bg-[#f0f2f5] md:bg-white rounded-2xl md:border md:border-[#e4e6eb] p-3 sm:p-4 md:shadow-sm min-h-[300px]"
             >
               {/* Column Header */}
-              <div className="flex items-center justify-between pb-3 mb-3 border-b border-white font-bold text-sm text-white">
+              <div className="flex items-center justify-between pb-3 mb-3 border-b border-[#e4e6eb] font-bold text-sm text-[#050505]">
                 <div className="flex items-center gap-2">
                   <span>{col.title}</span>
                 </div>
-                <span className={`text-xs px-2 py-0.5 rounded-full font-bold border border-white ${col.badgeColor}`}>
+                <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${col.badgeColor}`}>
                   {col.count}
                 </span>
               </div>
@@ -253,27 +255,27 @@ export const TachesPanel: React.FC<TachesPanelProps> = ({
               {/* Tasks List */}
               <div className="flex-1 space-y-2.5 overflow-y-auto">
                 {colTasks.length === 0 ? (
-                  <div className="h-32 flex flex-col items-center justify-center text-center p-4 border border-dashed border-white/40 rounded-xl text-xs text-slate-300">
+                  <div className="h-32 flex flex-col items-center justify-center text-center p-4 border border-dashed border-[#ced0d4] rounded-2xl text-xs text-[#65676b] bg-white md:bg-[#f0f2f5]">
                     Aucune tâche dans cette colonne
                   </div>
                 ) : (
                   colTasks.map((tache) => (
                     <div
                       key={tache.id}
-                      className="bg-slate-950 rounded-xl border border-white p-3 space-y-2 group shadow-sm hover:bg-slate-900 transition-all"
+                      className="bg-white rounded-2xl border border-[#e4e6eb] p-3.5 space-y-2.5 group shadow-sm hover:shadow-md transition-all"
                     >
                       {/* Priority & Top Actions */}
-                      <div className="flex items-center justify-between gap-1.5">
-                        <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-md border border-white ${getPriorityBadge(tache.priorite)}`}>
+                      <div className="flex items-center justify-between gap-1.5 pb-2 border-b border-[#f0f2f5]">
+                        <span className={`text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full ${getPriorityBadge(tache.priorite)}`}>
                           {tache.priorite}
                         </span>
 
                         <div className="flex items-center gap-1">
-                          {/* Modifier ✏️ */}
+                          {/* Modifier */}
                           <button
                             onClick={() => handleOpenEdit(tache)}
-                            title="Modifier ✏️"
-                            className="p-1 border border-white rounded-lg bg-emerald-950/60 text-emerald-300 hover:bg-emerald-900 hover:text-white transition-colors"
+                            title="Modifier"
+                            className="p-1.5 rounded-full hover:bg-[#f0f2f5] text-[#65676b] hover:text-[#050505] transition-colors"
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
@@ -283,9 +285,9 @@ export const TachesPanel: React.FC<TachesPanelProps> = ({
                               exportItemToPDF('tache', tache);
                             }}
                             title="Exporter en PDF"
-                            className="p-1 border border-white rounded-lg bg-slate-800 text-slate-300 hover:text-white"
+                            className="p-1.5 rounded-full hover:bg-[#f0f2f5] text-[#65676b] hover:text-[#1877f2] transition-colors"
                           >
-                            <FileText className="w-3.5 h-3.5 text-sky-400" />
+                            <FileText className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => {
@@ -293,7 +295,7 @@ export const TachesPanel: React.FC<TachesPanelProps> = ({
                               onDeleteTache(tache.id);
                             }}
                             title="Supprimer"
-                            className="p-1 border border-white rounded-lg bg-rose-950/60 text-rose-300 hover:bg-rose-900"
+                            className="p-1.5 rounded-full hover:bg-rose-50 text-[#65676b] hover:text-[#fa383e] transition-colors"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -302,20 +304,20 @@ export const TachesPanel: React.FC<TachesPanelProps> = ({
 
                       {/* Title & Desc */}
                       <div>
-                        <h4 className="text-sm font-bold text-white leading-tight">
+                        <h4 className="text-sm font-bold text-[#050505] leading-tight">
                           {tache.titre}
                         </h4>
                         {tache.description && (
-                          <p className="text-xs text-slate-300 mt-1 line-clamp-2 leading-relaxed">
+                          <p className="text-xs text-[#65676b] mt-1 line-clamp-2 leading-relaxed font-medium">
                             {tache.description}
                           </p>
                         )}
                       </div>
 
                       {/* Due Date & Movement Controls */}
-                      <div className="pt-2 border-t border-white/30 flex items-center justify-between gap-2 text-xs">
-                        <span className="text-[11px] text-slate-300 flex items-center gap-1">
-                          <Calendar className="w-3 h-3 text-slate-400" />
+                      <div className="pt-2 border-t border-[#f0f2f5] flex items-center justify-between gap-2 text-xs">
+                        <span className="text-[11px] text-[#65676b] flex items-center gap-1 font-medium">
+                          <Calendar className="w-3 h-3 text-[#65676b]" />
                           {tache.echeance
                             ? new Date(tache.echeance).toLocaleDateString('fr-FR', {
                                 day: '2-digit',
@@ -328,7 +330,7 @@ export const TachesPanel: React.FC<TachesPanelProps> = ({
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => handleOpenEdit(tache)}
-                            className="text-[11px] font-semibold text-emerald-300 hover:text-emerald-200 hover:underline flex items-center gap-0.5 mr-1"
+                            className="text-xs font-bold text-[#1877f2] hover:underline flex items-center gap-0.5 mr-1"
                           >
                             <Pencil className="w-3 h-3" />
                             Modifier
@@ -341,7 +343,7 @@ export const TachesPanel: React.FC<TachesPanelProps> = ({
                                 handleStatusChange(tache.id, prev);
                               }}
                               title="Déplacer vers la gauche"
-                              className="p-1 bg-slate-800 hover:bg-slate-700 border border-white rounded text-white"
+                              className="p-1 bg-[#f0f2f5] hover:bg-[#e4e6eb] rounded-full text-[#050505] transition-colors cursor-pointer"
                             >
                               <ArrowLeft className="w-3 h-3" />
                             </button>
@@ -354,7 +356,7 @@ export const TachesPanel: React.FC<TachesPanelProps> = ({
                                 handleStatusChange(tache.id, next);
                               }}
                               title="Déplacer vers la droite"
-                              className="p-1 bg-slate-800 hover:bg-slate-700 border border-white rounded text-white"
+                              className="p-1 bg-[#1877f2] hover:bg-[#166fe5] rounded-full text-white transition-colors cursor-pointer shadow-xs"
                             >
                               <ArrowRight className="w-3 h-3" />
                             </button>
@@ -370,64 +372,64 @@ export const TachesPanel: React.FC<TachesPanelProps> = ({
         })}
       </div>
 
-      {/* Add / Edit Modal */}
+      {/* Add / Edit Modal in Facebook Style */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-slate-950 border-2 border-white rounded-2xl p-6 shadow-2xl space-y-4">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white border border-[#ced0d4] rounded-2xl p-5 sm:p-6 shadow-2xl space-y-4">
+            <h2 className="text-lg sm:text-xl font-bold text-[#050505] flex items-center gap-2">
               {editingTache ? (
                 <>
-                  <Pencil className="w-5 h-5 text-emerald-400" />
-                  Modifier la Tâche ✏️
+                  <Pencil className="w-5 h-5 text-[#1877f2]" />
+                  Modifier la Tâche
                 </>
               ) : (
                 <>
-                  <CheckSquare className="w-5 h-5 text-emerald-400" />
+                  <CheckSquare className="w-5 h-5 text-[#42b72a]" />
                   Nouvelle Tâche
                 </>
               )}
             </h2>
 
-            <form onSubmit={handleFormSubmit} className="space-y-3">
+            <form onSubmit={handleFormSubmit} className="space-y-3.5">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Titre de la tâche *</label>
+                <label className="block text-xs font-bold text-[#65676b] mb-1">Titre de la tâche *</label>
                 <input
                   type="text"
                   required
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
                   placeholder="Ex: Rédiger le rapport d'activité..."
-                  className="w-full bg-slate-900 border border-white rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white font-sans"
+                  className="w-full bg-[#f0f2f5] border border-[#ced0d4] rounded-xl px-3.5 py-2 text-sm text-[#050505] focus:bg-white focus:outline-none focus:border-[#1877f2]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Description (optionnelle)</label>
+                <label className="block text-xs font-bold text-[#65676b] mb-1">Description (optionnelle)</label>
                 <textarea
                   rows={2}
                   value={newDesc}
                   onChange={(e) => setNewDesc(e.target.value)}
                   placeholder="Détails de la tâche..."
-                  className="w-full bg-slate-900 border border-white rounded-xl p-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white font-sans"
+                  className="w-full bg-[#f0f2f5] border border-[#ced0d4] rounded-xl p-2.5 text-sm text-[#050505] focus:bg-white focus:outline-none focus:border-[#1877f2]"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Échéance</label>
+                  <label className="block text-xs font-bold text-[#65676b] mb-1">Échéance</label>
                   <input
                     type="date"
                     value={newDueDate}
                     onChange={(e) => setNewDueDate(e.target.value)}
-                    className="w-full bg-slate-900 border border-white rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white font-sans"
+                    className="w-full bg-[#f0f2f5] border border-[#ced0d4] rounded-xl px-3 py-2 text-sm text-[#050505] focus:bg-white focus:outline-none focus:border-[#1877f2]"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Priorité</label>
+                  <label className="block text-xs font-bold text-[#65676b] mb-1">Priorité</label>
                   <select
                     value={newPriority}
                     onChange={(e) => setNewPriority(e.target.value as Priority)}
-                    className="w-full bg-slate-900 border border-white rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white font-sans"
+                    className="w-full bg-[#f0f2f5] border border-[#ced0d4] rounded-xl px-3 py-2 text-sm text-[#050505] focus:bg-white focus:outline-none focus:border-[#1877f2]"
                   >
                     <option value="basse">Basse</option>
                     <option value="normale">Normale</option>
@@ -439,11 +441,11 @@ export const TachesPanel: React.FC<TachesPanelProps> = ({
 
               {editingTache && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Statut / Colonne</label>
+                  <label className="block text-xs font-bold text-[#65676b] mb-1">Statut / Colonne</label>
                   <select
                     value={newStatus}
                     onChange={(e) => setNewStatus(e.target.value as TaskStatus)}
-                    className="w-full bg-slate-900 border border-white rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white font-sans"
+                    className="w-full bg-[#f0f2f5] border border-[#ced0d4] rounded-xl px-3 py-2 text-sm text-[#050505] focus:bg-white focus:outline-none focus:border-[#1877f2]"
                   >
                     <option value="attente">En Attente</option>
                     <option value="cours">En Cours</option>
@@ -452,17 +454,17 @@ export const TachesPanel: React.FC<TachesPanelProps> = ({
                 </div>
               )}
 
-              <div className="flex items-center justify-end gap-2 pt-3">
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#e4e6eb]">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-900 border border-white text-white hover:bg-slate-800 font-semibold text-sm"
+                  className="px-4 py-2 rounded-full bg-[#e4e6eb] hover:bg-[#d8dadf] text-[#050505] font-bold text-xs sm:text-sm cursor-pointer"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 border border-white text-white font-semibold text-sm shadow-md"
+                  className="px-4 py-2 rounded-full bg-[#1877f2] hover:bg-[#166fe5] text-white font-bold text-xs sm:text-sm shadow-sm cursor-pointer"
                 >
                   {editingTache ? 'Mettre à jour' : 'Enregistrer'}
                 </button>

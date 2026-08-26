@@ -14,7 +14,8 @@ import {
   VoiceGender,
   AlertSound,
   RolloverEnergyInfo,
-  UserSubscription
+  UserSubscription,
+  ThemeMode
 } from './types';
 import { 
   safeLoad, 
@@ -116,58 +117,6 @@ export default function App() {
     localStorage.setItem('majoria-header-collapsed', 'true');
   }, []);
 
-  // Dépliage / Repliage au Scroll global :
-  // Défilement vers le bas -> les barres s'effacent automatiquement pour laisser place nette à la lecture
-  // Défilement vers le haut -> les barres se réaffichent en douceur
-  useEffect(() => {
-    let lastTouchY = 0;
-
-    const handleWheel = (e: WheelEvent) => {
-      // Don't collapse if an interactive modal or popup is open
-      if ((e.target as HTMLElement)?.closest('.modal-backdrop, [role="dialog"]')) return;
-
-      if (e.deltaY > 12) {
-        // Scroll down
-        handleCollapseAllBars();
-      } else if (e.deltaY < -12) {
-        // Scroll up
-        handleUnfoldAllBars();
-      }
-    };
-
-    const handleTouchStart = (e: TouchEvent) => {
-      if (e.touches.length > 0) {
-        lastTouchY = e.touches[0].clientY;
-      }
-    };
-
-    const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches.length > 0) {
-        const currentY = e.touches[0].clientY;
-        const diff = lastTouchY - currentY;
-        if (diff > 18) {
-          // Scroll down
-          handleCollapseAllBars();
-          lastTouchY = currentY;
-        } else if (diff < -18) {
-          // Scroll up
-          handleUnfoldAllBars();
-          lastTouchY = currentY;
-        }
-      }
-    };
-
-    window.addEventListener('wheel', handleWheel, { passive: true });
-    window.addEventListener('touchstart', handleTouchStart, { passive: true });
-    window.addEventListener('touchmove', handleTouchMove, { passive: true });
-
-    return () => {
-      window.removeEventListener('wheel', handleWheel);
-      window.removeEventListener('touchstart', handleTouchStart);
-      window.removeEventListener('touchmove', handleTouchMove);
-    };
-  }, [handleCollapseAllBars, handleUnfoldAllBars]);
-
   // Core Data State
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
@@ -243,6 +192,12 @@ export default function App() {
 
   // Background & Galaxy UI State
   const [bgColor, setBgColor] = useState<string>('#020612');
+  const [chatBgImage, setChatBgImage] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('majoria-chat-bg-image') || null;
+    }
+    return null;
+  });
   const [galaxyEnabled, setGalaxyEnabled] = useState<boolean>(true);
   const [galaxyColorScheme, setGalaxyColorScheme] = useState<GalaxyColorScheme>('milky-way-classic');
   const [galaxySpeed, setGalaxySpeed] = useState<number>(1);
@@ -250,6 +205,64 @@ export default function App() {
     const saved = localStorage.getItem('majoria-galaxy-opacity');
     return saved ? parseFloat(saved) : 0.85;
   });
+
+  // Theme State (Light / Dark) with persistence
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('majoria-theme-mode') as ThemeMode | null;
+      if (saved === 'light' || saved === 'dark') {
+        return saved;
+      }
+    }
+    return 'light';
+  });
+
+  // Apply theme to documentElement (data-theme attribute & dark class)
+  useEffect(() => {
+    const applyTheme = () => {
+      let effectiveTheme: 'light' | 'dark' = 'light';
+      if (themeMode === 'system') {
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        effectiveTheme = prefersDark ? 'dark' : 'light';
+      } else {
+        effectiveTheme = themeMode;
+      }
+
+      document.documentElement.setAttribute('data-theme', effectiveTheme);
+      if (effectiveTheme === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    };
+
+    applyTheme();
+    localStorage.setItem('majoria-theme-mode', themeMode);
+
+    if (themeMode === 'system' && window.matchMedia) {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const handleChange = () => applyTheme();
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
+    }
+  }, [themeMode]);
+
+  const handleToggleTheme = useCallback(() => {
+    setThemeMode((prev) => {
+      let currentIsDark = false;
+      if (prev === 'system') {
+        currentIsDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      } else {
+        currentIsDark = prev === 'dark';
+      }
+      const next: ThemeMode = currentIsDark ? 'light' : 'dark';
+      return next;
+    });
+  }, []);
+
+  const handleUpdateThemeMode = useCallback((mode: ThemeMode) => {
+    setThemeMode(mode);
+  }, []);
 
   // Modals & UI State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -429,6 +442,24 @@ export default function App() {
     setEnergyPercent(val);
     localStorage.setItem('neo-battery-energy', val.toString());
   };
+
+  // Handle custom chat background image
+  const handleSetChatBgImage = useCallback((img: string | null) => {
+    setChatBgImage(img);
+    if (img) {
+      try {
+        localStorage.setItem('majoria-chat-bg-image', img);
+      } catch (e) {
+        console.warn('Storage quota for background image:', e);
+      }
+      showToast("Image de fond du chat appliquée", "success");
+    } else {
+      try {
+        localStorage.removeItem('majoria-chat-bg-image');
+      } catch {}
+      showToast("Fond du chat réinitialisé par défaut", "info");
+    }
+  }, [showToast]);
 
   // Sync background styling to document and completely replace previous background
   const applyBackground = useCallback((bg: string) => {
@@ -1686,6 +1717,8 @@ export default function App() {
           showToast(next ? '🔊 Lecture Vocale Auto Activée' : '🔇 Lecture Vocale Désactivée', 'info');
         }}
         energyPercent={energyPercent}
+        themeMode={themeMode}
+        onToggleTheme={handleToggleTheme}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenAuth={() => setIsAuthOpen(true)}
         onOpenForfaits={() => setIsForfaitsOpen(true)}
@@ -1733,9 +1766,9 @@ export default function App() {
 
         {/* Dynamic Main Workspace Panel */}
         <section className="flex-1 min-w-0 min-h-0 flex flex-col relative overflow-hidden">
-          {/* Top Quick Bar for non-chat panels to easily unfold menu or return to chat */}
+          {/* Top Quick Bar for non-chat panels in Facebook style */}
           {activePanel !== 'chat' && (
-            <div className="px-3 sm:px-5 py-2.5 bg-white/[0.04] border-b border-white/10 flex items-center justify-between shrink-0">
+            <div className="px-3 sm:px-5 py-2.5 bg-[var(--fb-card)] border-b border-[var(--fb-border)] flex items-center justify-between shrink-0 shadow-xs">
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => {
@@ -1743,10 +1776,10 @@ export default function App() {
                     handleToggleSidebar();
                   }}
                   title={isSidebarCollapsed ? "Dérouler le menu latéral" : "Replier le menu latéral"}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border-[0.5px] border-white/20 bg-white/[0.06] hover:bg-white/[0.12] text-slate-200 hover:text-white transition-all text-xs cursor-pointer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--fb-surface-secondary)] hover:bg-[var(--fb-hover)] text-[var(--fb-text-primary)] transition-all text-xs font-semibold cursor-pointer"
                 >
-                  <PanelLeftOpen className="w-4 h-4 text-sky-400" />
-                  <span className="font-medium text-xs">{isSidebarCollapsed ? "Menu (Dérouler)" : "Replier le menu"}</span>
+                  <PanelLeftOpen className="w-4 h-4 text-[var(--fb-blue)]" />
+                  <span>{isSidebarCollapsed ? "Menu" : "Masquer menu"}</span>
                 </button>
 
                 <button
@@ -1754,7 +1787,7 @@ export default function App() {
                     playCyberSound('click');
                     setActivePanel('chat');
                   }}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border-[0.5px] border-sky-400/40 bg-sky-600/20 hover:bg-sky-600/30 text-sky-200 hover:text-white transition-all text-xs font-semibold cursor-pointer"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-[var(--fb-blue)] hover:bg-[var(--fb-blue-hover)] text-white transition-all text-xs font-bold cursor-pointer shadow-sm"
                 >
                   <span>← Retour au Chat</span>
                 </button>
@@ -1766,10 +1799,10 @@ export default function App() {
                     playCyberSound('click');
                     handleToggleHeader();
                   }}
-                  title={isHeaderCollapsed ? "Déplier l'en-tête (Profil, Langue, Forfaits)" : "Replier l'en-tête"}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border-[0.5px] border-white/20 bg-white/[0.06] hover:bg-white/[0.12] text-slate-200 hover:text-white transition-all text-xs cursor-pointer"
+                  title={isHeaderCollapsed ? "Afficher l'en-tête" : "Masquer l'en-tête"}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-[var(--fb-surface-secondary)] hover:bg-[var(--fb-hover)] text-[var(--fb-text-secondary)] hover:text-[var(--fb-text-primary)] transition-all text-xs font-medium cursor-pointer"
                 >
-                  <span className="text-xs">{isHeaderCollapsed ? "⚡ Déplier l'en-tête" : "▲ Masquer l'en-tête"}</span>
+                  <span>{isHeaderCollapsed ? "Déplier en-tête" : "Plein écran"}</span>
                 </button>
               </div>
             </div>
@@ -1778,6 +1811,7 @@ export default function App() {
           {activePanel === 'chat' && (
             <ChatPanel
               conversation={activeConversation}
+              chatBgImage={chatBgImage}
               onSendMessage={handleSendMessage}
               onClearConversation={() => activeConversationId && handleDeleteConversation(activeConversationId)}
               isLoading={isChatLoading}
@@ -1999,6 +2033,10 @@ export default function App() {
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+        themeMode={themeMode}
+        onUpdateThemeMode={handleUpdateThemeMode}
+        chatBgImage={chatBgImage}
+        onSetChatBgImage={handleSetChatBgImage}
         bgColor={bgColor}
         onSetBgColor={applyBackground}
         galaxyEnabled={galaxyEnabled}

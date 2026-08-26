@@ -89,35 +89,27 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
       label: t('nav.chat'), 
       icon: MessageSquare, 
       badge: conversations.length,
-      activeBg: 'bg-white/15 border-white/40 text-white shadow-md font-bold',
-      iconColor: 'text-sky-300',
-      badgeBg: 'bg-sky-500/20 text-white border-white/20'
+      iconBg: 'bg-[#1877F2] text-white',
     },
     { 
       id: 'transcription' as PanelId, 
       label: t('nav.transcription'), 
       icon: Mic,
-      activeBg: 'bg-white/15 border-white/40 text-white shadow-md font-bold',
-      iconColor: 'text-rose-400',
-      badgeBg: 'bg-rose-500/20 text-white border-white/20'
+      iconBg: 'bg-[#FA383E] text-white',
     },
     { 
       id: 'favoris' as PanelId, 
       label: t('nav.favoris'), 
       icon: Star, 
       badge: favorisCount,
-      activeBg: 'bg-white/15 border-white/40 text-white shadow-md font-bold',
-      iconColor: 'text-amber-300',
-      badgeBg: 'bg-amber-500/20 text-white border-white/20'
+      iconBg: 'bg-[#F7B125] text-white',
     },
     { 
       id: 'memoire' as PanelId, 
       label: t('nav.memoire'), 
       icon: Brain, 
       badge: memoireCount,
-      activeBg: 'bg-white/15 border-white/40 text-white shadow-md font-bold',
-      iconColor: 'text-purple-300',
-      badgeBg: 'bg-purple-500/20 text-white border-white/20'
+      iconBg: 'bg-[#9360F7] text-white',
     },
     { 
       id: 'rappels' as PanelId, 
@@ -125,44 +117,36 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
       icon: Bell, 
       badge: rappelsCount, 
       alert: rappelsCount > 0,
-      activeBg: 'bg-white/15 border-white/40 text-white shadow-md font-bold',
-      iconColor: 'text-rose-300',
-      badgeBg: 'bg-rose-500/20 text-white border-white/20'
+      iconBg: 'bg-[#00A3FF] text-white',
     },
     { 
       id: 'taches' as PanelId, 
       label: t('nav.taches'), 
       icon: CheckSquare, 
       badge: tachesCount,
-      activeBg: 'bg-white/15 border-white/40 text-white shadow-md font-bold',
-      iconColor: 'text-emerald-300',
-      badgeBg: 'bg-emerald-500/20 text-white border-white/20'
+      iconBg: 'bg-[#2EB85C] text-white',
     },
     { 
       id: 'calendar' as PanelId, 
       label: t('nav.calendar'), 
       icon: Calendar,
-      activeBg: 'bg-white/15 border-white/40 text-white shadow-md font-bold',
-      iconColor: 'text-sky-300',
-      badgeBg: 'bg-sky-500/20 text-white border-white/20'
+      iconBg: 'bg-[#4B4DED] text-white',
     },
     { 
       id: 'stats' as PanelId, 
       label: t('nav.stats'), 
       icon: BarChart3,
-      activeBg: 'bg-white/15 border-white/40 text-white shadow-md font-bold',
-      iconColor: 'text-fuchsia-300',
-      badgeBg: 'bg-fuchsia-500/20 text-white border-white/20'
+      iconBg: 'bg-[#D62976] text-white',
     },
   ];
 
   const categories = [
-    { id: 'tous', label: t('common.all'), color: 'bg-white/10 text-white border-white/20' },
-    { id: 'favoris', label: `⭐ ${t('favoris.title')}`, color: 'bg-amber-500/20 text-amber-200 border-amber-400/30' },
-    { id: 'général', label: t('nav.general'), color: 'bg-purple-500/20 text-purple-200 border-purple-400/30' },
-    { id: 'travail', label: t('nav.work'), color: 'bg-sky-500/20 text-sky-200 border-sky-400/30' },
-    { id: 'perso', label: t('nav.personal'), color: 'bg-emerald-500/20 text-emerald-200 border-emerald-400/30' },
-    { id: 'urgent', label: 'Urgent', color: 'bg-rose-500/20 text-rose-200 border-rose-400/30' },
+    { id: 'tous', label: t('common.all') },
+    { id: 'favoris', label: `⭐ ${t('favoris.title')}` },
+    { id: 'général', label: t('nav.general') },
+    { id: 'travail', label: t('nav.work') },
+    { id: 'perso', label: t('nav.personal') },
+    { id: 'urgent', label: 'Urgent' },
   ];
 
   const filteredConversations = conversations.filter((c) => {
@@ -183,25 +167,25 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
       {/* Mobile Backdrop */}
       {isOpenMobile && (
         <div
-          className="fixed inset-0 bg-black/75 z-40 lg:hidden"
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 lg:hidden"
           onClick={onCloseMobile}
         />
       )}
 
-      {/* Main Sidebar Container with smooth sliding unfold/fold to right */}
+      {/* Main Sidebar Container */}
       <aside
-        className={`fixed lg:relative top-0 bottom-0 left-0 z-40 bg-[#030914]/90 backdrop-blur-xl border-r border-white/10 flex flex-col transition-all duration-300 ease-in-out shrink-0 overflow-hidden ${
+        className={`fixed lg:relative top-0 bottom-0 left-0 z-40 bg-[var(--fb-bg)] lg:bg-transparent border-r border-[var(--fb-border)]/60 lg:border-r-0 flex flex-col transition-all duration-300 ease-in-out shrink-0 overflow-hidden ${
           isOpenMobile 
-            ? 'translate-x-0 w-72 sm:w-80 shadow-2xl' 
+            ? 'translate-x-0 w-72 sm:w-80 shadow-2xl bg-[var(--fb-surface)]' 
             : isCollapsed 
               ? '-translate-x-full lg:translate-x-0 lg:w-0 lg:border-r-0 lg:opacity-0 pointer-events-none'
               : '-translate-x-full lg:translate-x-0 w-72 md:w-80 opacity-100'
         }`}
       >
-        {/* Sidebar Header with Collapse Button on desktop & mobile */}
-        <div className="p-3 border-b border-white/10 flex items-center justify-between shrink-0 bg-white/[0.02]">
+        {/* Sidebar Header */}
+        <div className="p-3 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
-            <span className="font-bold text-white text-sm tracking-wide">Navigation & Modules</span>
+            <span className="font-bold text-[var(--fb-text-primary)] text-sm tracking-tight">Navigation & Raccourcis</span>
           </div>
 
           <div className="flex items-center gap-1">
@@ -212,11 +196,10 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                   playCyberSound('click');
                   onToggleCollapse();
                 }}
-                title="Replier le menu (Espace étendu)"
-                className="hidden lg:flex items-center gap-1 p-1.5 rounded-lg border-[0.5px] border-white/20 text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 text-xs transition-colors"
+                title="Masquer le menu"
+                className="hidden lg:flex items-center gap-1 p-1.5 rounded-full hover:bg-[var(--fb-hover)] text-[var(--fb-text-secondary)] hover:text-[var(--fb-text-primary)] text-xs transition-colors"
               >
-                <ChevronLeft className="w-4 h-4" />
-                <span className="text-[11px] font-medium">Replier</span>
+                <ChevronLeft className="w-5 h-5" />
               </button>
             )}
 
@@ -224,16 +207,16 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
             {onCloseMobile && (
               <button
                 onClick={onCloseMobile}
-                className="lg:hidden p-1 rounded-lg border-[0.5px] border-white/20 text-white bg-white/5"
+                className="lg:hidden p-1.5 rounded-full hover:bg-[var(--fb-hover)] text-[var(--fb-text-primary)]"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             )}
           </div>
         </div>
 
         {/* Primary Navigation Menu */}
-        <div className="p-3 space-y-1 shrink-0 border-b border-white/10">
+        <div className="px-2 py-1 space-y-0.5 shrink-0">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activePanel === item.id;
@@ -245,19 +228,23 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                   setActivePanel(item.id);
                   if (onCloseMobile) onCloseMobile();
                 }}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all border-[0.5px] cursor-pointer backdrop-blur-xl ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
                   isActive
-                    ? item.activeBg
-                    : 'border-transparent text-slate-300 hover:text-white hover:bg-white/[0.06] hover:border-white/10'
+                    ? 'bg-[var(--fb-blue-light)] text-[var(--fb-blue)] font-bold shadow-xs'
+                    : 'text-[var(--fb-text-primary)] hover:bg-[var(--fb-hover)]'
                 }`}
               >
-                <div className="flex items-center gap-2.5">
-                  <Icon className={`w-4 h-4 sm:w-4.5 sm:h-4.5 ${item.iconColor}`} />
-                  <span>{item.label}</span>
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm ${item.iconBg}`}>
+                    <Icon className="w-4.5 h-4.5" />
+                  </div>
+                  <span className="truncate">{item.label}</span>
                 </div>
                 {item.badge !== undefined && (
                   <span
-                    className={`text-[11px] px-2 py-0.5 rounded-full border-[0.5px] font-mono font-bold ${item.badgeBg}`}
+                    className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                      isActive ? 'bg-[var(--fb-blue)] text-white' : 'bg-[var(--fb-surface-secondary)] text-[var(--fb-text-primary)]'
+                    }`}
                   >
                     {item.badge}
                   </span>
@@ -267,13 +254,15 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
           })}
         </div>
 
+        <div className="my-2 mx-3 border-t border-[var(--fb-border-light)]" />
+
         {/* Conversation List section if in Chat Panel */}
         {activePanel === 'chat' && (
-          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden px-2">
             {/* Header & New Chat Button */}
-            <div className="p-3 pb-2 space-y-2 shrink-0">
+            <div className="px-1 pb-2 space-y-2 shrink-0">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                <span className="text-xs font-bold text-[var(--fb-text-secondary)] uppercase tracking-wider">
                   {t('nav.history')} ({conversations.length})
                 </span>
                 <button
@@ -281,7 +270,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                     playCyberSound('beep');
                     onNewConversation();
                   }}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-600/70 hover:bg-sky-500/90 text-white text-xs font-semibold border-[0.5px] border-white/20 transition-all cursor-pointer backdrop-blur-xl"
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[var(--fb-blue)] hover:bg-[var(--fb-blue-hover)] text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
                   title={t('nav.newChat')}
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -291,26 +280,26 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
 
               {/* Search input in conversations */}
               <div className="relative">
-                <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-slate-400" />
+                <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-[var(--fb-text-muted)]" />
                 <input
                   type="text"
                   placeholder={t('nav.searchConv')}
                   value={conversationSearch}
                   onChange={(e) => setConversationSearch(e.target.value)}
-                  className="w-full bg-white/[0.04] backdrop-blur-xl border-[0.5px] border-white/15 focus:border-white/40 rounded-xl pl-8 pr-7 py-1 text-xs text-white placeholder-slate-400 focus:outline-none"
+                  className="w-full bg-[var(--fb-surface)] border border-[var(--fb-border)] focus:border-[var(--fb-blue)] rounded-full pl-8 pr-7 py-1.5 text-xs text-[var(--fb-text-primary)] placeholder-[var(--fb-text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--fb-blue)]"
                 />
                 {conversationSearch && (
                   <button
                     onClick={() => setConversationSearch('')}
-                    className="absolute right-2 top-2 text-slate-400 hover:text-white"
+                    className="absolute right-2.5 top-2 text-[var(--fb-text-secondary)] hover:text-[var(--fb-text-primary)]"
                   >
-                    <X className="w-3 h-3" />
+                    <X className="w-3.5 h-3.5" />
                   </button>
                 )}
               </div>
 
               {/* Category Pills */}
-              <div className="flex gap-1 overflow-x-auto pb-1 text-[11px]">
+              <div className="flex gap-1 overflow-x-auto pb-1 text-xs">
                 {categories.map((cat) => (
                   <button
                     key={cat.id}
@@ -318,10 +307,10 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                       playCyberSound('click');
                       setActiveCategory(cat.id);
                     }}
-                    className={`px-2 py-0.5 rounded-full border-[0.5px] whitespace-nowrap cursor-pointer transition-all ${
+                    className={`px-2.5 py-1 rounded-full border whitespace-nowrap cursor-pointer transition-all ${
                       activeCategory === cat.id
-                        ? 'bg-white/20 border-white/50 text-white font-bold'
-                        : 'bg-white/[0.03] border-white/10 text-slate-400 hover:text-slate-200'
+                        ? 'bg-[var(--fb-blue)] border-[var(--fb-blue)] text-white font-bold'
+                        : 'bg-[var(--fb-surface)] border-[var(--fb-border)] text-[var(--fb-text-secondary)] hover:bg-[var(--fb-hover)] hover:text-[var(--fb-text-primary)]'
                     }`}
                   >
                     {cat.label}
@@ -331,9 +320,9 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
             </div>
 
             {/* Conversation list */}
-            <div className="flex-1 overflow-y-auto px-2 space-y-1 pb-3">
+            <div className="flex-1 overflow-y-auto space-y-1 pb-3 pr-1">
               {filteredConversations.length === 0 ? (
-                <div className="text-center py-6 text-xs text-slate-400">
+                <div className="text-center py-6 text-xs text-[var(--fb-text-secondary)]">
                   {t('nav.emptyConvs')}
                 </div>
               ) : (
@@ -347,16 +336,17 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                         onSelectConversation(conv.id);
                         if (onCloseMobile) onCloseMobile();
                       }}
-                      className={`group relative p-2.5 rounded-xl border-[0.5px] transition-all cursor-pointer backdrop-blur-xl ${
+                      className={`group relative p-2.5 rounded-xl border transition-all cursor-pointer ${
                         isActive
-                          ? 'bg-white/15 border-white/40 text-white font-semibold shadow-sm'
-                          : 'bg-white/[0.02] border-white/10 text-slate-300 hover:bg-white/[0.07] hover:border-white/20'
+                          ? 'bg-[var(--fb-blue-light)] border-[var(--fb-blue)]/40 text-[var(--fb-blue)] font-semibold'
+                          : 'bg-[var(--fb-surface)] hover:bg-[var(--fb-hover)] border-[var(--fb-border-light)] text-[var(--fb-text-primary)]'
                       }`}
                     >
                       <div className="flex items-center justify-between gap-1.5">
-                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <div className={`w-2 h-2 rounded-full shrink-0 ${isActive ? 'bg-[var(--fb-blue)]' : 'bg-[var(--fb-border)]'}`} />
                           {conv.favori && (
-                            <Star className="w-3 h-3 text-amber-300 fill-amber-300 shrink-0" />
+                            <Star className="w-3.5 h-3.5 text-[#f7b125] fill-[#f7b125] shrink-0" />
                           )}
                           <span className="text-xs truncate font-medium">{conv.titre}</span>
                         </div>
@@ -371,9 +361,9 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                               onToggleFavoriConv(conv.id);
                             }}
                             title={conv.favori ? t('favoris.remove') : t('favoris.addFav')}
-                            className="p-1 rounded hover:bg-white/10 text-amber-300"
+                            className="p-1 rounded-full hover:bg-[var(--fb-surface-secondary)] text-[#f7b125]"
                           >
-                            <Star className={`w-3 h-3 ${conv.favori ? 'fill-amber-300' : ''}`} />
+                            <Star className={`w-3.5 h-3.5 ${conv.favori ? 'fill-[#f7b125]' : ''}`} />
                           </button>
                           <button
                             type="button"
@@ -383,9 +373,9 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                               onRenameConversation(conv.id);
                             }}
                             title={t('nav.rename')}
-                            className="p-1 rounded hover:bg-white/10 text-slate-300"
+                            className="p-1 rounded-full hover:bg-[var(--fb-surface-secondary)] text-[var(--fb-text-secondary)]"
                           >
-                            <Edit3 className="w-3 h-3" />
+                            <Edit3 className="w-3.5 h-3.5" />
                           </button>
                           <button
                             type="button"
@@ -395,20 +385,20 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                               onDeleteConversation(conv.id);
                             }}
                             title={t('common.delete')}
-                            className="p-1 rounded hover:bg-rose-900 text-rose-300"
+                            className="p-1 rounded-full hover:bg-rose-500/20 text-[var(--fb-red)]"
                           >
-                            <Trash2 className="w-3 h-3" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </div>
 
                       {/* Tags */}
                       {conv.tags && conv.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1.5">
+                        <div className="flex flex-wrap gap-1 mt-1.5 pl-4">
                           {conv.tags.map((tagItem, idx) => (
                             <span
                               key={idx}
-                              className="text-[10px] px-1.5 py-0.5 rounded-md border-[0.5px] border-white/20 bg-white/10 text-white"
+                              className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--fb-surface-secondary)] text-[var(--fb-text-secondary)] font-medium"
                             >
                               #{tagItem}
                             </span>
@@ -423,24 +413,24 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
           </div>
         )}
 
-        {/* Battery / Energy Consumption Card in Sidebar */}
-        <div className="p-3 border-t border-white/10 bg-[#030914]/60 shrink-0">
-          <div className="flex items-center justify-between gap-2.5 p-2.5 rounded-xl bg-white/[0.06] border-[0.5px] border-white/15">
+        {/* Battery / Energy Card */}
+        <div className="p-3 border-t border-[var(--fb-border-light)] shrink-0">
+          <div className="flex items-center justify-between gap-2.5 p-2.5 rounded-xl bg-[var(--fb-surface)] border border-[var(--fb-border-light)] shadow-sm">
             <div className="flex items-center gap-2">
-              <div className={`p-1.5 rounded-lg border-[0.5px] ${
+              <div className={`p-1.5 rounded-full ${
                 effectiveEnergy <= 0 
-                  ? 'bg-rose-500/20 border-rose-400 text-rose-400' 
+                  ? 'bg-rose-100 dark:bg-rose-950/40 text-[var(--fb-red)]' 
                   : effectiveEnergy <= 25
-                  ? 'bg-amber-500/20 border-amber-400 text-amber-400'
-                  : 'bg-emerald-500/20 border-emerald-400 text-emerald-400'
+                  ? 'bg-amber-100 dark:bg-amber-950/40 text-[var(--fb-gold)]'
+                  : 'bg-green-100 dark:bg-green-950/40 text-[var(--fb-green)]'
               }`}>
                 <BatteryCharging className="w-4 h-4" />
               </div>
               <div>
-                <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Batterie IA</div>
-                <div className="text-xs font-extrabold font-mono text-white flex items-center gap-1">
+                <div className="text-[10px] uppercase font-bold text-[var(--fb-text-secondary)] tracking-wider">Batterie IA</div>
+                <div className="text-xs font-bold text-[var(--fb-text-primary)] flex items-center gap-1">
                   <span>{effectiveEnergy}%</span>
-                  <span className="text-[10px] font-normal text-slate-400 font-sans">{t('header.remaining')}</span>
+                  <span className="text-[10px] font-normal text-[var(--fb-text-secondary)]">{t('header.remaining')}</span>
                 </div>
               </div>
             </div>
@@ -452,23 +442,23 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                   playCyberSound('click');
                   onOpenForfaits();
                 }}
-                className="px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-red-600/80 to-rose-600/80 hover:from-red-500 hover:to-rose-500 text-white text-xs font-bold border-[0.5px] border-white/20 shadow-md active:scale-95 transition-all flex items-center gap-1 cursor-pointer"
+                className="px-2.5 py-1.5 rounded-full bg-[var(--fb-blue)] hover:bg-[var(--fb-blue-hover)] text-white text-xs font-bold shadow-sm transition-all flex items-center gap-1 cursor-pointer"
                 title={t('header.plansTitle')}
               >
-                <Flame className="w-3 h-3 text-amber-300" />
+                <Flame className="w-3.5 h-3.5 text-white" />
                 <span>{t('header.plansBtn')}</span>
               </button>
             )}
           </div>
         </div>
 
-        {/* Security & Mobile status footer */}
-        <div className="p-2.5 border-t border-white/10 bg-slate-950/40 text-xs flex items-center justify-between shrink-0 text-slate-300">
-          <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+        {/* Status footer */}
+        <div className="p-2.5 border-t border-[var(--fb-border-light)] text-xs flex items-center justify-between shrink-0 text-[var(--fb-text-secondary)]">
+          <span className="flex items-center gap-1.5 text-[var(--fb-green)] font-medium">
+            <ShieldCheck className="w-3.5 h-3.5 text-[var(--fb-green)]" />
             Sécurisé
           </span>
-          <span className="text-white font-semibold">MajorI.A 2026</span>
+          <span className="font-semibold text-[var(--fb-text-primary)]">MajorI.A 2026</span>
         </div>
       </aside>
     </>

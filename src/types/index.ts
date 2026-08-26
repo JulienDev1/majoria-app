@@ -4,6 +4,8 @@ export type ReminderStatus = 'actif' | 'termine';
 
 export type VoiceGender = 'female' | 'male';
 
+export type ThemeMode = 'light' | 'dark' | 'system';
+
 export type AlertSound = 
   | 'zen-crystal' 
   | 'digital-pulse' 

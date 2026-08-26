@@ -43,6 +43,7 @@ import { useLanguage } from '../context/LanguageContext';
 
 interface ChatPanelProps {
   conversation: Conversation | null;
+  chatBgImage?: string | null;
   onSendMessage: (text: string, image?: string) => Promise<void>;
   onClearConversation: () => void;
   isLoading: boolean;
@@ -66,6 +67,7 @@ interface ChatPanelProps {
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
   conversation,
+  chatBgImage,
   onSendMessage,
   onClearConversation,
   isLoading,
@@ -100,7 +102,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-  const lastScrollTopRef = useRef<number>(0);
 
   // Audio Recognition Refs
   const recognitionRef = useRef<any>(null);
@@ -123,27 +124,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       stopAllMedia();
     };
   }, []);
-
-  // Handle Scroll to fold/unfold bars automatically (Dépliage / Repliage Scroll)
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const currentScrollTop = e.currentTarget.scrollTop;
-    const diff = currentScrollTop - lastScrollTopRef.current;
-
-    // Défilement vers le bas -> les barres s'effacent automatiquement pour laisser place nette à la lecture
-    if (diff > 12 && currentScrollTop > 20) {
-      if (onCollapseAllBars) {
-        onCollapseAllBars();
-      }
-    } 
-    // Défilement vers le haut -> les barres se réaffichent en douceur
-    else if (diff < -12) {
-      if (onUnfoldAllBars) {
-        onUnfoldAllBars();
-      }
-    }
-
-    lastScrollTopRef.current = currentScrollTop;
-  };
 
   const stopAllMedia = () => {
     if (recognitionRef.current) {
@@ -376,12 +356,23 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   const effectiveEnergy = typeof energyPercent === 'number' ? energyPercent : 80;
   const userName = userProfile?.prenom || user?.nom || 'Utilisateur';
 
+  const bgStyle = chatBgImage
+    ? {
+        backgroundImage: chatBgImage.startsWith('url(') ? chatBgImage : `url("${chatBgImage}")`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+      }
+    : undefined;
+
   return (
-    <div className="flex-1 min-h-0 flex flex-col h-full bg-[#030914]/55 relative overflow-hidden">
-      
-      {/* Header bar of Chat with Menu and Fullscreen Controls (No icon logo) */}
-      <div className="px-3 sm:px-5 py-2.5 bg-white/[0.04] border-b border-white/10 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2.5 min-w-0">
+    <div 
+      className="flex-1 min-h-0 flex flex-col h-full bg-[var(--fb-bg)] text-[var(--fb-text-primary)] relative overflow-hidden"
+      style={bgStyle}
+    >
+      {/* Header bar of Chat */}
+      <div className="relative z-10 px-3 sm:px-5 py-2.5 bg-[var(--chat-header-bg)] backdrop-blur-md border-b border-[var(--chat-header-border)] flex items-center justify-between shrink-0 shadow-xs">
+        <div className="flex items-center gap-3 min-w-0">
           {/* Toggle Sidebar Button directly in Chat Header */}
           {onToggleSidebar && (
             <button
@@ -389,41 +380,51 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 playCyberSound('click');
                 onToggleSidebar();
               }}
-              title={isSidebarCollapsed ? "Dérouler le menu latéral" : "Replier le menu latéral"}
-              className="flex items-center gap-1 p-1.5 rounded-lg border-[0.5px] border-white/20 bg-white/[0.06] hover:bg-white/[0.12] text-slate-300 hover:text-white transition-all text-xs cursor-pointer"
+              title={isSidebarCollapsed ? "Afficher le menu latéral" : "Masquer le menu latéral"}
+              className="w-9 h-9 rounded-full bg-[var(--fb-surface-secondary)] hover:bg-[var(--fb-hover)] text-[var(--fb-text-primary)] flex items-center justify-center transition-all cursor-pointer"
             >
               {isSidebarCollapsed ? (
-                <>
-                  <PanelLeftOpen className="w-4 h-4 text-sky-400" />
-                  <span className="hidden sm:inline text-[11px] font-medium">Menu</span>
-                </>
+                <PanelLeftOpen className="w-5 h-5 text-[var(--fb-blue)]" />
               ) : (
-                <PanelLeftClose className="w-4 h-4 text-slate-300" />
+                <PanelLeftClose className="w-5 h-5 text-[var(--fb-text-secondary)]" />
               )}
             </button>
           )}
 
-          {/* Clean Conversation Title (No Icon Logo) */}
-          <h2 className="font-bold text-white text-sm sm:text-base truncate">
-            {conversation?.titre || `${t('nav.chat')} (${userName})`}
-          </h2>
+          {/* Contact Header info (Avatar + Name + Status) */}
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="relative shrink-0">
+              <img 
+                src="/maskable_icon.png" 
+                alt="MajorI.A" 
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover shadow-sm" 
+              />
+              <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-[var(--fb-green)] border-2 border-[var(--fb-surface)]" />
+            </div>
 
-          {!isOnline && (
-            <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 border-[0.5px] border-amber-400/40 text-[10px] text-amber-300 font-mono">
-              <WifiOff className="w-3 h-3" />
-              <span>Mode Hors-Ligne</span>
-            </span>
-          )}
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <h2 className="font-bold text-[var(--fb-text-primary)] text-sm sm:text-base truncate leading-tight">
+                  {conversation?.titre || `${t('nav.chat')} (${userName})`}
+                </h2>
+                <Check className="w-3.5 h-3.5 text-[var(--fb-blue)] shrink-0" />
+              </div>
+              <div className="flex items-center gap-2 text-xs text-[var(--fb-text-secondary)] leading-tight font-medium">
+                <span className="flex items-center gap-1 text-[var(--fb-green)]">
+                  <span>En ligne</span>
+                </span>
+                {!isOnline && (
+                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-[10px] text-amber-700 dark:text-amber-300 font-semibold">
+                    <WifiOff className="w-3 h-3" />
+                    <span>Hors-ligne</span>
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
-          {!isOnline && (
-            <span className="sm:hidden flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 border-[0.5px] border-amber-400/40 text-[10px] text-amber-300 font-mono">
-              <WifiOff className="w-3 h-3" />
-              <span>Hors-ligne</span>
-            </span>
-          )}
-
           {/* Toggle Full Screen / Collapse all bars */}
           {onToggleCollapseHeader && (
             <button
@@ -431,19 +432,13 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 playCyberSound('click');
                 onToggleCollapseHeader();
               }}
-              title={isHeaderCollapsed ? "Déplier l'en-tête" : "Replier l'en-tête (Ne voir que le chat)"}
-              className="flex items-center gap-1 p-1.5 rounded-lg bg-white/[0.07] hover:bg-white/[0.14] border-[0.5px] border-white/15 text-sky-300 hover:text-white transition-all text-xs cursor-pointer"
+              title={isHeaderCollapsed ? "Afficher l'en-tête" : "Plein écran"}
+              className="w-9 h-9 rounded-full bg-[var(--fb-surface-secondary)] hover:bg-[var(--fb-hover)] text-[var(--fb-text-secondary)] hover:text-[var(--fb-text-primary)] flex items-center justify-center transition-all cursor-pointer"
             >
               {isHeaderCollapsed ? (
-                <>
-                  <ChevronDown className="w-4 h-4 text-sky-400" />
-                  <span className="hidden sm:inline text-[11px] font-medium">Déplier en-tête</span>
-                </>
+                <ChevronDown className="w-5 h-5 text-[var(--fb-blue)]" />
               ) : (
-                <>
-                  <ChevronUp className="w-4 h-4 text-slate-300" />
-                  <span className="hidden sm:inline text-[11px] font-medium">Plein écran</span>
-                </>
+                <ChevronUp className="w-5 h-5" />
               )}
             </button>
           )}
@@ -455,50 +450,64 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               onClearConversation();
             }}
             title={t('chat.clearConv')}
-            className="p-1.5 rounded-lg bg-white/[0.07] hover:bg-rose-950/60 border-[0.5px] border-white/15 text-slate-300 hover:text-rose-300 transition-all cursor-pointer"
+            className="w-9 h-9 rounded-full bg-[var(--fb-surface-secondary)] hover:bg-rose-500/20 text-[var(--fb-text-secondary)] hover:text-[var(--fb-red)] flex items-center justify-center transition-all cursor-pointer"
           >
             <Trash2 className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      {/* Messages Scroll Area with Scroll-based fold/unfold */}
+      {/* Messages Scroll Area with transparent / translucent cards */}
       <div 
         ref={scrollContainerRef}
-        onScroll={handleScroll}
-        className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-4"
+        className="relative z-10 flex-1 overflow-y-auto p-3 sm:p-5 space-y-4 max-w-4xl w-full mx-auto"
       >
         {(!conversation || conversation.messages.length === 0) ? (
-          <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-4 max-w-lg mx-auto">
-            <div>
-              <h3 className="text-xl sm:text-2xl font-bold text-white mb-1 tracking-tight">
-                {t('chat.welcome')} {userProfile?.prenom ? userProfile.prenom : ''} !
-              </h3>
-              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                {t('chat.welcomeDesc')}
-              </p>
+          <div className="space-y-4 my-auto py-4">
+            {/* Transparent "Create Post" Box */}
+            <div className="bg-[var(--fb-card-translucent)] backdrop-blur-xs rounded-2xl p-4 sm:p-5 border border-[var(--fb-card-border)] shadow-sm space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-full bg-[var(--fb-blue)] text-white flex items-center justify-center font-bold text-base shrink-0 shadow-sm">
+                  {userProfile?.prenom ? userProfile.prenom[0].toUpperCase() : <User className="w-5 h-5" />}
+                </div>
+                <div 
+                  onClick={() => setInputText("Bonjour MajorI.A, aide-moi à...")}
+                  className="flex-1 bg-[var(--fb-surface)]/60 hover:bg-[var(--fb-surface)]/90 text-[var(--fb-text-primary)] placeholder-[var(--fb-text-secondary)] text-sm sm:text-base px-4 py-2.5 rounded-full cursor-pointer transition-colors border border-[var(--fb-border-light)] font-medium"
+                >
+                  Que voulez-vous demander à l'IA, {userProfile?.prenom || userName} ?
+                </div>
+              </div>
             </div>
 
-            {/* Starter Suggestion Pills */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full pt-2">
-              {[
-                "Rappelle-moi d'appeler le médecin à 15h",
-                "Quelles sont les dernières actualités mondiales ?",
-                "Crée une tâche urgente pour finaliser le rapport",
-                "Mémorise le code d'accès de l'immeuble",
-              ].map((promptText, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => {
-                    setInputText(promptText);
-                    playCyberSound('beep');
-                  }}
-                  className="p-2.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] border-[0.5px] border-white/15 text-left text-xs text-slate-200 transition-all cursor-pointer backdrop-blur-xl"
-                >
-                  <Sparkles className="w-3 h-3 text-sky-400 inline mr-1.5" />
-                  <span>{promptText}</span>
-                </button>
-              ))}
+            {/* Quick Suggestion Cards */}
+            <div className="bg-[var(--fb-card-translucent)] backdrop-blur-xs rounded-2xl p-4 sm:p-5 border border-[var(--fb-card-border)] shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-[var(--fb-text-primary)] text-sm">Suggestions de requêtes rapides</span>
+                <span className="text-xs text-[var(--fb-blue)] font-bold">Fil d'actualité IA</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                {[
+                  "Rappelle-moi d'appeler le médecin à 15h",
+                  "Quelles sont les dernières actualités mondiales ?",
+                  "Crée une tâche urgente pour finaliser le rapport",
+                  "Mémorise le code d'accès de l'immeuble",
+                ].map((promptText, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      setInputText(promptText);
+                      playCyberSound('beep');
+                    }}
+                    className="p-3 rounded-xl bg-[var(--fb-surface)]/60 hover:bg-[var(--fb-surface)]/90 hover:text-[var(--fb-blue)] border border-[var(--fb-border-light)] hover:border-[var(--fb-blue)]/50 text-left text-xs font-bold text-[var(--fb-text-primary)] transition-all cursor-pointer flex items-center gap-2.5 shadow-2xs"
+                  >
+                    <div className="w-7 h-7 rounded-full bg-[var(--fb-blue-light)] flex items-center justify-center shrink-0 shadow-xs text-[var(--fb-blue)]">
+                      <Sparkles className="w-3.5 h-3.5" />
+                    </div>
+                    <span className="line-clamp-2">{promptText}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         ) : (
@@ -507,44 +516,66 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             return (
               <div
                 key={idx}
-                className={`flex gap-2.5 sm:gap-3.5 max-w-4xl mx-auto ${
-                  isUser ? 'justify-end' : 'justify-start'
-                }`}
+                className={`flex gap-2.5 ${isUser ? 'justify-end' : 'justify-start'}`}
               >
                 {!isUser && (
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-white/[0.06] backdrop-blur-xl border-[0.5px] border-white/20 flex items-center justify-center shrink-0 mt-0.5 text-sky-300 text-xs font-bold font-mono">
-                    IA
-                  </div>
+                  <img 
+                    src="/maskable_icon.png" 
+                    alt="MajorI.A" 
+                    className="w-9 h-9 rounded-full object-cover shrink-0 shadow-sm mt-1 ring-1 ring-white/50" 
+                  />
                 )}
 
+                {/* Message Bubble: Transparent for both User and Assistant to clearly see the background */}
                 <div
-                  className={`relative p-3.5 sm:p-4 rounded-2xl border-[0.5px] backdrop-blur-xl max-w-[88%] sm:max-w-[80%] transition-all shadow-md overflow-hidden break-words ${
+                  className={`relative transition-all break-words ${
                     isUser
-                      ? 'bg-sky-600/25 border-sky-400/40 text-white rounded-tr-none'
-                      : 'bg-white/[0.05] border-white/15 text-slate-100 rounded-tl-none'
+                      ? 'bg-[var(--chat-bubble-user)] backdrop-blur-xs text-white border border-[var(--chat-bubble-border-user)] p-3.5 sm:p-4 rounded-2xl rounded-tr-xs max-w-[85%] sm:max-w-[75%] shadow-sm'
+                      : 'bg-[var(--chat-bubble-assistant)] backdrop-blur-xs text-[var(--fb-text-primary)] border border-[var(--chat-bubble-border-ai)] p-4 sm:p-5 rounded-2xl shadow-sm max-w-[95%] sm:max-w-[88%] w-full'
                   }`}
                 >
+                  {/* AI Header */}
+                  {!isUser && (
+                    <div className="flex items-center justify-between pb-3 mb-3 border-b border-[var(--fb-border-light)]">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-[var(--fb-text-primary)] text-sm">MajorI.A</span>
+                        <Check className="w-3.5 h-3.5 text-[var(--fb-blue)]" />
+                        <span className="text-xs text-[var(--fb-text-secondary)] font-medium flex items-center gap-1">
+                          • {new Date(msg.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                          <Globe className="w-3 h-3 text-[var(--fb-text-muted)] ml-0.5 inline" />
+                        </span>
+                      </div>
+
+                      {msg.offline && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-[10px] text-amber-700 dark:text-amber-300 font-bold border border-amber-400/40">
+                          <Cpu className="w-3 h-3" />
+                          Local
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   {/* Message Image Attachment */}
                   {msg.image && (
-                    <div className="mb-2.5 rounded-xl overflow-hidden border-[0.5px] border-white/20 max-w-xs">
+                    <div className="mb-3 rounded-xl overflow-hidden border border-[var(--fb-card-border)] max-w-sm shadow-xs">
                       <img src={msg.image} alt="Envoyé" className="w-full h-auto object-cover" />
                     </div>
                   )}
 
-                  {/* Message Text Content rendered cleanly with Markdown */}
-                  <div className="text-xs sm:text-sm leading-relaxed break-words font-sans">
+                  {/* Message Text Content */}
+                  <div className={`text-sm sm:text-[15px] leading-relaxed break-words font-sans font-medium ${isUser ? 'text-white' : 'text-[var(--fb-text-primary)]'}`}>
                     {isUser ? (
                       <div className="whitespace-pre-wrap">{msg.contenu}</div>
                     ) : !msg.contenu && isLoading && idx === conversation.messages.length - 1 ? (
-                      <div className="flex items-center gap-2 text-xs text-sky-300 py-1">
-                        <Loader2 className="w-3.5 h-3.5 text-sky-400 animate-spin" />
-                        <span className="animate-pulse">MajorI.A formule sa réponse...</span>
+                      <div className="flex items-center gap-2 text-sm text-[var(--fb-blue)] font-bold py-2">
+                        <Loader2 className="w-4 h-4 text-[var(--fb-blue)] animate-spin" />
+                        <span className="animate-pulse">MajorI.A génère votre réponse...</span>
                       </div>
                     ) : (
-                      <div className="relative">
+                      <div className="relative prose prose-slate dark:prose-invert max-w-none">
                         <FormattedMarkdown content={msg.contenu} />
                         {isLoading && idx === conversation.messages.length - 1 && (
-                          <span className="inline-block w-1.5 h-3.5 ml-1 bg-sky-400 animate-pulse rounded-sm align-middle shadow-[0_0_8px_rgba(56,189,248,0.8)]" />
+                          <span className="inline-block w-1.5 h-4 ml-1 bg-[var(--fb-blue)] animate-pulse rounded-sm align-middle" />
                         )}
                       </div>
                     )}
@@ -552,68 +583,99 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
                   {/* Grounded Google Search Sources */}
                   {msg.sources && msg.sources.length > 0 && (
-                    <div className="mt-3 pt-2.5 border-t border-white/10 space-y-1.5">
-                      <div className="text-[11px] font-bold text-sky-300 flex items-center gap-1">
-                        <Globe className="w-3.5 h-3.5 shrink-0" />
-                        <span>Sources & Liens Google :</span>
+                    <div className="mt-4 pt-3 border-t border-[var(--fb-border-light)] space-y-2">
+                      <div className="text-xs font-bold text-[var(--fb-text-primary)] flex items-center gap-1.5">
+                        <Globe className="w-3.5 h-3.5 text-[var(--fb-blue)]" />
+                        <span>Sources & Liens associés :</span>
                       </div>
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {msg.sources.map((src, sIdx) => (
                           <a
                             key={sIdx}
                             href={src.uri}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-950/70 hover:bg-sky-900 border-[0.5px] border-sky-400/40 text-[11px] text-sky-200 hover:text-white transition-colors max-w-full"
+                            className="flex items-center justify-between p-2.5 rounded-xl bg-[var(--fb-surface)]/60 hover:bg-[var(--fb-surface)]/90 border border-[var(--fb-border-light)] text-xs text-[var(--fb-text-primary)] hover:text-[var(--fb-blue)] font-semibold transition-colors"
                           >
-                            <span className="truncate max-w-[180px] sm:max-w-[240px]">{src.title}</span>
-                            <ExternalLink className="w-2.5 h-2.5 shrink-0" />
+                            <span className="truncate font-medium">{src.title}</span>
+                            <ExternalLink className="w-3.5 h-3.5 text-[var(--fb-text-secondary)] shrink-0 ml-1.5" />
                           </a>
                         ))}
                       </div>
                     </div>
                   )}
 
-                  {/* Bottom Message Actions */}
-                  <div className="mt-2 pt-1 flex items-center justify-between text-[10px] text-slate-400 border-t border-white/5">
-                    <div className="flex items-center gap-2">
-                      <span>{new Date(msg.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
-                      {msg.offline && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 border-[0.5px] border-amber-400/30 text-[9px] text-amber-300 font-mono">
-                          <Cpu className="w-2.5 h-2.5" />
-                          Mode Local
-                        </span>
-                      )}
-                    </div>
-                    
-                    <div className="flex items-center gap-1.5">
+                  {/* Action Bar (Like, Copy, Audio, Share) */}
+                  {!isUser && (
+                    <div className="mt-4 pt-2.5 border-t border-[var(--fb-border-light)] flex items-center justify-between text-xs text-[var(--fb-text-primary)] font-bold">
                       <button
-                        onClick={() => handleCopyMessage(msg.contenu, idx)}
-                        title="Copier"
-                        className="p-1 hover:text-white transition-colors"
+                        type="button"
+                        onClick={() => {
+                          playCyberSound('beep');
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-[var(--fb-surface)]/50 hover:text-[var(--fb-blue)] transition-colors cursor-pointer"
                       >
-                        {copiedIndex === idx ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        <span>👍</span>
+                        <span>J'aime</span>
                       </button>
 
-                      {!isUser && (
-                        <button
-                          onClick={() => handleSpeakMessage(msg.contenu, idx)}
-                          title="Écouter le message"
-                          className="p-1 hover:text-white transition-colors"
-                        >
-                          {speakingIndex === idx ? (
-                            <VolumeX className="w-3 h-3 text-rose-400" />
-                          ) : (
-                            <Volume2 className="w-3 h-3 text-sky-300" />
-                          )}
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleCopyMessage(msg.contenu, idx)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-[var(--fb-surface)]/50 hover:text-[var(--fb-text-primary)] transition-colors cursor-pointer"
+                      >
+                        {copiedIndex === idx ? (
+                          <>
+                            <Check className="w-4 h-4 text-[var(--fb-green)]" />
+                            <span className="text-[var(--fb-green)]">Copié</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-4 h-4" />
+                            <span>Copier</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSpeakMessage(msg.contenu, idx)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-[var(--fb-surface)]/50 hover:text-[var(--fb-blue)] transition-colors cursor-pointer"
+                      >
+                        {speakingIndex === idx ? (
+                          <>
+                            <VolumeX className="w-4 h-4 text-[var(--fb-red)]" />
+                            <span className="text-[var(--fb-red)]">Stop</span>
+                          </>
+                        ) : (
+                          <>
+                            <Volume2 className="w-4 h-4 text-[var(--fb-blue)]" />
+                            <span>Écouter</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => exportItemToPDF('conversation', { titre: "Réponse MajorI.A", contenu: msg.contenu, date: msg.date })}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-[var(--fb-surface)]/50 hover:text-[var(--fb-text-primary)] transition-colors cursor-pointer"
+                      >
+                        <FileText className="w-4 h-4" />
+                        <span className="hidden sm:inline">PDF</span>
+                      </button>
                     </div>
-                  </div>
+                  )}
+
+                  {/* Timestamp for user bubbles */}
+                  {isUser && (
+                    <div className="mt-1 text-[10px] text-white/90 text-right font-medium">
+                      {new Date(msg.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  )}
                 </div>
 
                 {isUser && (
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-white/[0.06] backdrop-blur-xl border-[0.5px] border-white/20 flex items-center justify-center shrink-0 mt-0.5 text-white text-xs font-bold">
+                  <div className="w-9 h-9 rounded-full bg-[var(--fb-blue)] text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-sm mt-1 ring-1 ring-white/50">
                     {userProfile?.prenom ? userProfile.prenom[0].toUpperCase() : <User className="w-4 h-4" />}
                   </div>
                 )}
@@ -622,14 +684,16 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           })
         )}
 
-        {/* Loading Indicator without icon logo */}
+        {/* Loading Indicator */}
         {isLoading && (!conversation || conversation.messages.length === 0 || conversation.messages[conversation.messages.length - 1].role === 'user') && (
-          <div className="flex gap-2.5 sm:gap-3.5 max-w-4xl mx-auto items-center">
-            <div className="w-7 h-7 rounded-xl bg-white/[0.06] border-[0.5px] border-white/20 flex items-center justify-center shrink-0 text-sky-300 text-xs font-bold font-mono">
-              IA
-            </div>
-            <div className="p-3 rounded-2xl bg-white/[0.04] backdrop-blur-xl border-[0.5px] border-white/15 flex items-center gap-2 text-xs text-slate-300">
-              <Loader2 className="w-4 h-4 text-sky-400 animate-spin" />
+          <div className="flex gap-2.5 items-center">
+            <img 
+              src="/maskable_icon.png" 
+              alt="MajorI.A" 
+              className="w-9 h-9 rounded-full object-cover shrink-0 shadow-sm" 
+            />
+            <div className="p-3.5 rounded-2xl bg-[var(--chat-bubble-assistant)] backdrop-blur-xs border border-[var(--chat-bubble-border-ai)] flex items-center gap-2 text-xs font-bold text-[var(--fb-text-primary)] shadow-sm">
+              <Loader2 className="w-4 h-4 text-[var(--fb-blue)] animate-spin" />
               <span>MajorI.A réfléchit et formule sa réponse...</span>
             </div>
           </div>
@@ -637,41 +701,41 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
         {/* Mic error notice if any */}
         {micErrorMessage && (
-          <div className="max-w-4xl mx-auto p-2.5 rounded-xl bg-rose-950/80 border-[0.5px] border-rose-400/50 text-rose-200 text-xs flex items-center justify-between">
+          <div className="p-3 rounded-xl bg-rose-50/90 backdrop-blur-xs border border-rose-200 text-[#fa383e] text-xs font-bold flex items-center justify-between shadow-sm">
             <span>{micErrorMessage}</span>
-            <button onClick={() => setMicErrorMessage(null)} className="p-1 hover:text-white">
-              <X className="w-3.5 h-3.5" />
+            <button onClick={() => setMicErrorMessage(null)} className="p-1 hover:text-rose-900 cursor-pointer">
+              <X className="w-4 h-4" />
             </button>
           </div>
         )}
 
         {/* Live Audio Dictation Bar */}
         {isDictating && (
-          <div className="max-w-4xl mx-auto p-3 rounded-2xl bg-rose-950/80 border-[0.5px] border-rose-400/60 flex items-center justify-between gap-3 animate-pulse">
+          <div className="p-3.5 rounded-2xl bg-white/40 backdrop-blur-xs border-2 border-[#fa383e] shadow-md flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-rose-400 animate-ping inline-block" />
+              <span className="w-3 h-3 rounded-full bg-[#fa383e] animate-ping inline-block" />
               <div>
-                <div className="font-bold text-white text-xs">Microphone actif ({dictationSeconds}s)</div>
-                <div className="text-[11px] text-rose-200 truncate max-w-xs sm:max-w-md">
+                <div className="font-bold text-[#fa383e] text-xs sm:text-sm">Microphone actif ({dictationSeconds}s)</div>
+                <div className="text-xs text-[#050505] font-medium truncate max-w-xs sm:max-w-md">
                   {liveTranscript ? `"${liveTranscript}"` : "Parlez, le texte s'inscrit en direct..."}
                 </div>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
-              <div className="w-16 sm:w-24 h-2 bg-black/40 rounded-full overflow-hidden border-[0.5px] border-white/20">
+              <div className="w-16 sm:w-24 h-2 bg-white/60 rounded-full overflow-hidden border border-[#ced0d4]">
                 <div 
-                  className="h-full bg-rose-400 transition-all duration-75"
+                  className="h-full bg-[#fa383e] transition-all duration-75"
                   style={{ width: `${Math.max(20, audioLevel)}%` }}
                 />
               </div>
               <button
                 type="button"
                 onClick={() => stopRecordingAndSend()}
-                className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg font-bold text-xs border-[0.5px] border-white/30 flex items-center gap-1 cursor-pointer"
+                className="px-3 py-1.5 bg-[#fa383e] hover:bg-rose-600 text-white rounded-lg font-bold text-xs flex items-center gap-1 cursor-pointer shadow-sm"
               >
                 <Square className="w-3 h-3 fill-current" />
-                <span>Terminer & Envoyer</span>
+                <span>Envoyer</span>
               </button>
             </div>
           </div>
@@ -680,14 +744,14 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Message Input Bottom Bar (Glassmorphic & Transparent) */}
-      <div className="p-3 sm:p-4 bg-[#030914]/60 border-t border-white/10 shrink-0">
+      {/* Message Input Bottom Bar */}
+      <div className="relative z-10 p-2.5 sm:p-3.5 bg-[var(--chat-input-bg)] backdrop-blur-md border-t border-[var(--chat-input-border)] shrink-0 shadow-sm">
         
         {/* Exhausted Battery Notice Banner */}
         {effectiveEnergy <= 0 && (
-          <div className="mb-2.5 p-2.5 rounded-xl bg-rose-950/90 border-[0.5px] border-rose-400/50 text-white flex items-center justify-between gap-3 max-w-6xl mx-auto shadow-md">
-            <div className="flex items-center gap-2 text-xs">
-              <BatteryWarning className="w-4 h-4 text-rose-400 shrink-0 animate-pulse" />
+          <div className="mb-2.5 p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-[var(--fb-red)] flex items-center justify-between gap-3 max-w-4xl mx-auto shadow-xs">
+            <div className="flex items-center gap-2 text-xs font-semibold">
+              <BatteryWarning className="w-4 h-4 text-[var(--fb-red)] shrink-0 animate-pulse" />
               <span>{t('chat.batteryExhausted')}</span>
             </div>
             {onOpenForfaits && (
@@ -697,7 +761,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   playCyberSound('click');
                   onOpenForfaits();
                 }}
-                className="px-3 py-1 rounded-lg bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 text-white text-xs font-bold shrink-0 border-[0.5px] border-white/20"
+                className="px-3 py-1 rounded-full bg-[var(--fb-blue)] hover:bg-[var(--fb-blue-hover)] text-white text-xs font-bold shrink-0 shadow-sm"
               >
                 {t('chat.recharge')}
               </button>
@@ -705,7 +769,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="flex items-center gap-2 sm:gap-2.5 max-w-6xl mx-auto">
+        <form onSubmit={handleSubmit} className="flex items-center gap-1.5 sm:gap-2 max-w-4xl mx-auto">
           <input
             type="file"
             ref={fileInputRef}
@@ -714,52 +778,15 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             className="hidden"
           />
 
-          {/* Main Text Input (Glassmorphic) */}
-          <div className="relative flex-1">
-            <input
-              type="text"
-              placeholder={isDictating ? t('chat.listening') : isTranscribingAudio ? t('chat.transcribing') : t('chat.inputPlaceholder')}
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              disabled={isLoading || isTranscribingAudio}
-              className={`w-full h-11 sm:h-12 bg-white/[0.06] border-[0.5px] border-white/20 rounded-xl px-3.5 sm:px-4 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-white/50 focus:ring-1 focus:ring-white/30 font-sans transition-all ${
-                isDictating ? 'ring-1 ring-rose-400 bg-rose-950/30' : ''
-              }`}
-            />
-          </div>
-
-          {/* Send Button */}
-          <button
-            type="submit"
-            disabled={(!inputText.trim() && !selectedImage) || isLoading || isTranscribingAudio}
-            className="h-11 px-3.5 sm:h-12 sm:px-4 rounded-xl bg-sky-600/90 hover:bg-sky-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold border-[0.5px] border-white/30 transition-all shrink-0 flex items-center justify-center gap-1.5 active:scale-95 shadow-md cursor-pointer"
-          >
-            <Send className="w-4 h-4" />
-            <span className="hidden sm:inline text-xs font-bold">{t('chat.send')}</span>
-          </button>
-
-          {/* Mic Button */}
+          {/* Plus / Upload attachment button */}
           <button
             type="button"
-            onClick={handleToggleDictation}
-            disabled={isTranscribingAudio || isLoading}
-            title={isDictating ? "Arrêter la dictée (Mic)" : "Activer la dictée vocale (Mic)"}
-            className={`h-11 px-3 sm:h-12 sm:px-3.5 rounded-xl border-[0.5px] border-white/20 transition-all shrink-0 flex items-center justify-center gap-1.5 active:scale-95 shadow-md cursor-pointer ${
-              isDictating
-                ? 'bg-rose-600 hover:bg-rose-500 text-white animate-pulse'
-                : 'bg-white/[0.07] hover:bg-white/[0.14] text-slate-100'
-            }`}
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isLoading || isTranscribingAudio}
+            title="Joindre un fichier"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[var(--fb-surface-secondary)] hover:bg-[var(--fb-hover)] text-[var(--fb-blue)] flex items-center justify-center transition-all shrink-0 cursor-pointer"
           >
-            {isTranscribingAudio ? (
-              <Loader2 className="w-4 h-4 animate-spin text-sky-300" />
-            ) : isDictating ? (
-              <MicOff className="w-4 h-4 text-white" />
-            ) : (
-              <Mic className="w-4 h-4 text-rose-400" />
-            )}
-            <span className="text-xs font-semibold">
-              {isTranscribingAudio ? t('chat.transcribing') : isDictating ? t('chat.listening') : t('chat.mic')}
-            </span>
+            <Upload className="w-4.5 h-4.5" />
           </button>
 
           {/* Camera / Video Button */}
@@ -770,18 +797,62 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               setIsCameraModalOpen(true);
             }}
             disabled={isLoading || isTranscribingAudio}
-            title="Ouvrir l'appareil photo / vidéo (MajorI.A Vision)"
-            className="h-11 px-3 sm:h-12 sm:px-3.5 rounded-xl bg-white/[0.07] hover:bg-white/[0.14] border-[0.5px] border-white/20 text-sky-300 hover:text-white transition-all shrink-0 flex items-center justify-center gap-1.5 active:scale-95 shadow-md cursor-pointer"
+            title="Prendre une photo ou vidéo"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[var(--fb-surface-secondary)] hover:bg-[var(--fb-hover)] text-[var(--fb-green)] flex items-center justify-center transition-all shrink-0 cursor-pointer"
           >
-            <Camera className="w-4 h-4 text-sky-300" />
-            <span className="hidden sm:inline text-xs font-semibold">{t('chat.photoVideo')}</span>
+            <Camera className="w-4.5 h-4.5" />
+          </button>
+
+          {/* Main Text Input */}
+          <div className="relative flex-1">
+            <input
+              type="text"
+              placeholder={isDictating ? t('chat.listening') : isTranscribingAudio ? t('chat.transcribing') : t('chat.inputPlaceholder')}
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              disabled={isLoading || isTranscribingAudio}
+              className={`w-full h-10 sm:h-11 bg-[var(--fb-surface-secondary)] hover:bg-[var(--fb-hover)] focus:bg-[var(--fb-surface)] border border-[var(--fb-border)] focus:border-[var(--fb-blue)] rounded-full px-4 text-xs sm:text-sm text-[var(--fb-text-primary)] placeholder-[var(--fb-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--fb-blue)]/20 font-sans transition-all ${
+                isDictating ? 'ring-2 ring-[var(--fb-red)] bg-rose-500/10 border-[var(--fb-red)]' : ''
+              }`}
+            />
+          </div>
+
+          {/* Mic Button */}
+          <button
+            type="button"
+            onClick={handleToggleDictation}
+            disabled={isTranscribingAudio || isLoading}
+            title={isDictating ? "Arrêter la dictée" : "Dictée vocale"}
+            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full transition-all shrink-0 flex items-center justify-center cursor-pointer ${
+              isDictating
+                ? 'bg-[var(--fb-red)] text-white animate-pulse shadow-sm'
+                : 'bg-[var(--fb-surface-secondary)] hover:bg-[var(--fb-hover)] text-[var(--fb-red)]'
+            }`}
+          >
+            {isTranscribingAudio ? (
+              <Loader2 className="w-4.5 h-4.5 animate-spin text-[var(--fb-blue)]" />
+            ) : isDictating ? (
+              <MicOff className="w-4.5 h-4.5 text-white" />
+            ) : (
+              <Mic className="w-4.5 h-4.5" />
+            )}
+          </button>
+
+          {/* Send Button */}
+          <button
+            type="submit"
+            disabled={(!inputText.trim() && !selectedImage) || isLoading || isTranscribingAudio}
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[var(--fb-blue)] hover:bg-[var(--fb-blue-hover)] disabled:opacity-40 disabled:cursor-not-allowed text-white flex items-center justify-center transition-all shrink-0 shadow-sm active:scale-95 cursor-pointer"
+            title={t('chat.send')}
+          >
+            <Send className="w-4 h-4 ml-0.5" />
           </button>
         </form>
 
         {/* Selected Image Preview */}
         {selectedImage && (
-          <div className="mt-2.5 px-3 py-1.5 bg-white/[0.06] border-[0.5px] border-white/20 rounded-xl flex items-center gap-3 max-w-6xl mx-auto">
-            <div className="relative w-8 h-8 rounded-lg border-[0.5px] border-white/30 overflow-hidden bg-black">
+          <div className="mt-2.5 px-3 py-1.5 bg-[#f0f2f5] border border-[#e4e6eb] rounded-xl flex items-center gap-3 max-w-4xl mx-auto">
+            <div className="relative w-9 h-9 rounded-lg border border-[#ced0d4] overflow-hidden bg-black">
               <img src={selectedImage} alt="Attachment" className="w-full h-full object-cover" />
               <button
                 type="button"
@@ -789,12 +860,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   setSelectedImage(null);
                   setSelectedImageName(null);
                 }}
-                className="absolute top-0 right-0 bg-rose-600 text-white p-0.5"
+                className="absolute top-0 right-0 bg-[#fa383e] text-white p-0.5"
               >
                 <X className="w-2.5 h-2.5" />
               </button>
             </div>
-            <span className="text-xs font-medium text-slate-200 truncate">{selectedImageName}</span>
+            <span className="text-xs font-medium text-[#050505] truncate">{selectedImageName}</span>
           </div>
         )}
       </div>

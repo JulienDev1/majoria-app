@@ -168,35 +168,37 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
   };
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col h-full bg-[#030914]/50 p-3 sm:p-5 md:p-6 overflow-y-auto">
-      {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 sm:pb-4 border-b border-white">
+    <div className="flex-1 min-h-0 flex flex-col h-full bg-[#f0f2f5] p-3 sm:p-5 md:p-6 overflow-y-auto">
+      {/* Header Bar in Facebook Card Style */}
+      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-[#e4e6eb] shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2">
-            <CalendarIcon className="w-5 h-5 text-sky-400" />
-            <h1 className="text-xl md:text-2xl font-bold text-white">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-full bg-[#1877f2] text-white flex items-center justify-center shadow-xs">
+              <CalendarIcon className="w-5 h-5" />
+            </div>
+            <h1 className="text-xl md:text-2xl font-bold text-[#050505]">
               Agenda & Calendrier
             </h1>
           </div>
-          <p className="text-sm text-slate-300 mt-0.5 font-medium">
-            Visualisez, modifiez ✏️ et gérez tous vos rappels et échéances par date.
+          <p className="text-xs sm:text-sm text-[#65676b] mt-1 font-medium">
+            Visualisez et gérez tous vos rappels et échéances par date.
           </p>
         </div>
 
         {/* Month Navigation */}
-        <div className="flex items-center gap-2 bg-slate-900 border border-white px-3 py-1.5 rounded-xl shadow-sm">
+        <div className="flex items-center gap-2 bg-[#f0f2f5] border border-[#e4e6eb] px-3 py-1.5 rounded-full">
           <button
             onClick={() => changeMonth(-1)}
-            className="p-1 border border-white rounded-lg bg-slate-800 text-white hover:bg-slate-700"
+            className="p-1.5 rounded-full hover:bg-[#e4e6eb] text-[#050505] transition-colors cursor-pointer"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
-          <span className="capitalize font-bold text-sm text-white px-2">
+          <span className="capitalize font-bold text-xs sm:text-sm text-[#050505] px-2">
             {monthName}
           </span>
           <button
             onClick={() => changeMonth(1)}
-            className="p-1 border border-white rounded-lg bg-slate-800 text-white hover:bg-slate-700"
+            className="p-1.5 rounded-full hover:bg-[#e4e6eb] text-[#050505] transition-colors cursor-pointer"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
@@ -206,9 +208,9 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
       {/* Main Grid: Calendar + Events Detail */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mt-4">
         {/* Calendar View */}
-        <div className="lg:col-span-2 bg-slate-900/90 rounded-2xl border border-white p-4 shadow-md">
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-[#e4e6eb] p-4 sm:p-5 shadow-sm">
           {/* Weekday headers */}
-          <div className="grid grid-cols-7 gap-1 text-center font-bold text-xs text-white mb-2 py-1 border-b border-white">
+          <div className="grid grid-cols-7 gap-1 text-center font-bold text-xs text-[#65676b] mb-2 py-1 border-b border-[#f0f2f5]">
             <span>Lun</span>
             <span>Mar</span>
             <span>Mer</span>
@@ -232,17 +234,19 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
                     playCyberSound('click');
                     setSelectedDateKey(cell.dateKey!);
                   }}
-                  className={`h-14 sm:h-18 p-1.5 rounded-xl border border-white flex flex-col justify-between items-start transition-all relative ${
+                  className={`h-14 sm:h-18 p-1.5 rounded-xl border flex flex-col justify-between items-start transition-all relative cursor-pointer ${
                     cell.isSelected
-                      ? 'bg-sky-600/50 text-white font-bold ring-2 ring-white'
+                      ? 'bg-[#1877f2] text-white border-[#1877f2] font-bold shadow-xs'
                       : cell.isToday
-                      ? 'bg-slate-800 text-white font-bold'
-                      : 'bg-slate-950 text-slate-200 hover:bg-slate-850 hover:text-white'
+                      ? 'bg-[#e7f3ff] text-[#1877f2] border-[#1877f2] font-bold'
+                      : 'bg-[#f0f2f5] border-[#e4e6eb] text-[#050505] hover:bg-[#e4e6eb]'
                   }`}
                 >
                   <span className="text-xs sm:text-sm font-semibold">{cell.dayNumber}</span>
                   {cell.count! > 0 && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-rose-500 text-white font-bold self-end border border-white">
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold self-end ${
+                      cell.isSelected ? 'bg-white text-[#1877f2]' : 'bg-[#fa383e] text-white'
+                    }`}>
                       {cell.count}
                     </span>
                   )}
@@ -253,11 +257,11 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
         </div>
 
         {/* Day Events Detail Panel */}
-        <div className="bg-slate-900/90 rounded-2xl border border-white p-4 flex flex-col shadow-md">
-          <h3 className="text-base font-bold text-white pb-2 mb-3 border-b border-white flex items-center justify-between">
+        <div className="bg-white rounded-2xl border border-[#e4e6eb] p-4 sm:p-5 flex flex-col shadow-sm">
+          <h3 className="text-base font-bold text-[#050505] pb-2 mb-3 border-b border-[#f0f2f5] flex items-center justify-between">
             <span>Événements du jour</span>
             {selectedDateKey && (
-              <span className="text-xs font-semibold text-white">
+              <span className="text-xs font-semibold text-[#65676b]">
                 {new Date(selectedDateKey).toLocaleDateString('fr-FR', {
                   day: '2-digit',
                   month: 'short',
@@ -268,58 +272,60 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
 
           <div className="flex-1 space-y-2.5 overflow-y-auto">
             {selectedDateEvents.length === 0 ? (
-              <div className="h-40 flex flex-col items-center justify-center text-center p-4 border border-dashed border-white rounded-xl text-xs text-slate-300">
+              <div className="h-40 flex flex-col items-center justify-center text-center p-4 border border-dashed border-[#ced0d4] rounded-2xl text-xs text-[#65676b] bg-[#f0f2f5] font-medium">
                 Aucun événement prévu pour cette date.
               </div>
             ) : (
               selectedDateEvents.map((ev, idx) => (
                 <div
                   key={idx}
-                  className="p-3 bg-slate-950 rounded-xl border border-white space-y-1.5 shadow-sm hover:bg-slate-900 transition-colors"
+                  className="p-3.5 bg-[#f0f2f5] rounded-xl border border-[#e4e6eb] space-y-1.5 shadow-xs hover:bg-[#e4e6eb] transition-colors"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-bold uppercase flex items-center gap-1 text-white">
+                    <span className={`text-xs font-bold uppercase flex items-center gap-1 px-2 py-0.5 rounded-full ${
+                      ev.type === 'rappel' ? 'bg-[#fa383e]/15 text-[#fa383e]' : 'bg-[#42b72a]/20 text-[#42b72a]'
+                    }`}>
                       {ev.type === 'rappel' ? (
-                        <Bell className="w-3.5 h-3.5 text-rose-400" />
+                        <Bell className="w-3.5 h-3.5 text-[#fa383e]" />
                       ) : (
-                        <CheckSquare className="w-3.5 h-3.5 text-emerald-400" />
+                        <CheckSquare className="w-3.5 h-3.5 text-[#42b72a]" />
                       )}
                       {ev.type === 'rappel' ? 'Rappel' : 'Tâche'}
                     </span>
 
                     <div className="flex items-center gap-1">
-                      {/* Modifier ✏️ */}
+                      {/* Modifier */}
                       <button
                         onClick={() => handleOpenEdit(ev)}
-                        title="Modifier ✏️"
-                        className="p-1 border border-white rounded-lg bg-sky-950/60 text-sky-300 hover:bg-sky-900 hover:text-white transition-colors"
+                        title="Modifier"
+                        className="p-1.5 rounded-full hover:bg-white text-[#65676b] hover:text-[#050505] transition-colors cursor-pointer"
                       >
                         <Pencil className="w-3 h-3" />
                       </button>
                       <button
                         onClick={() => handleDelete(ev)}
                         title="Supprimer"
-                        className="p-1 border border-white rounded-lg bg-rose-950/60 text-rose-300 hover:bg-rose-900 transition-colors"
+                        className="p-1.5 rounded-full hover:bg-rose-50 text-[#65676b] hover:text-[#fa383e] transition-colors cursor-pointer"
                       >
                         <Trash2 className="w-3 h-3" />
                       </button>
                     </div>
                   </div>
 
-                  <p className="text-sm font-semibold text-white leading-snug">
+                  <p className="text-sm font-bold text-[#050505] leading-snug">
                     {ev.title}
                   </p>
 
                   {ev.item.description && (
-                    <p className="text-xs text-slate-300 line-clamp-2">
+                    <p className="text-xs text-[#65676b] line-clamp-2 font-medium">
                       {ev.item.description}
                     </p>
                   )}
 
-                  <div className="pt-1 flex items-center justify-between text-xs text-slate-300">
+                  <div className="pt-1 flex items-center justify-between text-xs text-[#65676b]">
                     {ev.item.heure ? (
-                      <span className="flex items-center gap-1 text-[11px]">
-                        <Clock className="w-3 h-3 text-slate-400" />
+                      <span className="flex items-center gap-1 text-[11px] font-medium">
+                        <Clock className="w-3 h-3 text-[#65676b]" />
                         {ev.item.heure}
                         {ev.item.heureFin ? ` - ${ev.item.heureFin}` : ''}
                       </span>
@@ -329,10 +335,10 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
 
                     <button
                       onClick={() => handleOpenEdit(ev)}
-                      className="text-[11px] font-semibold text-sky-300 hover:text-sky-200 hover:underline flex items-center gap-0.5"
+                      className="text-xs font-bold text-[#1877f2] hover:underline flex items-center gap-0.5 cursor-pointer"
                     >
                       <Pencil className="w-3 h-3" />
-                      Modifier ✏️
+                      Modifier
                     </button>
                   </div>
                 </div>
@@ -342,50 +348,50 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
         </div>
       </div>
 
-      {/* Edit Modal for Calendar Item */}
+      {/* Edit Modal for Calendar Item in Facebook Style */}
       {editingItem && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-slate-950 border-2 border-white rounded-2xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <Pencil className="w-5 h-5 text-sky-400" />
-              Modifier {editingItem.type === 'rappel' ? 'le Rappel' : 'la Tâche'} dans l'Agenda ✏️
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white border border-[#ced0d4] rounded-2xl p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-lg sm:text-xl font-bold text-[#050505] flex items-center gap-2">
+              <Pencil className="w-5 h-5 text-[#1877f2]" />
+              Modifier {editingItem.type === 'rappel' ? 'le Rappel' : 'la Tâche'}
             </h2>
 
             <form onSubmit={handleSaveEdit} className="space-y-3.5">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Titre *</label>
+                <label className="block text-xs font-bold text-[#65676b] mb-1">Titre *</label>
                 <input
                   type="text"
                   required
                   value={editTitle}
                   onChange={(e) => setEditTitle(e.target.value)}
-                  className="w-full bg-slate-900 border border-white rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white font-sans"
+                  className="w-full bg-[#f0f2f5] border border-[#ced0d4] rounded-xl px-3.5 py-2 text-sm text-[#050505] focus:bg-white focus:outline-none focus:border-[#1877f2]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Description</label>
+                <label className="block text-xs font-bold text-[#65676b] mb-1">Description</label>
                 <textarea
                   rows={2}
                   value={editDesc}
                   onChange={(e) => setEditDesc(e.target.value)}
-                  className="w-full bg-slate-900 border border-white rounded-xl p-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white font-sans"
+                  className="w-full bg-[#f0f2f5] border border-[#ced0d4] rounded-xl p-2.5 text-sm text-[#050505] focus:bg-white focus:outline-none focus:border-[#1877f2]"
                 />
               </div>
 
               {/* Date & Time fields */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Date</label>
+                  <label className="block text-xs font-bold text-[#65676b] mb-1">Date</label>
                   <input
                     type="date"
                     value={editDate}
                     onChange={(e) => setEditDate(e.target.value)}
-                    className="w-full bg-slate-900 border border-white rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white font-sans"
+                    className="w-full bg-[#f0f2f5] border border-[#ced0d4] rounded-xl px-3 py-2 text-sm text-[#050505] focus:bg-white focus:outline-none focus:border-[#1877f2]"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  <label className="block text-xs font-bold text-[#65676b] mb-1">
                     {editingItem.type === 'rappel' ? 'Heure' : 'Priorité'}
                   </label>
                   {editingItem.type === 'rappel' ? (
@@ -393,13 +399,13 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
                       type="time"
                       value={editTime}
                       onChange={(e) => setEditTime(e.target.value)}
-                      className="w-full bg-slate-900 border border-white rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white font-sans"
+                      className="w-full bg-[#f0f2f5] border border-[#ced0d4] rounded-xl px-3 py-2 text-sm text-[#050505] focus:bg-white focus:outline-none focus:border-[#1877f2]"
                     />
                   ) : (
                     <select
                       value={editPriority}
                       onChange={(e) => setEditPriority(e.target.value as Priority)}
-                      className="w-full bg-slate-900 border border-white rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white font-sans"
+                      className="w-full bg-[#f0f2f5] border border-[#ced0d4] rounded-xl px-3 py-2 text-sm text-[#050505] focus:bg-white focus:outline-none focus:border-[#1877f2]"
                     >
                       <option value="basse">Basse</option>
                       <option value="normale">Normale</option>
@@ -412,11 +418,11 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
 
               {editingItem.type === 'rappel' && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Priorité</label>
+                  <label className="block text-xs font-bold text-[#65676b] mb-1">Priorité</label>
                   <select
                     value={editPriority}
                     onChange={(e) => setEditPriority(e.target.value as Priority)}
-                    className="w-full bg-slate-900 border border-white rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white font-sans"
+                    className="w-full bg-[#f0f2f5] border border-[#ced0d4] rounded-xl px-3 py-2 text-sm text-[#050505] focus:bg-white focus:outline-none focus:border-[#1877f2]"
                   >
                     <option value="basse">Basse</option>
                     <option value="normale">Normale</option>
@@ -428,11 +434,11 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
 
               {editingItem.type === 'tache' && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Statut</label>
+                  <label className="block text-xs font-bold text-[#65676b] mb-1">Statut</label>
                   <select
                     value={editStatus}
                     onChange={(e) => setEditStatus(e.target.value as TaskStatus)}
-                    className="w-full bg-slate-900 border border-white rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white font-sans"
+                    className="w-full bg-[#f0f2f5] border border-[#ced0d4] rounded-xl px-3 py-2 text-sm text-[#050505] focus:bg-white focus:outline-none focus:border-[#1877f2]"
                   >
                     <option value="attente">En Attente</option>
                     <option value="cours">En Cours</option>
@@ -441,17 +447,17 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
                 </div>
               )}
 
-              <div className="flex items-center justify-end gap-2 pt-3">
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#e4e6eb]">
                 <button
                   type="button"
                   onClick={() => setEditingItem(null)}
-                  className="px-4 py-2 rounded-xl bg-slate-900 border border-white text-white hover:bg-slate-800 font-semibold text-sm"
+                  className="px-4 py-2 rounded-full bg-[#e4e6eb] hover:bg-[#d8dadf] text-[#050505] font-bold text-xs sm:text-sm cursor-pointer"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 border border-white text-white font-semibold text-sm shadow-md"
+                  className="px-4 py-2 rounded-full bg-[#1877f2] hover:bg-[#166fe5] text-white font-bold text-xs sm:text-sm shadow-sm cursor-pointer"
                 >
                   Mettre à jour
                 </button>

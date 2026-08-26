@@ -525,17 +525,19 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
   const charsCount = (transcribedText + ' ' + interimText).length;
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col h-full bg-transparent overflow-y-auto p-4 sm:p-6 space-y-6">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white">
+    <div className="flex-1 min-h-0 flex flex-col h-full bg-[#f0f2f5] overflow-y-auto p-4 sm:p-6 space-y-4">
+      {/* Top Header in Facebook Card Style */}
+      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-[#e4e6eb] shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl sm:text-3xl font-bold text-white flex items-center gap-3">
-            <span className="p-2 rounded-2xl bg-sky-500/20 border border-white text-sky-400 shadow-sm">
-              <Mic className="w-6 h-6" />
-            </span>
-            Transcription Vocale
-          </h2>
-          <p className="text-sm sm:text-base text-slate-300 mt-1 font-medium">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-full bg-[#1877f2] text-white flex items-center justify-center shadow-xs">
+              <Mic className="w-5 h-5" />
+            </div>
+            <h1 className="text-xl md:text-2xl font-bold text-[#050505]">
+              Transcription Vocale
+            </h1>
+          </div>
+          <p className="text-xs sm:text-sm text-[#65676b] mt-1 font-medium">
             Activez le microphone pour transcrire votre voix en direct ou importez un fichier audio.
           </p>
         </div>
@@ -546,7 +548,7 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
             value={selectedLanguage}
             onChange={(e) => setSelectedLanguage(e.target.value)}
             disabled={isRecording}
-            className="px-3.5 py-2 rounded-xl bg-slate-900 border border-white text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-white transition-colors shadow-sm"
+            className="px-3.5 py-2 rounded-full bg-[#f0f2f5] border border-[#ced0d4] text-[#050505] text-xs sm:text-sm font-semibold focus:outline-none focus:border-[#1877f2] transition-colors"
           >
             <option value="fr-FR">Français (FR)</option>
             <option value="en-US">English (US)</option>
@@ -567,36 +569,36 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading || isRecording || isProcessingAI}
-            className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-white text-white text-sm font-semibold flex items-center gap-2 transition-all active:scale-95 disabled:opacity-50 shadow-sm"
+            className="px-4 py-2 rounded-full bg-[#e4e6eb] hover:bg-[#d8dadf] text-[#050505] text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
           >
             {isUploading ? (
-              <RefreshCw className="w-4 h-4 animate-spin text-sky-300" />
+              <RefreshCw className="w-4 h-4 animate-spin text-[#1877f2]" />
             ) : (
-              <Upload className="w-4 h-4 text-sky-300" />
+              <Upload className="w-4 h-4 text-[#1877f2]" />
             )}
             <span>{isUploading ? 'Transcription...' : 'Importer Audio'}</span>
           </button>
         </div>
       </div>
 
-      {/* Main Recording / Dictation Card */}
-      <div className="bg-slate-900/90 rounded-2xl border border-white p-5 sm:p-6 shadow-xl space-y-5">
+      {/* Main Recording / Dictation Card in Facebook Style */}
+      <div className="bg-white rounded-2xl border border-[#e4e6eb] p-5 sm:p-6 shadow-sm space-y-4">
         {/* Controls and Status */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-xl bg-slate-950 border border-white">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-xl bg-[#f0f2f5] border border-[#e4e6eb]">
           <div className="flex items-center gap-4 w-full sm:w-auto">
             <button
               onClick={toggleRecording}
               disabled={isProcessingAI || isUploading}
-              className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl border-2 flex items-center justify-center transition-all shadow-lg active:scale-95 shrink-0 ${
+              className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center transition-all shadow-md active:scale-95 shrink-0 cursor-pointer ${
                 isRecording
-                  ? 'bg-rose-600 border-white text-white animate-pulse ring-2 ring-rose-400'
+                  ? 'bg-[#fa383e] text-white animate-pulse'
                   : isProcessingAI
-                  ? 'bg-slate-800 border-white text-sky-400 cursor-wait'
-                  : 'bg-sky-600 hover:bg-sky-500 border-white text-white shadow-md'
+                  ? 'bg-[#e4e6eb] text-[#1877f2] cursor-wait'
+                  : 'bg-[#1877f2] hover:bg-[#166fe5] text-white'
               }`}
             >
               {isProcessingAI ? (
-                <Loader2 className="w-7 h-7 animate-spin text-white" />
+                <Loader2 className="w-7 h-7 animate-spin text-[#1877f2]" />
               ) : isRecording ? (
                 <Square className="w-6 h-6 fill-white" />
               ) : (
@@ -605,14 +607,14 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
             </button>
 
             <div className="flex-1 min-w-0">
-              <div className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+              <div className="text-base sm:text-lg font-bold text-[#050505] flex items-center gap-2">
                 {isRecording ? (
                   <>
-                    <span className="w-3 h-3 rounded-full bg-rose-500 animate-ping" />
-                    <span className="text-rose-300">Microphone actif • Parlez</span>
+                    <span className="w-3 h-3 rounded-full bg-[#fa383e] animate-ping" />
+                    <span className="text-[#fa383e]">Microphone actif • Parlez</span>
                   </>
                 ) : isProcessingAI ? (
-                  <span className="text-sky-300">Traitement IA en cours...</span>
+                  <span className="text-[#1877f2]">Traitement IA en cours...</span>
                 ) : (
                   <span>Cliquez sur le micro pour enregistrer</span>
                 )}
@@ -621,20 +623,20 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
               {/* Volume meter visualizer during recording */}
               {isRecording ? (
                 <div className="mt-2 flex items-center gap-2">
-                  <div className="flex-1 h-3 bg-black rounded-full border border-white p-0.5 overflow-hidden max-w-xs">
+                  <div className="flex-1 h-3 bg-[#e4e6eb] rounded-full p-0.5 overflow-hidden max-w-xs">
                     <div
-                      className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-sky-400 to-rose-500 transition-all duration-75"
+                      className="h-full rounded-full bg-[#1877f2] transition-all duration-75"
                       style={{ width: `${Math.max(8, audioLevel)}%` }}
                     />
                   </div>
-                  <span className="font-mono text-xs font-bold text-white">
+                  <span className="font-mono text-xs font-bold text-[#050505]">
                     {formatSeconds(recordingDuration)}
                   </span>
                 </div>
               ) : (
-                <div className="text-xs sm:text-sm text-slate-300 flex items-center gap-3 mt-1">
-                  <span className="flex items-center gap-1 font-mono text-white">
-                    <Clock className="w-3.5 h-3.5" />
+                <div className="text-xs sm:text-sm text-[#65676b] flex items-center gap-3 mt-1 font-medium">
+                  <span className="flex items-center gap-1 font-mono text-[#050505]">
+                    <Clock className="w-3.5 h-3.5 text-[#1877f2]" />
                     {formatSeconds(recordingDuration)}
                   </span>
                   <span>•</span>
@@ -656,9 +658,9 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
                   transcribeBlobWithGemini(lastRecordedBlob, mimeType);
                 }}
                 disabled={isProcessingAI}
-                className="px-3.5 py-2 rounded-xl bg-sky-600/40 hover:bg-sky-600/60 border border-white text-white text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-all shadow-sm"
+                className="px-3.5 py-2 rounded-full bg-[#e7f3ff] hover:bg-[#dbe7f2] text-[#1877f2] text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer"
               >
-                <Sparkles className="w-4 h-4 text-sky-300" />
+                <Sparkles className="w-4 h-4 text-[#1877f2]" />
                 <span>Améliorer avec l'IA</span>
               </button>
             )}
@@ -668,9 +670,9 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
                 <button
                   type="button"
                   onClick={handleSaveTranscription}
-                  className="px-3.5 py-2 rounded-xl bg-emerald-600/50 hover:bg-emerald-600/70 border border-white text-white text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-all shadow-sm"
+                  className="px-3.5 py-2 rounded-full bg-[#1877f2] hover:bg-[#166fe5] text-white text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
                 >
-                  <Sparkles className="w-4 h-4 text-emerald-300" />
+                  <Sparkles className="w-4 h-4" />
                   <span>Enregistrer</span>
                 </button>
 
@@ -683,7 +685,7 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
                     setLastRecordedBlob(null);
                     playCyberSound('click');
                   }}
-                  className="p-2 rounded-xl bg-rose-600/30 hover:bg-rose-600/50 border border-white text-rose-200 transition-all shadow-sm"
+                  className="p-2 rounded-full bg-[#e4e6eb] hover:bg-rose-50 text-[#65676b] hover:text-[#fa383e] transition-all cursor-pointer"
                   title="Effacer le texte"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -700,20 +702,20 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
             onChange={(e) => setTranscribedText(e.target.value)}
             placeholder="Le texte transcrit s'affichera ici en temps réel pendant que vous parlez dans le micro, ou après l'import d'un fichier audio..."
             rows={7}
-            className="w-full bg-slate-950 border border-white focus:border-white rounded-xl p-4 text-white text-base sm:text-lg placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-white font-sans leading-relaxed transition-all resize-y"
+            className="w-full bg-[#f0f2f5] border border-[#ced0d4] rounded-2xl p-4 text-[#050505] text-base placeholder-[#65676b] focus:bg-white focus:outline-none focus:border-[#1877f2] font-sans leading-relaxed transition-all resize-y"
           />
 
           {isRecording && (
-            <div className="absolute bottom-3 right-3 flex items-center gap-2 px-3 py-1 bg-rose-950 border border-white rounded-lg text-white text-xs font-semibold shadow-md animate-pulse">
-              <div className="w-2.5 h-2.5 rounded-full bg-rose-400" />
-              <span>Écoute active en direct</span>
+            <div className="absolute bottom-3 right-3 flex items-center gap-2 px-3 py-1 bg-[#fa383e] rounded-full text-white text-xs font-bold shadow-md animate-pulse">
+              <div className="w-2 h-2 rounded-full bg-white" />
+              <span>Écoute active</span>
             </div>
           )}
 
           {isProcessingAI && (
-            <div className="absolute inset-0 bg-slate-950/90 rounded-xl flex items-center justify-center gap-3 backdrop-blur-sm border border-white">
-              <Loader2 className="w-6 h-6 animate-spin text-white" />
-              <span className="text-white font-bold text-base">Transcription avec Gemini AI en cours...</span>
+            <div className="absolute inset-0 bg-white/90 rounded-2xl flex items-center justify-center gap-3 backdrop-blur-xs border border-[#e4e6eb]">
+              <Loader2 className="w-6 h-6 animate-spin text-[#1877f2]" />
+              <span className="text-[#050505] font-bold text-base">Transcription avec Gemini AI en cours...</span>
             </div>
           )}
         </div>
@@ -725,18 +727,18 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
               {/* Copy */}
               <button
                 onClick={handleCopyText}
-                className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-white text-white text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-all shadow-sm"
+                className="px-3.5 py-2 rounded-full bg-[#f0f2f5] hover:bg-[#e4e6eb] text-[#050505] text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer"
               >
-                {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                {copied ? <Check className="w-4 h-4 text-[#42b72a]" /> : <Copy className="w-4 h-4 text-[#65676b]" />}
                 <span>{copied ? 'Copié' : 'Copier'}</span>
               </button>
 
               {/* Download TXT */}
               <button
                 onClick={handleDownloadTxt}
-                className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-white text-white text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-all shadow-sm"
+                className="px-3.5 py-2 rounded-full bg-[#f0f2f5] hover:bg-[#e4e6eb] text-[#050505] text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer"
               >
-                <Download className="w-4 h-4" />
+                <Download className="w-4 h-4 text-[#65676b]" />
                 <span>Télécharger (.txt)</span>
               </button>
             </div>
@@ -749,7 +751,7 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
                   const text = (transcribedText + ' ' + interimText).trim();
                   if (text) onSendToChat(text);
                 }}
-                className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 border border-white text-white text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-all shadow-md active:scale-95"
+                className="px-3.5 py-2 rounded-full bg-[#1877f2] hover:bg-[#166fe5] text-white text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
               >
                 <MessageSquare className="w-4 h-4" />
                 <span>Envoyer au Chat</span>
@@ -764,9 +766,9 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
                     onShowToast('Tâche créée à partir de la voix', 'success');
                   }
                 }}
-                className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 border border-white text-white text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-all shadow-md active:scale-95"
+                className="px-3.5 py-2 rounded-full bg-[#f0f2f5] hover:bg-[#e4e6eb] text-[#050505] text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer"
               >
-                <CheckSquare className="w-4 h-4" />
+                <CheckSquare className="w-4 h-4 text-[#42b72a]" />
                 <span>Créer Tâche</span>
               </button>
 
@@ -779,9 +781,9 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
                     onShowToast('Rappel créé à partir de la voix', 'success');
                   }
                 }}
-                className="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 border border-white text-white text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-all shadow-md active:scale-95"
+                className="px-3.5 py-2 rounded-full bg-[#f0f2f5] hover:bg-[#e4e6eb] text-[#050505] text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer"
               >
-                <Bell className="w-4 h-4" />
+                <Bell className="w-4 h-4 text-[#fa383e]" />
                 <span>Créer Rappel</span>
               </button>
 
@@ -791,12 +793,12 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
                   const text = (transcribedText + ' ' + interimText).trim();
                   if (text) {
                     onCreateMemory(text);
-                    onShowToast('Ajouté à la mémoire de MajorI.A', 'success');
+                    onShowToast('Ajouté à la mémoire', 'success');
                   }
                 }}
-                className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 border border-white text-white text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-all shadow-md active:scale-95"
+                className="px-3.5 py-2 rounded-full bg-[#f0f2f5] hover:bg-[#e4e6eb] text-[#050505] text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer"
               >
-                <Brain className="w-4 h-4" />
+                <Brain className="w-4 h-4 text-[#1877f2]" />
                 <span>Mémoriser</span>
               </button>
             </div>
@@ -807,14 +809,14 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
       {/* Transcriptions History List */}
       <div className="space-y-4 pt-2">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
-            <FileText className="w-5 h-5 text-sky-400" />
+          <h3 className="text-lg sm:text-xl font-bold text-[#050505] flex items-center gap-2">
+            <FileText className="w-5 h-5 text-[#1877f2]" />
             Historique des Transcriptions ({savedTranscriptions.length})
           </h3>
         </div>
 
         {savedTranscriptions.length === 0 ? (
-          <div className="text-center py-8 text-slate-300 bg-slate-900/80 rounded-2xl border border-white">
+          <div className="text-center py-8 text-[#65676b] bg-white rounded-2xl border border-[#e4e6eb] shadow-sm font-medium">
             Aucune transcription enregistrée pour le moment.
           </div>
         ) : (
@@ -822,12 +824,12 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
             {savedTranscriptions.map((item) => (
               <div
                 key={item.id}
-                className="bg-slate-900/90 rounded-2xl border border-white p-4 shadow-md hover:bg-slate-850 transition-all space-y-3 flex flex-col justify-between"
+                className="bg-white rounded-2xl border border-[#e4e6eb] p-4 sm:p-5 shadow-sm hover:shadow-md transition-all space-y-3 flex flex-col justify-between"
               >
                 <div>
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <h4 className="font-bold text-white text-base truncate flex-1">{item.titre}</h4>
-                    <span className="text-xs text-slate-300 shrink-0 font-mono">
+                  <div className="flex items-start justify-between gap-2 mb-2 pb-2 border-b border-[#f0f2f5]">
+                    <h4 className="font-bold text-[#050505] text-base truncate flex-1">{item.titre}</h4>
+                    <span className="text-xs text-[#65676b] shrink-0 font-medium">
                       {new Date(item.date).toLocaleDateString('fr-FR', {
                         day: '2-digit',
                         month: 'short',
@@ -837,20 +839,20 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
                     </span>
                   </div>
 
-                  <p className="text-sm text-slate-200 line-clamp-3 leading-relaxed whitespace-pre-wrap">
+                  <p className="text-xs sm:text-sm text-[#050505] line-clamp-3 leading-relaxed whitespace-pre-wrap font-medium">
                     {item.texte}
                   </p>
                 </div>
 
-                <div className="pt-3 border-t border-white/30 flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
+                <div className="pt-3 border-t border-[#f0f2f5] flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => {
                         setTranscribedText(item.texte);
                         playCyberSound('click');
                         onShowToast('Transcription chargée dans l\'éditeur', 'info');
                       }}
-                      className="px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 border border-white text-white font-semibold transition-all"
+                      className="px-3 py-1.5 rounded-full bg-[#e7f3ff] hover:bg-[#dbe7f2] text-[#1877f2] font-bold transition-all cursor-pointer"
                     >
                       Ouvrir
                     </button>
@@ -860,14 +862,14 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
                         playCyberSound('click');
                         onShowToast('Copié dans le presse-papier', 'success');
                       }}
-                      className="p-1.5 rounded-lg border border-white bg-slate-800 text-white hover:bg-slate-700 transition-all"
+                      className="p-1.5 rounded-full hover:bg-[#f0f2f5] text-[#65676b] hover:text-[#050505] transition-all cursor-pointer"
                       title="Copier"
                     >
                       <Copy className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => onSendToChat(item.texte)}
-                      className="p-1.5 rounded-lg border border-white bg-sky-900/60 text-sky-200 hover:bg-sky-800 transition-all"
+                      className="p-1.5 rounded-full hover:bg-[#f0f2f5] text-[#65676b] hover:text-[#1877f2] transition-all cursor-pointer"
                       title="Envoyer au Chat"
                     >
                       <MessageSquare className="w-4 h-4" />
@@ -879,7 +881,7 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
                       setSavedTranscriptions(savedTranscriptions.filter((t) => t.id !== item.id));
                       playCyberSound('alert');
                     }}
-                    className="p-1.5 rounded-lg border border-white bg-rose-900/40 text-rose-300 hover:bg-rose-800 hover:text-white transition-colors"
+                    className="p-1.5 rounded-full hover:bg-rose-50 text-[#65676b] hover:text-[#fa383e] transition-colors cursor-pointer"
                     title="Supprimer"
                   >
                     <Trash2 className="w-4 h-4" />

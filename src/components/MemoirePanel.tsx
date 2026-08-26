@@ -199,53 +199,55 @@ export const MemoirePanel: React.FC<MemoirePanelProps> = ({
   };
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col h-full bg-[#030914]/50 p-4 md:p-6 overflow-y-auto">
+    <div className="flex-1 min-h-0 flex flex-col h-full bg-[#f0f2f5] p-4 md:p-6 overflow-y-auto">
       {/* Quick Action Toast */}
       {actionDoneToast && (
-        <div className="fixed top-16 right-4 z-50 flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white font-semibold text-sm rounded-xl shadow-2xl border border-white animate-bounce">
+        <div className="fixed top-16 right-4 z-50 flex items-center gap-2 px-4 py-2.5 bg-[#42b72a] text-white font-bold text-sm rounded-full shadow-2xl animate-bounce">
           <Check className="w-4 h-4" />
           <span>{actionDoneToast}</span>
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white">
+      {/* Header in Facebook Card Style */}
+      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-[#e4e6eb] shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5">
-            <Brain className="w-6 h-6 text-purple-300" />
-            <h1 className="text-xl md:text-2xl font-bold text-white">
+            <div className="w-9 h-9 rounded-full bg-[#1877f2] text-white flex items-center justify-center shadow-xs">
+              <Brain className="w-5 h-5" />
+            </div>
+            <h1 className="text-xl md:text-2xl font-bold text-[#050505]">
               Mémoire & Historique des Requêtes
             </h1>
           </div>
-          <p className="text-sm text-slate-300 mt-1 font-medium">
-            Retrouvez toutes vos demandes faites au chatbot ainsi que les informations mémorisées et consignées.
+          <p className="text-xs sm:text-sm text-[#65676b] mt-1 font-medium">
+            Retrouvez toutes vos demandes faites à l'assistant ainsi que les faits et informations mémorisés.
           </p>
         </div>
 
         <button
           onClick={handleOpenAdd}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold text-sm shadow-md transition-all border border-white shrink-0"
+          className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-[#1877f2] hover:bg-[#166fe5] text-white font-bold text-sm shadow-sm transition-all cursor-pointer shrink-0"
         >
           <Plus className="w-4 h-4" />
-          <span>Mémoriser une information</span>
+          <span>Mémoriser une info</span>
         </button>
       </div>
 
-      {/* Navigation Tabs (Mémoire vs Journal des Demandes) */}
-      <div className="flex items-center gap-2 my-4 border-b border-white/20 pb-3">
+      {/* Navigation Tabs (Mémoire vs Journal des Demandes) in Facebook Pill Tabs */}
+      <div className="flex items-center gap-2 my-4">
         <button
           onClick={() => {
             playCyberSound('click');
             setActiveTab('memoire');
           }}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all border ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm font-bold transition-all cursor-pointer ${
             activeTab === 'memoire'
-              ? 'bg-purple-600 text-white border-white shadow-lg ring-2 ring-purple-400/40'
-              : 'bg-slate-900/80 text-slate-300 border-white/30 hover:text-white hover:bg-slate-800'
+              ? 'bg-[#1877f2] text-white shadow-xs'
+              : 'bg-white border border-[#ced0d4] text-[#65676b] hover:bg-[#e4e6eb] hover:text-[#050505]'
           }`}
         >
-          <Brain className="w-4 h-4 text-purple-300" />
-          <span>Mémoire & Faits Mémorisés ({memoire.length})</span>
+          <Brain className="w-4 h-4" />
+          <span>Faits Mémorisés ({memoire.length})</span>
         </button>
 
         <button
@@ -253,14 +255,14 @@ export const MemoirePanel: React.FC<MemoirePanelProps> = ({
             playCyberSound('click');
             setActiveTab('demandes');
           }}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all border ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm font-bold transition-all cursor-pointer ${
             activeTab === 'demandes'
-              ? 'bg-sky-600 text-white border-white shadow-lg ring-2 ring-sky-400/40'
-              : 'bg-slate-900/80 text-slate-300 border-white/30 hover:text-white hover:bg-slate-800'
+              ? 'bg-[#1877f2] text-white shadow-xs'
+              : 'bg-white border border-[#ced0d4] text-[#65676b] hover:bg-[#e4e6eb] hover:text-[#050505]'
           }`}
         >
-          <MessageSquare className="w-4 h-4 text-sky-300" />
-          <span>Journal de toutes vos Requêtes ({allUserRequests.length})</span>
+          <MessageSquare className="w-4 h-4" />
+          <span>Journal des Requêtes ({allUserRequests.length})</span>
         </button>
       </div>
 
@@ -268,17 +270,17 @@ export const MemoirePanel: React.FC<MemoirePanelProps> = ({
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-4">
         {/* Search */}
         <div className="relative w-full sm:w-80">
-          <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400 pointer-events-none" />
+          <Search className="absolute left-3 top-2.5 w-4 h-4 text-[#65676b] pointer-events-none" />
           <input
             type="text"
             placeholder={
               activeTab === 'memoire'
                 ? 'Rechercher dans la mémoire...'
-                : 'Rechercher dans toutes vos demandes...'
+                : 'Rechercher dans vos demandes...'
             }
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-slate-950 border border-white rounded-xl pl-9 pr-3 py-2 text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-white font-sans"
+            className="w-full bg-white border border-[#ced0d4] rounded-full pl-9 pr-4 py-2 text-xs sm:text-sm text-[#050505] placeholder-[#65676b] focus:outline-none focus:border-[#1877f2]"
           />
         </div>
 
@@ -287,22 +289,22 @@ export const MemoirePanel: React.FC<MemoirePanelProps> = ({
           <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 no-scrollbar">
             <button
               onClick={() => setSelectedTag(null)}
-              className={`text-xs font-semibold px-3 py-1.5 rounded-xl whitespace-nowrap transition-all border border-white ${
+              className={`text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap transition-all cursor-pointer ${
                 selectedTag === null
-                  ? 'bg-white/25 text-white font-bold ring-2 ring-white'
-                  : 'bg-slate-900 text-slate-300 hover:text-white'
+                  ? 'bg-[#1877f2] text-white font-bold shadow-xs'
+                  : 'bg-white border border-[#ced0d4] text-[#65676b] hover:bg-[#e4e6eb] hover:text-[#050505]'
               }`}
             >
-              Tous les tags ({memoire.length})
+              Tous ({memoire.length})
             </button>
             {allTags.map((tag) => (
               <button
                 key={tag}
                 onClick={() => setSelectedTag(tag === selectedTag ? null : tag)}
-                className={`text-xs font-semibold px-3 py-1.5 rounded-xl whitespace-nowrap transition-all border border-white ${
+                className={`text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap transition-all cursor-pointer ${
                   selectedTag === tag
-                    ? 'bg-purple-600/50 text-purple-100 font-bold ring-2 ring-white'
-                    : 'bg-slate-900 text-slate-300 hover:text-white'
+                    ? 'bg-[#1877f2] text-white font-bold shadow-xs'
+                    : 'bg-white border border-[#ced0d4] text-[#65676b] hover:bg-[#e4e6eb] hover:text-[#050505]'
                 }`}
               >
                 #{tag}
@@ -316,17 +318,19 @@ export const MemoirePanel: React.FC<MemoirePanelProps> = ({
       {activeTab === 'memoire' && (
         <>
           {filteredMemoire.length === 0 ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border border-white rounded-2xl bg-slate-900/80 my-auto">
-              <Brain className="w-12 h-12 text-slate-400 mb-2 stroke-1" />
-              <h3 className="text-base font-bold text-white">Mémoire vide</h3>
-              <p className="text-sm text-slate-300 max-w-sm mt-1">
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border border-[#e4e6eb] rounded-2xl bg-white shadow-sm my-auto">
+              <div className="w-16 h-16 rounded-full bg-[#f0f2f5] flex items-center justify-center text-[#65676b] mb-3">
+                <Brain className="w-8 h-8" />
+              </div>
+              <h3 className="text-base font-bold text-[#050505]">Mémoire vide</h3>
+              <p className="text-xs sm:text-sm text-[#65676b] max-w-sm mt-1">
                 Aucune information enregistrée. Dites simplement au chatbot « Note que... » ou « Mémorise... » pour ajouter instantanément une note ici.
               </p>
               <button
                 onClick={handleOpenAdd}
-                className="mt-4 px-4 py-2 rounded-xl bg-purple-600 text-white font-semibold text-xs border border-white hover:bg-purple-500"
+                className="mt-4 px-4 py-2 rounded-full bg-[#1877f2] text-white font-bold text-xs hover:bg-[#166fe5] shadow-xs cursor-pointer"
               >
-                + Ajouter une note manuellement
+                + Ajouter manuellement
               </button>
             </div>
           ) : (
@@ -336,11 +340,11 @@ export const MemoirePanel: React.FC<MemoirePanelProps> = ({
                 return (
                   <div
                     key={item.id}
-                    className="bg-slate-900/90 rounded-2xl border border-white p-4 flex flex-col justify-between group shadow-md hover:bg-slate-850 transition-all space-y-3"
+                    className="bg-white rounded-2xl border border-[#e4e6eb] p-4 sm:p-5 flex flex-col justify-between group shadow-sm hover:shadow-md transition-all space-y-3"
                   >
                     <div>
                       {/* Card Top: Importance Stars & Actions */}
-                      <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-[#f0f2f5]">
                         <div className="flex items-center gap-1.5">
                           <div className="flex items-center gap-0.5" title={`Importance : ${item.importance}/5`}>
                             {[...Array(5)].map((_, i) => (
@@ -348,27 +352,27 @@ export const MemoirePanel: React.FC<MemoirePanelProps> = ({
                                 key={i}
                                 className={`w-3.5 h-3.5 ${
                                   i < item.importance
-                                    ? 'text-amber-400 fill-amber-400'
-                                    : 'text-slate-700 stroke-1'
+                                    ? 'text-[#f7b125] fill-[#f7b125]'
+                                    : 'text-[#ced0d4] stroke-1'
                                 }`}
                               />
                             ))}
                           </div>
                           {isAuto && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-200 border border-purple-400/40 font-semibold">
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#e7f3ff] text-[#1877f2] font-bold">
                               🤖 Auto IA
                             </span>
                           )}
                         </div>
 
-                        <div className="flex items-center gap-1.5">
-                          {/* Modifier ✏️ */}
+                        <div className="flex items-center gap-1">
+                          {/* Modifier */}
                           <button
                             onClick={() => handleOpenEdit(item)}
-                            title="Modifier ✏️"
-                            className="p-1 border border-white rounded-lg bg-purple-950/60 text-purple-300 hover:bg-purple-900 hover:text-white transition-colors"
+                            title="Modifier"
+                            className="p-1.5 rounded-full hover:bg-[#f0f2f5] text-[#65676b] hover:text-[#050505] transition-colors"
                           >
-                            <Pencil className="w-3.5 h-3.5" />
+                            <Pencil className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => {
@@ -376,9 +380,9 @@ export const MemoirePanel: React.FC<MemoirePanelProps> = ({
                               exportItemToPDF('memoire', item);
                             }}
                             title="Exporter en PDF"
-                            className="p-1 border border-white rounded-lg bg-slate-800 text-slate-300 hover:text-white"
+                            className="p-1.5 rounded-full hover:bg-[#f0f2f5] text-[#65676b] hover:text-[#1877f2] transition-colors"
                           >
-                            <FileText className="w-3.5 h-3.5 text-sky-400" />
+                            <FileText className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => {
@@ -386,15 +390,15 @@ export const MemoirePanel: React.FC<MemoirePanelProps> = ({
                               onDeleteMemoire(item.id);
                             }}
                             title="Oublier / Supprimer"
-                            className="p-1 border border-white rounded-lg bg-rose-950/60 text-rose-300 hover:bg-rose-900"
+                            className="p-1.5 rounded-full hover:bg-rose-50 text-[#65676b] hover:text-[#fa383e] transition-colors"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       </div>
 
                       {/* Content */}
-                      <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-wrap font-medium">
+                      <p className="text-xs sm:text-sm text-[#050505] leading-relaxed whitespace-pre-wrap font-medium">
                         {item.contenu}
                       </p>
                     </div>
@@ -406,7 +410,7 @@ export const MemoirePanel: React.FC<MemoirePanelProps> = ({
                           {item.tags.map((t, idx) => (
                             <span
                               key={idx}
-                              className="text-[10px] px-2 py-0.5 rounded-md font-semibold bg-white/10 text-white border border-white"
+                              className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-[#f0f2f5] text-[#65676b]"
                             >
                               #{t}
                             </span>
@@ -415,7 +419,7 @@ export const MemoirePanel: React.FC<MemoirePanelProps> = ({
                       )}
 
                       {/* Date footer */}
-                      <div className="pt-2 border-t border-white/30 text-xs text-slate-300 flex items-center justify-between">
+                      <div className="pt-2 border-t border-[#f0f2f5] text-xs text-[#65676b] flex items-center justify-between">
                         <span>
                           {new Date(item.date).toLocaleDateString('fr-FR', {
                             day: '2-digit',
@@ -427,7 +431,7 @@ export const MemoirePanel: React.FC<MemoirePanelProps> = ({
                         </span>
                         <button
                           onClick={() => handleOpenEdit(item)}
-                          className="text-[11px] font-semibold text-purple-300 hover:text-purple-200 hover:underline flex items-center gap-1"
+                          className="text-xs font-bold text-[#1877f2] hover:underline flex items-center gap-1"
                         >
                           <Pencil className="w-3 h-3" />
                           Modifier
@@ -446,16 +450,18 @@ export const MemoirePanel: React.FC<MemoirePanelProps> = ({
       {activeTab === 'demandes' && (
         <div className="space-y-3">
           {filteredRequests.length === 0 ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border border-white rounded-2xl bg-slate-900/80 my-auto">
-              <MessageSquare className="w-12 h-12 text-slate-400 mb-2 stroke-1" />
-              <h3 className="text-base font-bold text-white">Aucune demande trouvée</h3>
-              <p className="text-sm text-slate-300 max-w-sm mt-1">
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border border-[#e4e6eb] rounded-2xl bg-white shadow-sm my-auto">
+              <div className="w-16 h-16 rounded-full bg-[#f0f2f5] flex items-center justify-center text-[#65676b] mb-3">
+                <MessageSquare className="w-8 h-8" />
+              </div>
+              <h3 className="text-base font-bold text-[#050505]">Aucune demande trouvée</h3>
+              <p className="text-xs sm:text-sm text-[#65676b] max-w-sm mt-1">
                 Posez vos questions ou formulez vos requêtes dans le chat pour qu'elles soient répertoriées ici automatiquement.
               </p>
               {onGoToChat && (
                 <button
                   onClick={onGoToChat}
-                  className="mt-4 px-4 py-2 rounded-xl bg-sky-600 text-white font-semibold text-xs border border-white hover:bg-sky-500"
+                  className="mt-4 px-4 py-2 rounded-full bg-[#1877f2] text-white font-bold text-xs hover:bg-[#166fe5] shadow-xs cursor-pointer"
                 >
                   💬 Aller au Chatbot
                 </button>
@@ -465,15 +471,15 @@ export const MemoirePanel: React.FC<MemoirePanelProps> = ({
             filteredRequests.map((req, i) => (
               <div
                 key={`${req.convId}-${req.messageIndex}-${i}`}
-                className="p-4 rounded-2xl bg-slate-900/90 border border-white hover:bg-slate-850 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-md"
+                className="p-4 sm:p-5 rounded-2xl bg-white border border-[#e4e6eb] hover:shadow-sm transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
               >
                 <div className="space-y-1.5 min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap text-xs">
-                    <span className="px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-200 border border-sky-400/30 font-semibold flex items-center gap-1">
+                    <span className="px-2.5 py-0.5 rounded-full bg-[#e7f3ff] text-[#1877f2] font-bold flex items-center gap-1">
                       <MessageSquare className="w-3 h-3" />
                       {req.convTitle}
                     </span>
-                    <span className="text-slate-400">
+                    <span className="text-[#65676b]">
                       {new Date(req.date).toLocaleDateString('fr-FR', {
                         day: '2-digit',
                         month: 'short',
@@ -484,7 +490,7 @@ export const MemoirePanel: React.FC<MemoirePanelProps> = ({
                     </span>
                   </div>
 
-                  <p className="text-sm text-white font-medium whitespace-pre-wrap">
+                  <p className="text-sm text-[#050505] font-medium whitespace-pre-wrap">
                     « {req.text} »
                   </p>
 
@@ -493,21 +499,21 @@ export const MemoirePanel: React.FC<MemoirePanelProps> = ({
                       <img
                         src={req.image}
                         alt="Image jointe"
-                        className="w-16 h-16 object-cover rounded-lg border border-white/20"
+                        className="w-16 h-16 object-cover rounded-lg border border-[#ced0d4]"
                       />
                     </div>
                   )}
                 </div>
 
-                {/* Action Buttons for this request */}
+                {/* Action Buttons for this request in Facebook Style */}
                 <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
                   {/* Memorize into Memory */}
                   <button
                     onClick={() => handleQuickMemorize(req.text)}
-                    className="px-2.5 py-1.5 rounded-xl bg-purple-900/60 hover:bg-purple-800 text-purple-200 border border-purple-400/40 text-xs font-semibold flex items-center gap-1 transition-all"
+                    className="px-3 py-1.5 rounded-full bg-[#f0f2f5] hover:bg-[#e4e6eb] text-[#050505] text-xs font-bold flex items-center gap-1 transition-all cursor-pointer"
                     title="Enregistrer cette demande dans la Mémoire"
                   >
-                    <Brain className="w-3.5 h-3.5 text-purple-300" />
+                    <Brain className="w-3.5 h-3.5 text-[#1877f2]" />
                     <span>Mémoriser</span>
                   </button>
 
@@ -515,10 +521,10 @@ export const MemoirePanel: React.FC<MemoirePanelProps> = ({
                   {onAddTache && (
                     <button
                       onClick={() => handleQuickCreateTask(req.text)}
-                      className="px-2.5 py-1.5 rounded-xl bg-emerald-900/60 hover:bg-emerald-800 text-emerald-200 border border-emerald-400/40 text-xs font-semibold flex items-center gap-1 transition-all"
+                      className="px-3 py-1.5 rounded-full bg-[#f0f2f5] hover:bg-[#e4e6eb] text-[#050505] text-xs font-bold flex items-center gap-1 transition-all cursor-pointer"
                       title="Créer une Tâche à partir de cette demande"
                     >
-                      <CheckSquare className="w-3.5 h-3.5 text-emerald-300" />
+                      <CheckSquare className="w-3.5 h-3.5 text-[#42b72a]" />
                       <span>Tâche</span>
                     </button>
                   )}
@@ -527,10 +533,10 @@ export const MemoirePanel: React.FC<MemoirePanelProps> = ({
                   {onAddRappel && (
                     <button
                       onClick={() => handleQuickCreateReminder(req.text)}
-                      className="px-2.5 py-1.5 rounded-xl bg-rose-900/60 hover:bg-rose-800 text-rose-200 border border-rose-400/40 text-xs font-semibold flex items-center gap-1 transition-all"
+                      className="px-3 py-1.5 rounded-full bg-[#f0f2f5] hover:bg-[#e4e6eb] text-[#050505] text-xs font-bold flex items-center gap-1 transition-all cursor-pointer"
                       title="Créer un Rappel à partir de cette demande"
                     >
-                      <Bell className="w-3.5 h-3.5 text-rose-300" />
+                      <Bell className="w-3.5 h-3.5 text-[#f7b125]" />
                       <span>Rappel</span>
                     </button>
                   )}
@@ -542,7 +548,7 @@ export const MemoirePanel: React.FC<MemoirePanelProps> = ({
                         playCyberSound('click');
                         onSelectConversation(req.convId);
                       }}
-                      className="px-2.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white border border-white text-xs font-semibold flex items-center gap-1 transition-all shadow-sm"
+                      className="px-3 py-1.5 rounded-full bg-[#1877f2] hover:bg-[#166fe5] text-white text-xs font-bold flex items-center gap-1 transition-all shadow-xs cursor-pointer"
                       title="Ouvrir cette conversation"
                     >
                       <span>Voir</span>
@@ -558,58 +564,58 @@ export const MemoirePanel: React.FC<MemoirePanelProps> = ({
 
       {/* Add / Edit Memory Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-slate-950 border-2 border-white rounded-2xl p-6 shadow-2xl space-y-4">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white border border-[#ced0d4] rounded-2xl p-5 sm:p-6 shadow-2xl space-y-4">
+            <h2 className="text-lg sm:text-xl font-bold text-[#050505] flex items-center gap-2">
               {editingMemoire ? (
                 <>
-                  <Pencil className="w-5 h-5 text-purple-400" />
-                  Modifier la Mémoire ✏️
+                  <Pencil className="w-5 h-5 text-[#1877f2]" />
+                  Modifier la Mémoire
                 </>
               ) : (
                 <>
-                  <Brain className="w-5 h-5 text-purple-400" />
+                  <Brain className="w-5 h-5 text-[#1877f2]" />
                   Mémoriser une information
                 </>
               )}
             </h2>
 
-            <form onSubmit={handleFormSubmit} className="space-y-3">
+            <form onSubmit={handleFormSubmit} className="space-y-3.5">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Information à retenir *</label>
+                <label className="block text-xs font-bold text-[#65676b] mb-1">Information à retenir *</label>
                 <textarea
                   required
                   rows={4}
                   value={newContent}
                   onChange={(e) => setNewContent(e.target.value)}
                   placeholder="Ex: Mon code postal, mes préférences alimentaires, note importante..."
-                  className="w-full bg-slate-900 border border-white rounded-xl p-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white font-sans"
+                  className="w-full bg-[#f0f2f5] border border-[#ced0d4] rounded-xl p-3 text-sm text-[#050505] focus:bg-white focus:outline-none focus:border-[#1877f2]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Tags (séparés par des virgules)</label>
+                <label className="block text-xs font-bold text-[#65676b] mb-1">Tags (séparés par des virgules)</label>
                 <input
                   type="text"
                   value={newTagsStr}
                   onChange={(e) => setNewTagsStr(e.target.value)}
                   placeholder="perso, travail, rdv, contact"
-                  className="w-full bg-slate-900 border border-white rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white font-sans"
+                  className="w-full bg-[#f0f2f5] border border-[#ced0d4] rounded-xl px-3.5 py-2 text-sm text-[#050505] focus:bg-white focus:outline-none focus:border-[#1877f2]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Niveau d'importance (1 à 5)</label>
+                <label className="block text-xs font-bold text-[#65676b] mb-1">Niveau d'importance (1 à 5)</label>
                 <div className="flex items-center gap-2">
                   {[1, 2, 3, 4, 5].map((lvl) => (
                     <button
                       key={lvl}
                       type="button"
                       onClick={() => setNewImportance(lvl)}
-                      className={`flex-1 py-1.5 rounded-xl text-xs font-bold border border-white transition-all ${
+                      className={`flex-1 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
                         newImportance === lvl
-                          ? 'bg-purple-600 text-white shadow-md ring-2 ring-white'
-                          : 'bg-slate-900 text-slate-300 hover:text-white'
+                          ? 'bg-[#1877f2] text-white shadow-xs'
+                          : 'bg-[#f0f2f5] border border-[#ced0d4] text-[#65676b] hover:bg-[#e4e6eb]'
                       }`}
                     >
                       {lvl} ★
@@ -618,17 +624,17 @@ export const MemoirePanel: React.FC<MemoirePanelProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-3">
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#e4e6eb]">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-900 border border-white text-white hover:bg-slate-800 font-semibold text-sm"
+                  className="px-4 py-2 rounded-full bg-[#e4e6eb] hover:bg-[#d8dadf] text-[#050505] font-bold text-xs sm:text-sm cursor-pointer"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 border border-white text-white font-semibold text-sm shadow-md"
+                  className="px-4 py-2 rounded-full bg-[#1877f2] hover:bg-[#166fe5] text-white font-bold text-xs sm:text-sm shadow-sm cursor-pointer"
                 >
                   {editingMemoire ? 'Mettre à jour' : 'Enregistrer'}
                 </button>
