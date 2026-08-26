@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 
@@ -1012,6 +1012,9 @@ DIRECTIVES DE RÉPONSE :
     const config: any = {
       systemInstruction,
       temperature: 0.7,
+      thinkingConfig: {
+        thinkingLevel: ThinkingLevel.LOW,
+      },
     };
 
     if (needsLiveSearch) {
@@ -1032,11 +1035,19 @@ DIRECTIVES DE RÉPONSE :
 
     for (const modelName of candidateModels) {
       try {
-        streamResponse = await ai.models.generateContentStream({
-          model: modelName,
-          contents,
-          config,
-        });
+        const currentConfig = { ...config };
+        if (modelName === 'gemini-3.1-flash-lite') {
+          currentConfig.thinkingConfig = { thinkingLevel: ThinkingLevel.MINIMAL };
+        }
+        streamResponse = await withTimeout(
+          ai.models.generateContentStream({
+            model: modelName,
+            contents,
+            config: currentConfig,
+          }),
+          8000,
+          `Timeout model ${modelName}`
+        );
         if (streamResponse) break;
       } catch (err: any) {
         console.warn(`Tentative streaming serveur ${modelName} a échoué:`, err?.message || err);
@@ -1047,14 +1058,19 @@ DIRECTIVES DE RÉPONSE :
     if (!streamResponse) {
       for (const fallbackModel of ['gemini-3.1-flash-lite', 'gemini-3.7-flash', 'gemini-flash-latest']) {
         try {
-          streamResponse = await ai.models.generateContentStream({
-            model: fallbackModel,
-            contents,
-            config: {
-              systemInstruction,
-              temperature: 0.7,
-            },
-          });
+          streamResponse = await withTimeout(
+            ai.models.generateContentStream({
+              model: fallbackModel,
+              contents,
+              config: {
+                systemInstruction,
+                temperature: 0.7,
+                thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+              },
+            }),
+            8000,
+            `Timeout fallback model ${fallbackModel}`
+          );
           if (streamResponse) break;
         } catch (fallbackErr: any) {
           console.warn(`Fallback streaming ${fallbackModel} a échoué:`, fallbackErr?.message || fallbackErr);
@@ -1478,30 +1494,37 @@ app.post('/api/transcribe', async (req: Request, res: Response) => {
     const promptText = `Transcris fidèlement et mot pour mot cet enregistrement vocal en texte clair et bien ponctué en français (ou dans la langue parlée : ${language || 'français'}). Ne rajoute aucun commentaire, donne uniquement le texte transcrit exact.`;
 
     let response: any = null;
-    const transcribeModels = ['gemini-flash-latest', 'gemini-3.7-flash', 'gemini-3.1-flash-lite'];
+    const transcribeModels = ['gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-3.7-flash'];
 
     for (const modelName of transcribeModels) {
       try {
-        response = await ai.models.generateContent({
-          model: modelName,
-          contents: [
-            {
-              role: 'user',
-              parts: [
-                {
-                  inlineData: {
-                    mimeType: type,
-                    data: base64
-                  }
-                },
-                { text: promptText }
-              ]
+        response = await withTimeout(
+          ai.models.generateContent({
+            model: modelName,
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  {
+                    inlineData: {
+                      mimeType: type,
+                      data: base64
+                    }
+                  },
+                  { text: promptText }
+                ]
+              }
+            ],
+            config: {
+              temperature: 0.1,
+              thinkingConfig: {
+                thinkingLevel: ThinkingLevel.MINIMAL,
+              },
             }
-          ],
-          config: {
-            temperature: 0.1,
-          }
-        });
+          }),
+          6000,
+          `Timeout transcription ${modelName}`
+        );
         if (response && response.text && response.text.trim().length > 0) {
           break;
         }
