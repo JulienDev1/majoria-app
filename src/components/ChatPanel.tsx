@@ -103,9 +103,11 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
-  // Audio Recognition Refs
+  // Audio Recognition & Recording Refs
   const recognitionRef = useRef<any>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
@@ -132,23 +134,30 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         recognitionRef.current.onerror = null;
         recognitionRef.current.onend = null;
         recognitionRef.current.stop();
-      } catch (e) {
-        // ignore
-      }
+      } catch (e) {}
       recognitionRef.current = null;
     }
 
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      try {
+        mediaRecorderRef.current.onstop = null;
+        mediaRecorderRef.current.ondataavailable = null;
+        mediaRecorderRef.current.stop();
+      } catch (e) {}
+      mediaRecorderRef.current = null;
+    }
+
     if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      try {
+        mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      } catch (e) {}
       mediaStreamRef.current = null;
     }
 
     if (audioContextRef.current) {
       try {
         audioContextRef.current.close();
-      } catch (e) {
-        // ignore
-      }
+      } catch (e) {}
       audioContextRef.current = null;
     }
 
@@ -194,81 +203,149 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     baseInputTextRef.current = inputText;
     capturedTextRef.current = '';
     setLiveTranscript('');
-
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-    if (!SpeechRecognition) {
-      setMicErrorMessage("La reconnaissance vocale n'est pas prise en charge par ce navigateur.");
-      return;
-    }
+    audioChunksRef.current = [];
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // 1. Capture microphone stream
+      let stream: MediaStream | null = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          } 
+        });
+      } catch (errBasic) {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
+
       mediaStreamRef.current = stream;
 
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      audioContextRef.current = audioCtx;
-      const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 256;
-      analyserRef.current = analyser;
+      // 2. Setup Audio Visualizer (Volume meter)
+      if (stream) {
+        try {
+          const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+          if (AudioContextClass) {
+            const audioCtx = new AudioContextClass();
+            if (audioCtx.state === 'suspended') {
+              audioCtx.resume().catch(() => {});
+            }
+            audioContextRef.current = audioCtx;
+            const analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 64;
+            analyserRef.current = analyser;
 
-      const source = audioCtx.createMediaStreamSource(stream);
-      source.connect(analyser);
+            const source = audioCtx.createMediaStreamSource(stream);
+            source.connect(analyser);
 
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
-      const updateVolume = () => {
-        if (!analyserRef.current) return;
-        analyserRef.current.getByteFrequencyData(dataArray);
-        let sum = 0;
-        for (let i = 0; i < dataArray.length; i++) {
-          sum += dataArray[i];
-        }
-        const avg = sum / dataArray.length;
-        setAudioLevel(Math.min(100, avg * 2));
-        animationFrameRef.current = requestAnimationFrame(updateVolume);
-      };
-      updateVolume();
-
-      const recognition = new SpeechRecognition();
-      recognition.lang = 'fr-FR';
-      recognition.continuous = true;
-      recognition.interimResults = true;
-
-      recognition.onresult = (event: any) => {
-        let interim = '';
-        let final = '';
-
-        for (let i = 0; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            final += transcript + ' ';
-          } else {
-            interim += transcript;
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            const updateVolume = () => {
+              if (!analyserRef.current) return;
+              analyserRef.current.getByteFrequencyData(dataArray);
+              let sum = 0;
+              for (let i = 0; i < dataArray.length; i++) {
+                sum += dataArray[i];
+              }
+              const avg = sum / dataArray.length;
+              setAudioLevel(Math.min(100, Math.round((avg / 128) * 100)));
+              animationFrameRef.current = requestAnimationFrame(updateVolume);
+            };
+            updateVolume();
           }
+        } catch (audioCtxErr) {
+          console.warn('AudioContext volume meter warning:', audioCtxErr);
         }
 
-        const combinedText = (final + interim).trim();
-        capturedTextRef.current = combinedText;
-        setLiveTranscript(combinedText);
+        // 3. Setup MediaRecorder for high-reliability audio capture & fallback
+        try {
+          let chosenMimeType = '';
+          if (typeof MediaRecorder !== 'undefined') {
+            const types = [
+              'audio/webm;codecs=opus',
+              'audio/webm',
+              'audio/mp4',
+              'audio/ogg;codecs=opus',
+              'audio/ogg',
+              'audio/wav'
+            ];
+            for (const t of types) {
+              if (MediaRecorder.isTypeSupported(t)) {
+                chosenMimeType = t;
+                break;
+              }
+            }
+          }
 
-        const base = baseInputTextRef.current ? baseInputTextRef.current.trim() : '';
-        const fullDisplay = base ? `${base} ${combinedText}` : combinedText;
-        setInputText(fullDisplay);
-      };
+          const mediaRecorder = chosenMimeType
+            ? new MediaRecorder(stream, { mimeType: chosenMimeType })
+            : new MediaRecorder(stream);
 
-      recognition.onerror = (event: any) => {
-        if (event.error !== 'no-speech') {
-          setMicErrorMessage(`Erreur micro : ${event.error}`);
+          mediaRecorderRef.current = mediaRecorder;
+          audioChunksRef.current = [];
+
+          mediaRecorder.ondataavailable = (e) => {
+            if (e.data && e.data.size > 0) {
+              audioChunksRef.current.push(e.data);
+            }
+          };
+
+          mediaRecorder.start(200);
+        } catch (recorderErr) {
+          console.warn('MediaRecorder init warning:', recorderErr);
         }
-      };
+      }
 
-      recognition.onend = () => {
-        // Stop media if ended
-      };
+      // 4. Setup Web Speech Recognition for instant live typing
+      const SpeechRecognition =
+        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
-      recognition.start();
-      recognitionRef.current = recognition;
+      if (SpeechRecognition) {
+        try {
+          const recognition = new SpeechRecognition();
+          recognition.lang = 'fr-FR';
+          recognition.continuous = true;
+          recognition.interimResults = true;
+
+          recognition.onresult = (event: any) => {
+            let interim = '';
+            let final = '';
+
+            for (let i = 0; i < event.results.length; i++) {
+              const transcript = event.results[i][0]?.transcript || '';
+              if (event.results[i].isFinal) {
+                final += transcript + ' ';
+              } else {
+                interim += transcript;
+              }
+            }
+
+            const combinedText = (final + interim).trim();
+            if (combinedText) {
+              capturedTextRef.current = combinedText;
+              setLiveTranscript(combinedText);
+
+              const base = baseInputTextRef.current ? baseInputTextRef.current.trim() : '';
+              const fullDisplay = base ? `${base} ${combinedText}` : combinedText;
+              setInputText(fullDisplay);
+            }
+          };
+
+          recognition.onerror = (event: any) => {
+            console.warn('Speech recognition status:', event?.error);
+          };
+
+          recognition.onend = () => {
+            // SpeechRecognition session ended
+          };
+
+          recognition.start();
+          recognitionRef.current = recognition;
+        } catch (speechErr) {
+          console.warn('SpeechRecognition live init warning:', speechErr);
+        }
+      }
+
       setIsDictating(true);
       setDictationSeconds(0);
       playCyberSound('beep');
@@ -277,40 +354,134 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         setDictationSeconds((s) => s + 1);
       }, 1000);
     } catch (err: any) {
+      console.error('Erreur accès microphone:', err);
       setMicErrorMessage("Impossible d'accéder au microphone. Vérifiez les autorisations.");
       stopAllMedia();
     }
   };
 
   const stopRecordingAndSend = async (customText?: string) => {
-    const rawToUse = customText || capturedTextRef.current || inputText;
-    stopAllMedia();
+    setIsDictating(false);
+    playCyberSound('click');
 
-    setTimeout(async () => {
-      const cleaned = cleanSpokenTranscript(rawToUse);
-      if (cleaned.trim()) {
-        setInputText('');
-        setLiveTranscript('');
-        capturedTextRef.current = '';
-        await onSendMessage(cleaned.trim(), selectedImage || undefined);
-        setSelectedImage(null);
-        setSelectedImageName(null);
+    const base = baseInputTextRef.current ? baseInputTextRef.current.trim() : '';
+    const captured = capturedTextRef.current.trim();
+    const currentInput = inputText.trim();
+
+    let textToUse = customText?.trim() || captured || currentInput;
+    if (textToUse && base && !textToUse.startsWith(base)) {
+      textToUse = `${base} ${textToUse}`.trim();
+    }
+
+    // Stop Web Speech Recognition
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.onresult = null;
+        recognitionRef.current.onerror = null;
+        recognitionRef.current.onend = null;
+        recognitionRef.current.stop();
+      } catch (e) {}
+      recognitionRef.current = null;
+    }
+
+    // Stop visualizer
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    setAudioLevel(0);
+
+    if (dictationTimerRef.current) {
+      clearInterval(dictationTimerRef.current);
+      dictationTimerRef.current = null;
+    }
+
+    // If live text was captured via Web Speech API, write and send immediately!
+    const cleanedImmediate = cleanSpokenTranscript(textToUse);
+    if (cleanedImmediate.trim()) {
+      stopAllMedia();
+      setInputText('');
+      setLiveTranscript('');
+      capturedTextRef.current = '';
+      const imgToSend = selectedImage;
+      setSelectedImage(null);
+      setSelectedImageName(null);
+      await onSendMessage(cleanedImmediate.trim(), imgToSend || undefined);
+      return;
+    }
+
+    // If Web Speech API didn't return text (e.g. mobile browser limitations),
+    // transcribe the recorded audio chunks with the high-precision Gemini API!
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      setIsTranscribingAudio(true);
+
+      mediaRecorderRef.current.onstop = async () => {
+        try {
+          const mimeType = mediaRecorderRef.current?.mimeType || 'audio/webm';
+          const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+
+          if (audioBlob.size > 200) {
+            const reader = new FileReader();
+            reader.onload = async () => {
+              try {
+                const base64Data = reader.result as string;
+                const res = await fetch('/api/transcribe', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    audioData: base64Data,
+                    mimeType,
+                    language: 'fr',
+                  }),
+                });
+
+                if (res.ok) {
+                  const data = await res.json();
+                  const transText = (data.transcription || '').trim();
+                  const cleanTrans = cleanSpokenTranscript(transText);
+                  if (cleanTrans) {
+                    const finalCombined = base ? `${base} ${cleanTrans}` : cleanTrans;
+                    setInputText('');
+                    setLiveTranscript('');
+                    capturedTextRef.current = '';
+                    const imgToSend = selectedImage;
+                    setSelectedImage(null);
+                    setSelectedImageName(null);
+                    await onSendMessage(finalCombined.trim(), imgToSend || undefined);
+                  }
+                }
+              } catch (err) {
+                console.error('Erreur transcription fallback:', err);
+              } finally {
+                setIsTranscribingAudio(false);
+                stopAllMedia();
+              }
+            };
+            reader.readAsDataURL(audioBlob);
+          } else {
+            setIsTranscribingAudio(false);
+            stopAllMedia();
+          }
+        } catch (blobErr) {
+          setIsTranscribingAudio(false);
+          stopAllMedia();
+        }
+      };
+
+      try {
+        mediaRecorderRef.current.stop();
+      } catch (stopErr) {
+        setIsTranscribingAudio(false);
+        stopAllMedia();
       }
-    }, 120);
+    } else {
+      stopAllMedia();
+    }
   };
 
   const handleToggleDictation = () => {
     if (isDictating) {
-      const base = baseInputTextRef.current ? baseInputTextRef.current.trim() : '';
-      const textToSend = capturedTextRef.current.trim()
-        ? (base ? `${base} ${capturedTextRef.current.trim()}` : capturedTextRef.current.trim())
-        : inputText.trim();
-
-      if (textToSend) {
-        stopRecordingAndSend(textToSend);
-      } else {
-        stopAllMedia();
-      }
+      stopRecordingAndSend();
     } else {
       startRecording();
     }
@@ -319,7 +490,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isDictating) {
-      stopAllMedia();
+      stopRecordingAndSend();
+      return;
     }
     const text = cleanSpokenTranscript(inputText.trim());
     const image = selectedImage;

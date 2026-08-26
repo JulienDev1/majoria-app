@@ -339,6 +339,7 @@ export function isMaleVoiceCandidate(v: SpeechSynthesisVoice): boolean {
     name.includes('valérie') ||
     name.includes('valerie') ||
     name.includes('charlotte') ||
+    name.includes('florence') ||
     name.includes('-fra-') ||
     name.includes('-frb-') ||
     name.includes('-fre-') ||
@@ -349,9 +350,9 @@ export function isMaleVoiceCandidate(v: SpeechSynthesisVoice): boolean {
 
   if (isFemaleName) return false;
 
-  // Positive male identifiers
+  // Positive male identifiers across iOS, Android, Windows, macOS, Linux
   const isExplicitMale = 
-    name.includes('thomas') || // iOS Safari French Male
+    name.includes('thomas') || // iOS Safari French Male (standard, enhanced, compact)
     name.includes('nicolas') || // iOS / macOS Male
     name.includes('henri') || // Windows / Edge Male
     name.includes('paul') || // Windows / Edge Male
@@ -381,6 +382,8 @@ export function isMaleVoiceCandidate(v: SpeechSynthesisVoice): boolean {
     name.includes('-frd-') || // Android Google TTS Male (Voice 4)
     name.includes('-cab-') || // Android Canadian Male
     name.includes('-cad-') || // Android Canadian Male
+    name.includes('wavenet-b') ||
+    name.includes('wavenet-d') ||
     name.includes('male') ||
     name.includes('homme') ||
     name.includes('man');
@@ -402,6 +405,12 @@ export function speakCyberResponse(
     return;
   }
 
+  const cleanText = cleanTextForSpeech(text);
+  if (!cleanText) {
+    if (onEnd) onEnd();
+    return;
+  }
+
   // Cancel previous speech safely and unstick mobile synthesizer
   try {
     window.speechSynthesis.cancel();
@@ -410,16 +419,10 @@ export function speakCyberResponse(
     }
   } catch (e) {}
 
-  const cleanText = cleanTextForSpeech(text);
-  if (!cleanText) {
-    if (onEnd) onEnd();
-    return;
-  }
-
   const gender: VoiceGender = 
     voiceGenderOverride || 
     (localStorage.getItem('neo-voice-gender') as VoiceGender) || 
-    'female';
+    'male';
 
   let hasSpoken = false;
 
@@ -431,19 +434,19 @@ export function speakCyberResponse(
       const utterance = new SpeechSynthesisUtterance(cleanText);
       utterance.lang = 'fr-FR';
 
-      // CRITICAL MOBILE FIX: Retain active utterance to prevent garbage collection termination
+      // CRITICAL MOBILE FIX: Retain active utterance on window to prevent iOS/Android garbage collection termination
       (window as any).__majorIAActiveUtterance = utterance;
 
       const allVoices = window.speechSynthesis.getVoices() || [];
       const frenchVoices = allVoices.filter((v) => {
-        const lang = (v.lang || '').toLowerCase();
-        return lang.startsWith('fr') || lang.includes('french');
+        const lang = (v.lang || '').toLowerCase().replace('_', '-');
+        return lang.startsWith('fr') || (v.name && v.name.toLowerCase().includes('french'));
       });
 
       if (gender === 'male') {
-        // Deep masculine pitch and steady pace
-        utterance.pitch = 0.72;
-        utterance.rate = 0.95;
+        // Deep natural masculine pitch safe for mobile engines (0.85 avoids iOS Safari audio crash)
+        utterance.pitch = 0.85;
+        utterance.rate = 1.0;
 
         // 1. Try to find an explicit male voice
         const maleVoice = frenchVoices.find(isMaleVoiceCandidate);
@@ -466,6 +469,7 @@ export function speakCyberResponse(
               !name.includes('chantal') &&
               !name.includes('alice') &&
               !name.includes('virginie') &&
+              !name.includes('florence') &&
               !name.includes('-fra-') &&
               !name.includes('-frb-') &&
               !name.includes('-fre-') &&
@@ -475,13 +479,14 @@ export function speakCyberResponse(
 
           if (nonFemaleVoices.length > 0) {
             utterance.voice = nonFemaleVoices[0];
+          } else if (frenchVoices.length > 0) {
+            // Default to first French voice with masculine pitch
+            utterance.voice = frenchVoices[0];
           }
-          // If all voices on mobile are female, leaving utterance.voice unset allows the OS
-          // to synthesize fr-FR with the low masculine pitch (0.72).
         }
       } else {
         // Clear, melodic feminine voice settings
-        utterance.pitch = 1.08;
+        utterance.pitch = 1.06;
         utterance.rate = 1.0;
 
         const femaleVoice = frenchVoices.find((v) => {
@@ -526,7 +531,19 @@ export function speakCyberResponse(
         window.speechSynthesis.resume();
       }
 
-      window.speechSynthesis.speak(utterance);
+      // iOS WebKit Bug: queue speak slightly after cancel to avoid asynchronous abort
+      setTimeout(() => {
+        try {
+          if (window.speechSynthesis.paused) {
+            window.speechSynthesis.resume();
+          }
+          window.speechSynthesis.speak(utterance);
+        } catch (speakErr) {
+          console.warn('speak() direct error:', speakErr);
+          finishHandler();
+        }
+      }, 40);
+
     } catch (err) {
       console.warn('Speech synthesis error:', err);
       (window as any).__majorIAActiveUtterance = null;
@@ -546,6 +563,6 @@ export function speakCyberResponse(
     // Fast fallback timer for iOS Safari (which doesn't always trigger onvoiceschanged)
     setTimeout(() => {
       selectAndSpeak();
-    }, 80);
+    }, 60);
   }
 }
