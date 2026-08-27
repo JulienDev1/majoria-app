@@ -235,26 +235,28 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
           recognizer.lang = selectedLanguage || 'fr-FR';
 
           recognizer.onresult = (event: any) => {
-            let currentInterim = '';
-            let currentFinal = '';
+            let fullFinal = '';
+            let fullInterim = '';
 
-            for (let i = event.resultIndex; i < event.results.length; ++i) {
+            for (let i = 0; i < event.results.length; ++i) {
               const chunk = event.results[i][0]?.transcript || '';
               if (event.results[i].isFinal) {
-                currentFinal = currentFinal ? mergeSpeechSegments(currentFinal, chunk) : chunk;
+                fullFinal += (fullFinal ? ' ' : '') + chunk.trim();
               } else {
-                currentInterim = currentInterim ? mergeSpeechSegments(currentInterim, chunk) : chunk;
+                fullInterim += (fullInterim ? ' ' : '') + chunk.trim();
               }
             }
 
-            if (currentFinal) {
-              const clean = cleanSpokenTranscript(currentFinal);
-              liveRecognizedRef.current = liveRecognizedRef.current 
-                ? mergeSpeechSegments(liveRecognizedRef.current, clean) 
-                : clean;
-              setTranscribedText((prev) => (prev ? mergeSpeechSegments(prev, clean) : clean));
+            if (fullFinal) {
+              const cleanedFinal = cleanSpokenTranscript(fullFinal);
+              liveRecognizedRef.current = cleanedFinal;
+              setTranscribedText(cleanedFinal);
             }
-            setInterimText(cleanSpokenTranscript(currentInterim));
+            if (fullInterim) {
+              setInterimText(cleanSpokenTranscript(fullInterim));
+            } else {
+              setInterimText('');
+            }
           };
 
           recognizer.onerror = (event: any) => {

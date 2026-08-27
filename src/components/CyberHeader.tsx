@@ -37,6 +37,7 @@ interface CyberHeaderProps {
   themeMode?: ThemeMode;
   resolvedTheme?: 'light' | 'dark';
   onToggleTheme?: () => void;
+  isOnline?: boolean;
 }
 
 export const CyberHeader: React.FC<CyberHeaderProps> = ({
@@ -56,6 +57,7 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
   themeMode = 'system',
   resolvedTheme = 'light',
   onToggleTheme,
+  isOnline = true,
 }) => {
   const { language, t } = useLanguage();
   const [cyberClock, setCyberClock] = useState('');
@@ -97,10 +99,17 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
         {/* Center: Status & Live Time Badge */}
         <div className="hidden sm:flex items-center gap-3">
           <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[var(--fb-surface-secondary)] text-xs font-semibold text-[var(--fb-text-secondary)]">
-            <span className="flex items-center gap-1.5 text-[var(--fb-green)]">
-              <span className="w-2 h-2 rounded-full bg-[var(--fb-green)] animate-pulse inline-block" />
-              <span>{t('header.online')}</span>
-            </span>
+            {isOnline ? (
+              <span className="flex items-center gap-1.5 text-[var(--fb-green)]">
+                <span className="w-2 h-2 rounded-full bg-[var(--fb-green)] animate-pulse inline-block" />
+                <span>{t('header.online')}</span>
+              </span>
+            ) : (
+              <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-bold">
+                <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />
+                <span>{language === 'en' ? 'Offline (Local Engine)' : 'Hors-ligne (Moteur Local)'}</span>
+              </span>
+            )}
             <span className="text-[var(--fb-border)]">|</span>
             <span className="font-mono text-[var(--fb-text-primary)]">{cyberClock}</span>
           </div>

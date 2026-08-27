@@ -16,9 +16,43 @@ export interface OfflineAiResponse {
   offline: boolean;
 }
 
+// Built-in Knowledge Base for Offline Mode
+const KNOWLEDGE_BASE: { keywords: string[]; title: string; content: string }[] = [
+  {
+    keywords: ['capitale de la france', 'capitale france', 'capital of france'],
+    title: 'Capitale de la France',
+    content: 'La capitale de la France est **Paris**, traversée par la Seine et célèbre pour ses monuments comme la Tour Eiffel, le Musée du Louvre et la Cathédrale Notre-Dame.',
+  },
+  {
+    keywords: ['capitale de', 'capitale du', 'capitale des', 'capital of'],
+    title: 'Géographie Mondiale',
+    content: 'Voici les capitales des principaux pays :\n- **France :** Paris\n- **Royaume-Uni :** Londres\n- **Espagne :** Madrid\n- **Italie :** Rome\n- **Allemagne :** Berlin\n- **États-Unis :** Washington D.C.\n- **Canada :** Ottawa\n- **Japon :** Tokyo\n- **Chine :** Pékin\n- **Brésil :** Brasília\n- **Australie :** Canberra\n- **Suisse :** Berne\n- **Belgique :** Bruxelles',
+  },
+  {
+    keywords: ['planetes', 'système solaire', 'planète', 'planete'],
+    title: 'Le Système Solaire',
+    content: 'Le système solaire compte **8 planètes** principales en orbite autour du Soleil :\n1. **Mercure** (la plus proche du Soleil)\n2. **Vénus** (la plus chaude)\n3. **Terre** (notre planète)\n4. **Mars** (la planète rouge)\n5. **Jupiter** (la plus grande, géante gazeuse)\n6. **Saturne** (célèbre pour ses anneaux)\n7. **Uranus** (géante de glace)\n8. **Neptune** (la plus éloignée)',
+  },
+  {
+    keywords: ['qui est tu', 'qui es tu', 'qui es-tu', 'major2i.a', 'majoria'],
+    title: 'Identité de Major2I.A',
+    content: 'Je suis **Major2I.A**, votre assistant personnel intelligent conçu pour optimiser votre productivité, gérer votre planning, vos notes, vos rappels et répondre à vos questions avec précision.',
+  },
+  {
+    keywords: ['pomodoro', 'technique pomodoro', 'méthode pomodoro'],
+    title: 'Technique Pomodoro',
+    content: 'La **technique Pomodoro** est une méthode de gestion du temps efficace :\n1. Choisissez une tâche à accomplir.\n2. Travaillez concentré pendant **25 minutes** (un pomodoro).\n3. Prenez une courte pause de **5 minutes**.\n4. Répétez le cycle 4 fois, puis prenez une pause plus longue de **15 à 30 minutes**.',
+  },
+  {
+    keywords: ['matrice eisenhower', 'eisenhower'],
+    title: "Matrice d'Eisenhower",
+    content: "La **matrice d'Eisenhower** classe les activités selon 4 quadrants :\n1. **Urgent & Important :** À faire immédiatement soi-même.\n2. **Non Urgent & Important :** À planifier avec précision.\n3. **Urgent & Non Important :** À déléguer si possible.\n4. **Non Urgent & Non Important :** À éliminer ou minimiser.",
+  },
+];
+
 /**
  * Intelligent client-side NLP engine for Major2I.A
- * Runs locally with zero internet connection requirement.
+ * Fully functional with zero internet connection requirement.
  */
 export function generateOfflineResponse(
   prompt: string,
@@ -31,7 +65,87 @@ export function generateOfflineResponse(
   const actions: any[] = [];
   let reply = '';
 
-  // 1. Note / Memory intent: "note que...", "note dans le menu...", "mémorise...", "enregistre..."
+  // 1. Task Creation intent
+  if (
+    lower.startsWith('tâche') ||
+    lower.startsWith('tache') ||
+    lower.includes('ajoute une tâche') ||
+    lower.includes('ajouter une tâche') ||
+    lower.includes('crée une tâche') ||
+    lower.includes('créer une tâche') ||
+    lower.includes('nouvelle tâche') ||
+    lower.includes('rajoute une tâche') ||
+    lower.startsWith('todo ') ||
+    (lower.startsWith('ajoute ') && !lower.includes('rappel') && !lower.includes('favori') && !lower.includes('note'))
+  ) {
+    let taskTitle = cleanPrompt
+      .replace(/^(tâche|tache|todo|ajoute une tâche|ajouter une tâche|crée une tâche|créer une tâche|nouvelle tâche|rajoute une tâche|ajoute)\s*:?\s*/i, '')
+      .replace(/^(de|pour|qui consiste à|dans le menu)\s+/i, '')
+      .trim();
+
+    if (!taskTitle) taskTitle = 'Nouvelle tâche planifiée';
+
+    const isHighPriority = lower.includes('urgent') || lower.includes('important') || lower.includes('prioritaire') || lower.includes('haute');
+    const priority = isHighPriority ? 'haute' : 'normale';
+
+    actions.push({
+      type: 'tache',
+      action: 'add',
+      item: {
+        titre: taskTitle,
+        description: `Tâche créée en mode hors-ligne par Major2I.A pour ${userName}`,
+        priorite: priority,
+        status: 'attente',
+      },
+    });
+
+    reply = `⚡ **[Mode Hors-Ligne] Tâche enregistrée avec succès dans le menu Tâches.**\n\n- **Intitulé :** ${taskTitle}\n- **Priorité :** ${priority === 'haute' ? '🔴 Haute' : '🔵 Normale'}\n- **Statut :** ⏳ En attente\n\n*La tâche est visible immédiatement dans la section **Tâches** de votre menu.*`;
+    return { reply, actions, offline: true };
+  }
+
+  // 2. Reminder Creation intent
+  if (
+    lower.startsWith('rappel') ||
+    lower.includes('rappelle-moi') ||
+    lower.includes('rappelle moi') ||
+    lower.includes('ajoute un rappel') ||
+    lower.includes('ajouter un rappel') ||
+    lower.includes('crée un rappel') ||
+    lower.includes('créer un rappel') ||
+    lower.includes('programme un rappel')
+  ) {
+    let reminderTitle = cleanPrompt
+      .replace(/^(rappel|rappelle-moi|rappelle moi|ajoute un rappel|ajouter un rappel|crée un rappel|créer un rappel)\s*:?\s*/i, '')
+      .replace(/^(de|que|pour)\s+/i, '')
+      .trim();
+
+    if (!reminderTitle) reminderTitle = 'Rappel programmé';
+
+    // Extract potential time (ex: à 14h, 15:30)
+    const timeMatch = lower.match(/(?:à|vers|a)\s*(\d{1,2})[h:]?(\d{2})?/i);
+    const reminderHour = timeMatch ? `${timeMatch[1].padStart(2, '0')}:${(timeMatch[2] || '00').padStart(2, '0')}` : '09:00';
+
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+
+    actions.push({
+      type: 'rappel',
+      action: 'add',
+      item: {
+        titre: reminderTitle,
+        description: `Rappel généré en mode autonome par Major2I.A`,
+        dateRappel: todayStr,
+        heure: reminderHour,
+        priorite: 'haute',
+        statut: 'actif',
+      },
+    });
+
+    reply = `⚡ **[Mode Hors-Ligne] Rappel configuré.**\n\n- **Objet :** ${reminderTitle}\n- **Date :** Aujourd'hui (${todayStr})\n- **Heure :** ${reminderHour}\n- **Statut :** 🔔 Actif\n\n*Votre alerte retentira automatiquement à l'heure indiquée.*`;
+    return { reply, actions, offline: true };
+  }
+
+  // 3. Memory & Note intent
   if (
     lower.startsWith('note ') ||
     lower.startsWith('note que') ||
@@ -59,122 +173,12 @@ export function generateOfflineResponse(
       action: 'add',
       item: {
         contenu: memoContent,
-        tags: ['hors-ligne', 'menu'],
+        tags: ['hors-ligne', 'mémoire'],
         importance: 4,
       },
     });
 
-    reply = `⚡ **[Mode Hors-Ligne] Note enregistrée avec succès dans le menu Mémoire.**\n\n> *"${memoContent}"*\n\nCette information a été ajoutée à vos données neuronales locales et reste immédiatement accessible dans le panneau **Mémoire** du menu.`;
-    return { reply, actions, offline: true };
-  }
-
-  // 2. Task intent: create/add a task
-  if (
-    lower.startsWith('tâche') ||
-    lower.startsWith('tache') ||
-    lower.includes('ajoute une tâche') ||
-    lower.includes('ajouter une tâche') ||
-    lower.includes('crée une tâche') ||
-    lower.includes('créer une tâche') ||
-    lower.includes('nouvelle tâche') ||
-    lower.includes('rajoute une tâche') ||
-    lower.startsWith('todo ') ||
-    (lower.startsWith('ajoute ') && !lower.includes('rappel') && !lower.includes('favori'))
-  ) {
-    let taskTitle = cleanPrompt
-      .replace(/^(tâche|tache|todo|ajoute une tâche|ajouter une tâche|crée une tâche|créer une tâche|nouvelle tâche|rajoute une tâche|ajoute)\s*:?\s*/i, '')
-      .replace(/^(de|pour|qui consiste à|dans le menu)\s+/i, '')
-      .trim();
-
-    if (!taskTitle) taskTitle = 'Nouvelle tâche planifiée';
-
-    const isHighPriority = lower.includes('urgent') || lower.includes('important') || lower.includes('prioritaire');
-    const priority = isHighPriority ? 'haute' : 'normale';
-
-    actions.push({
-      type: 'tache',
-      action: 'add',
-      item: {
-        titre: taskTitle,
-        description: `Tâche créée en mode hors-ligne par Major2I.A pour ${userName}`,
-        priorite: priority,
-        status: 'attente',
-      },
-    });
-
-    reply = `⚡ **[Mode Hors-Ligne] Tâche enregistrée avec succès dans le menu Tâches.**\n\n- **Intitulé :** ${taskTitle}\n- **Priorité :** ${priority === 'haute' ? '🔴 Haute' : '🔵 Normale'}\n- **Statut :** ⏳ En attente\n\n*La tâche est visible immédiatement dans la section **Tâches** de votre menu.*`;
-    return { reply, actions, offline: true };
-  }
-
-  // 2. Reminder intent: create/add a reminder
-  if (
-    lower.startsWith('rappel') ||
-    lower.includes('rappelle-moi') ||
-    lower.includes('rappelle moi') ||
-    lower.includes('ajoute un rappel') ||
-    lower.includes('ajouter un rappel') ||
-    lower.includes('crée un rappel') ||
-    lower.includes('créer un rappel') ||
-    lower.includes('programme un rappel')
-  ) {
-    let reminderTitle = cleanPrompt
-      .replace(/^(rappel|rappelle-moi|rappelle moi|ajoute un rappel|ajouter un rappel|crée un rappel|créer un rappel)\s*:?\s*/i, '')
-      .replace(/^(de|que|pour)\s+/i, '')
-      .trim();
-
-    if (!reminderTitle) reminderTitle = 'Rappel programmé';
-
-    // Extract potential time (ex: à 14h, 15:30)
-    let timeMatch = lower.match(/(?:à|vers|a)\s*(\d{1,2})[h:]?(\d{2})?/i);
-    let reminderHour = timeMatch ? `${timeMatch[1].padStart(2, '0')}:${(timeMatch[2] || '00').padStart(2, '0')}` : '09:00';
-
-    const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
-
-    actions.push({
-      type: 'rappel',
-      action: 'add',
-      item: {
-        titre: reminderTitle,
-        description: `Rappel généré en mode autonome par Major2I.A`,
-        dateRappel: todayStr,
-        heure: reminderHour,
-        priorite: 'haute',
-        statut: 'actif',
-      },
-    });
-
-    reply = `⚡ **[Mode Hors-Ligne] Rappel configuré.**\n\n- **Objet :** ${reminderTitle}\n- **Date :** Aujourd'hui (${todayStr})\n- **Heure :** ${reminderHour}\n- **Statut :** 🔔 Actif\n\n*Votre alerte retentira conformément à vos préférences sonores.*`;
-    return { reply, actions, offline: true };
-  }
-
-  // 3. Memory intent: store memory or note
-  if (
-    lower.startsWith('mémoire') ||
-    lower.startsWith('memoire') ||
-    lower.includes('mémorise') ||
-    lower.includes('mémoriser') ||
-    lower.includes('retiens que') ||
-    lower.includes('souviens-toi de') ||
-    lower.includes('enregistre en mémoire')
-  ) {
-    let memoContent = cleanPrompt
-      .replace(/^(mémoire|memoire|mémorise|mémoriser|retiens que|souviens-toi de|enregistre en mémoire)\s*:?\s*/i, '')
-      .trim();
-
-    if (!memoContent) memoContent = 'Note enregistrée en mémoire';
-
-    actions.push({
-      type: 'memoire',
-      action: 'add',
-      item: {
-        contenu: memoContent,
-        tags: ['hors-ligne', 'automatique'],
-        importance: 4,
-      },
-    });
-
-    reply = `⚡ **[Mode Hors-Ligne] Donnée neuronale mémorisée.**\n\n> *"${memoContent}"*\n\nCette information est désormais ancrée dans votre banque de mémoire locale et restera disponible à tout moment.`;
+    reply = `⚡ **[Mode Hors-Ligne] Note enregistrée avec succès.**\n\n> *"${memoContent}"*\n\nCette information a été ajoutée à vos données neuronales locales et reste consultable dans la section **Mémoire**.`;
     return { reply, actions, offline: true };
   }
 
@@ -201,7 +205,7 @@ export function generateOfflineResponse(
       },
     });
 
-    reply = `⚡ **[Mode Hors-Ligne] Élément ajouté à vos favoris.**\n\n⭐ **${favTitle}** a été épinglé dans votre bibliothèque.`;
+    reply = `⚡ **[Mode Hors-Ligne] Élément ajouté à vos favoris.**\n\n⭐ **${favTitle}** a été épinglé dans votre bibliothèque de favoris.`;
     return { reply, actions, offline: true };
   }
 
@@ -209,12 +213,12 @@ export function generateOfflineResponse(
   if (lower.includes('mes tâches') || lower.includes('mes taches') || lower.includes('liste des tâches') || lower.includes('que dois-je faire')) {
     const list = context.taches || [];
     if (list.length === 0) {
-      reply = `⚡ **[Mode Hors-Ligne]** Vous n'avez actuellement aucune tâche en attente dans votre espace local. Tout est à jour !`;
+      reply = `⚡ **[Mode Hors-Ligne]** Vous n'avez actuellement aucune tâche enregistrée dans votre espace local.`;
     } else {
       const activeList = list.filter((t) => t.status !== 'termine');
       reply = `⚡ **[Mode Hors-Ligne] Synthèse de vos tâches locales (${activeList.length} actives) :**\n\n` +
-        activeList.slice(0, 8).map((t, idx) => `${idx + 1}. **${t.titre}** — Priorité : *${t.priorite}* | Statut : *${t.status}*`).join('\n') +
-        `\n\n*Toutes vos données restent synchronisées localement sans connexion.*`;
+        activeList.slice(0, 10).map((t, idx) => `${idx + 1}. **${t.titre}** — Priorité : *${t.priorite}* | Statut : *${t.status}*`).join('\n') +
+        `\n\n*Vos tâches sont conservées localement sur votre appareil.*`;
     }
     return { reply, offline: true };
   }
@@ -227,7 +231,7 @@ export function generateOfflineResponse(
     } else {
       reply = `⚡ **[Mode Hors-Ligne] Vos rappels actifs (${list.length}) :**\n\n` +
         list.slice(0, 8).map((r, idx) => `${idx + 1}. 🔔 **${r.titre}** — ${r.dateRappel || 'Aujourd\'hui'} à ${r.heure || '09:00'}`).join('\n') +
-        `\n\n*Les alertes sonores locales restent pleinement opérationnelles.*`;
+        `\n\n*Les alertes sonores locales sont opérationnelles.*`;
     }
     return { reply, offline: true };
   }
@@ -236,10 +240,10 @@ export function generateOfflineResponse(
   if (lower.includes('ma mémoire') || lower.includes('que sais-tu sur moi') || lower.includes('mes informations') || lower.includes('mes souvenirs')) {
     const list = context.memoire || [];
     if (list.length === 0) {
-      reply = `⚡ **[Mode Hors-Ligne]** Votre banque de mémoire locale est actuellement vierge. Vous pouvez m'indiquer des informations à mémoriser (ex: *"Mémorise que..."*).`;
+      reply = `⚡ **[Mode Hors-Ligne]** Votre banque de mémoire locale est actuellement vide. Dites-moi ce que vous souhaitez mémoriser (ex: *"Mémorise que..."*).`;
     } else {
       reply = `⚡ **[Mode Hors-Ligne] Connaissances locales mémorisées (${list.length}) :**\n\n` +
-        list.slice(0, 6).map((m, idx) => `${idx + 1}. 🧠 *${m.contenu}* (${m.tags.join(', ')})`).join('\n');
+        list.slice(0, 8).map((m, idx) => `${idx + 1}. 🧠 *${m.contenu}* (${(m.tags || []).join(', ')})`).join('\n');
     }
     return { reply, offline: true };
   }
@@ -250,11 +254,10 @@ export function generateOfflineResponse(
     try {
       const sanitizedExpr = mathMatch[1].replace(/,/g, '.').replace(/[^0-9\+\-\*\/\.\(\)\s]/g, '');
       if (sanitizedExpr.length >= 3 && /[\+\-\*\/]/.test(sanitizedExpr)) {
-        // Safe evaluation without eval
         const fn = new Function(`return (${sanitizedExpr});`);
         const result = fn();
         if (typeof result === 'number' && !isNaN(result) && isFinite(result)) {
-          reply = `⚡ **[Mode Hors-Ligne] Résultat du calcul :**\n\n$$\n${sanitizedExpr.trim()} = ${result}\n$$\n\nLe calcul a été exécuté instantanément par le processeur local.`;
+          reply = `⚡ **[Mode Hors-Ligne] Résultat du calcul :**\n\n$$\n${sanitizedExpr.trim()} = ${result}\n$$\n\n*Calcul exécuté instantanément par le processeur local.*`;
           return { reply, offline: true };
         }
       }
@@ -282,11 +285,45 @@ export function generateOfflineResponse(
       second: '2-digit',
     });
 
-    reply = `⚡ **[Mode Hors-Ligne] Horloge Système :**\n\n- 📅 **Date :** ${dateFormatted}\n- ⏱️ **Heure locale :** ${timeFormatted}\n\n*Synchronisation sur l'horloge système interne.*`;
+    reply = `⚡ **[Mode Hors-Ligne] Horloge & Date :**\n\n- 📅 **Date :** ${dateFormatted}\n- ⏱️ **Heure locale :** ${timeFormatted}\n\n*Synchronisé sur l'horloge système de votre appareil.*`;
     return { reply, offline: true };
   }
 
-  // 10. Greetings & Identity
+  // 10. Email & Letter Writing Template Engine
+  if (
+    lower.includes('écris un email') ||
+    lower.includes('ecris un email') ||
+    lower.includes('rédige un email') ||
+    lower.includes('redige un email') ||
+    lower.includes('écris un mail') ||
+    lower.includes('lettre de motivation') ||
+    lower.includes('message de remerciement')
+  ) {
+    const topic = cleanPrompt
+      .replace(/.*(?:écris un email|ecris un email|rédige un email|redige un email|écris un mail|lettre de motivation|message de remerciement)\s*(?:pour|à propos de|concernant)?\s*/i, '')
+      .trim() || 'votre demande';
+
+    reply = `⚡ **[Mode Hors-Ligne] Modèle de Rédaction Prêt à l'Emploi**\n\n` +
+      `**Objet :** Suite à nos échanges concernant ${topic}\n\n` +
+      `Bonjour,\n\n` +
+      `Je me permets de vous contacter afin de faire le point sur ${topic}.\n\n` +
+      `Comme convenu, je reste à votre entière disposition pour tout complément d'information ou pour convenir d'un échange à votre convenance.\n\n` +
+      `En vous souhaitant une excellente journée,\n\n` +
+      `Bien cordialement,\n` +
+      `**${userName}**\n\n` +
+      `*💡 Vous pouvez copier ce texte et l'adapter directement.*`;
+    return { reply, offline: true };
+  }
+
+  // 11. Knowledge Base Lookup
+  for (const kb of KNOWLEDGE_BASE) {
+    if (kb.keywords.some((kw) => lower.includes(kw))) {
+      reply = `⚡ **[Mode Hors-Ligne] ${kb.title} :**\n\n${kb.content}\n\n*(Informations extraites de la mémoire encyclopédique locale de Major2I.A)*`;
+      return { reply, offline: true };
+    }
+  }
+
+  // 12. Greetings & Identity
   if (
     lower.startsWith('bonjour') ||
     lower.startsWith('salut') ||
@@ -296,18 +333,36 @@ export function generateOfflineResponse(
     lower.includes('qui es-tu') ||
     lower.includes('présente-toi')
   ) {
-    reply = `⚡ **[Mode Hors-Ligne] Bonjour ${userName} !**\n\nJe suis **Major2I.A**, votre assistant personnel intelligent opérant actuellement via son **moteur local de secours**.\n\nVous pouvez me demander de :\n- 📝 Gérer vos **tâches** (*"Ajoute une tâche..."*)\n- 🔔 Programmer des **rappels** (*"Rappelle-moi de..."*)\n- 🧠 Mémoriser des informations (*"Retiens que..."*)\n- 🧮 Réaliser des calculs mathématiques et conversions\n- 📊 Consulter votre agenda et vos notes locales\n\n*Dès que la connexion internet sera rétablie, les fonctionnalités avancées de recherche web et de génération multimodale reprendront automatiquement.*`;
+    reply = `⚡ **[Mode Hors-Ligne] Bonjour ${userName} !**\n\nJe suis **Major2I.A**, votre assistant personnel intelligent opérant actuellement via son **moteur local autonome**.\n\nVoici ce que vous pouvez me demander en toute indépendance :\n- 📝 Gérer vos **tâches** (*"Ajoute une tâche..."*)\n- 🔔 Programmer des **rappels** (*"Rappelle-moi de..."*)\n- 🧠 Mémoriser des informations (*"Note que..."*)\n- 🧮 Réaliser des calculs mathématiques (*"Calcule 45 * 12"*)\n- ✍️ Rédiger des modèles de messages (*"Rédige un email pour..."*)\n- 🕒 Consulter l'heure et la date\n\n*Vos données sont sécurisées et restent 100% sur votre appareil.*`;
     return { reply, offline: true };
   }
 
-  // 11. Help / Assistance request
+  // 13. Help / Assistance request
   if (lower.includes('aide') || lower.includes('help') || lower.includes('que peux-tu faire') || lower.includes('commandes')) {
-    reply = `⚡ **[Mode Hors-Ligne] Guide des Fonctionnalités Autonomes :**\n\n1. **Organisation & Productivité :**\n   - *"Crée une tâche Réviser le rapport"* : ajoute instantanément une tâche.\n   - *"Rappelle-moi à 15h30 de téléphoner"* : active une alerte sonore.\n   - *"Retiens que le code d'accès est 4920"* : enregistre dans la mémoire neuronale.\n\n2. **Consultation Rapide :**\n   - *"Affiche mes tâches"* / *"Mes rappels"* / *"Ma mémoire"*\n   - *"Quelle heure est-il ?"*\n\n3. **Calculs & Logique :**\n   - *"Calcule 450 * 1.2"* ou expressions directes.\n\n*Toutes ces opérations fonctionnent à 100% hors-ligne sans consommer de bande passante.*`;
+    reply = `⚡ **[Mode Hors-Ligne] Guide d'Utilisation Autonome :**\n\n` +
+      `1. **Productivité :**\n` +
+      `   - *"Ajoute une tâche Préparer la réunion"* : crée une tâche locale.\n` +
+      `   - *"Rappelle-moi à 14h de téléphoner"* : active une alerte.\n` +
+      `   - *"Note que le mot de passe est X"* : enregistre dans la mémoire neuronale.\n\n` +
+      `2. **Consultation :**\n` +
+      `   - *"Mes tâches"* / *"Mes rappels"* / *"Ma mémoire"*\n` +
+      `   - *"Quelle heure est-il ?"*\n\n` +
+      `3. **Calculs & Rédaction :**\n` +
+      `   - *"Calcule 1500 * 1.2"* ou calculs complexes.\n` +
+      `   - *"Rédige un email pour demander un devis"*\n\n` +
+      `*Le mode hors-ligne fonctionne sans aucune consommation de données.*`;
     return { reply, offline: true };
   }
 
-  // 12. General structured response fallback
-  reply = `⚡ **[Mode Hors-Ligne] Réponse du Moteur Local Major2I.A**\n\nVotre demande : *"${cleanPrompt}"*\n\nJe fonctionne actuellement en mode autonome (sans connexion active aux serveurs distants). J'ai bien pris en compte votre requête :\n\n- **État du système :** Moteur IA local actif\n- **Sécurité :** Vos données restent 100% confinées à votre appareil\n- **Actions possibles :** Vous pouvez me demander de créer des tâches, des rappels, d'enregistrer des notes ou de réaliser des calculs.\n\n*Pour les analyses approfondies avec recherche web en temps réel, reconnectez votre appareil à Internet.*`;
+  // 14. Structured General Offline Assistance
+  reply = `⚡ **[Mode Hors-Ligne] Assistant Major2I.A Local**\n\n` +
+    `J'ai bien reçu votre message : **"${cleanPrompt}"**.\n\n` +
+    `En mode hors-ligne autonome, je réponds directement depuis votre processeur local. Voici quelques suggestions pour poursuivre :\n` +
+    `- **Créer une action :** Dites *"Ajoute une tâche..."* ou *"Rappelle-moi de..."*\n` +
+    `- **Prendre une note :** Dites *"Note que..."*\n` +
+    `- **Calculer :** Dites *"Calcule..."*\n` +
+    `- **Rédiger :** Dites *"Rédige un email concernant..."*\n\n` +
+    `*Pour des recherches internet mondiales et des réponses multimédias complexes, connectez votre appareil au réseau.*`;
 
   return { reply, actions, offline: true };
 }

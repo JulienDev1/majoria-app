@@ -237,19 +237,19 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         recognition.maxAlternatives = 1;
 
         recognition.onresult = (event: any) => {
-          let interim = '';
-          let final = '';
+          let fullFinal = '';
+          let fullInterim = '';
 
           for (let i = 0; i < event.results.length; i++) {
             const transcript = event.results[i][0]?.transcript || '';
             if (event.results[i].isFinal) {
-              final += transcript + ' ';
+              fullFinal += (fullFinal ? ' ' : '') + transcript.trim();
             } else {
-              interim += transcript;
+              fullInterim += (fullInterim ? ' ' : '') + transcript.trim();
             }
           }
 
-          const combinedText = (final + interim).trim();
+          const combinedText = (fullFinal + (fullInterim ? ' ' + fullInterim : '')).trim();
           if (combinedText) {
             capturedTextRef.current = combinedText;
             setLiveTranscript(combinedText);
@@ -257,16 +257,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             const base = baseInputTextRef.current ? baseInputTextRef.current.trim() : '';
             const fullDisplay = base ? `${base} ${combinedText}` : combinedText;
             setInputText(fullDisplay);
-
-            // Auto-send on silence (1.8 seconds after speech stops)
-            if (silenceTimeoutRef.current) {
-              clearTimeout(silenceTimeoutRef.current);
-            }
-            silenceTimeoutRef.current = setTimeout(() => {
-              if (isDictatingRef.current && capturedTextRef.current.trim()) {
-                stopRecordingAndSend();
-              }
-            }, 1800);
           }
         };
 
@@ -278,9 +268,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         };
 
         recognition.onend = () => {
-          if (isDictatingRef.current && capturedTextRef.current.trim()) {
-            // Immediate dispatch if speech session completed
-            stopRecordingAndSend();
+          // If browser recognition automatically closes continuous session, we keep the captured text
+          if (isDictatingRef.current) {
+            try {
+              // Try restarting if still dictating
+              recognition.start();
+            } catch (e) {}
           }
         };
 
@@ -609,13 +602,15 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 <Check className="w-3.5 h-3.5 text-[var(--fb-blue)] shrink-0" />
               </div>
               <div className="flex items-center gap-2 text-xs text-[var(--fb-text-secondary)] leading-tight font-medium">
-                <span className="flex items-center gap-1 text-[var(--fb-green)]">
-                  <span>En ligne</span>
-                </span>
-                {!isOnline && (
-                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-[10px] text-amber-700 dark:text-amber-300 font-semibold">
+                {isOnline ? (
+                  <span className="flex items-center gap-1 text-[var(--fb-green)]">
+                    <span className="w-2 h-2 rounded-full bg-[var(--fb-green)] animate-pulse inline-block" />
+                    <span>En ligne</span>
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-[10px] text-amber-700 dark:text-amber-300 font-semibold border border-amber-500/30">
                     <WifiOff className="w-3 h-3" />
-                    <span>Hors-ligne</span>
+                    <span>Mode Hors-ligne (Local)</span>
                   </span>
                 )}
               </div>
@@ -908,33 +903,55 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           </div>
         )}
 
-        {/* Live Audio Dictation Bar */}
+        {/* Live Audio Dictation Bar with instant send */}
         {isDictating && (
-          <div className="p-3.5 rounded-2xl bg-[var(--fb-surface)]/90 backdrop-blur-xs border-2 border-[var(--fb-red)] shadow-md flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <span className="w-3 h-3 rounded-full bg-[var(--fb-red)] animate-ping inline-block" />
-              <div>
-                <div className="font-bold text-[var(--fb-red)] text-xs sm:text-sm">Microphone actif ({dictationSeconds}s)</div>
-                <div className="text-xs text-[var(--fb-text-primary)] font-medium truncate max-w-xs sm:max-w-md">
-                  {liveTranscript ? `"${liveTranscript}"` : "Parlez, le texte s'inscrit en direct..."}
+          <div className="p-3.5 rounded-2xl bg-[var(--fb-surface)]/95 backdrop-blur-md border-2 border-[var(--fb-red)] shadow-lg flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-2">
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+              <span className="w-3 h-3 rounded-full bg-[var(--fb-red)] animate-ping shrink-0" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-[var(--fb-red)] text-xs sm:text-sm">Enregistrement vocal actif</span>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-rose-500/15 text-[var(--fb-red)] font-mono font-bold">
+                    {dictationSeconds}s
+                  </span>
+                </div>
+                <div className="text-xs text-[var(--fb-text-primary)] font-medium truncate max-w-full mt-0.5">
+                  {liveTranscript ? `"${liveTranscript}"` : "Parlez librement, votre message s'écrit en temps réel..."}
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <div className="w-16 sm:w-24 h-2 bg-[var(--fb-surface-secondary)] rounded-full overflow-hidden border border-[var(--fb-border)]">
+            <div className="flex items-center justify-end gap-2 shrink-0">
+              <div className="hidden sm:block w-20 h-2.5 bg-[var(--fb-surface-secondary)] rounded-full overflow-hidden border border-[var(--fb-border)]">
                 <div 
                   className="h-full bg-[var(--fb-red)] transition-all duration-75"
-                  style={{ width: `${Math.max(20, audioLevel)}%` }}
+                  style={{ width: `${Math.max(15, audioLevel)}%` }}
                 />
               </div>
+
+              {/* Instant Send Button */}
               <button
                 type="button"
                 onClick={() => stopRecordingAndSend()}
-                className="px-3 py-1.5 bg-[var(--fb-red)] hover:bg-rose-600 text-white rounded-lg font-bold text-xs flex items-center gap-1 cursor-pointer shadow-sm"
+                className="px-4 py-2 bg-[var(--fb-blue)] hover:bg-[var(--fb-blue-hover)] text-white rounded-full font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-md active:scale-95 transition-all"
+                title="Envoyer immédiatement le message complet au chatbot"
               >
-                <Square className="w-3 h-3 fill-current" />
-                <span>Envoyer</span>
+                <Send className="w-3.5 h-3.5" />
+                <span>Envoyer maintenant</span>
+              </button>
+
+              {/* Stop / Cancel button */}
+              <button
+                type="button"
+                onClick={() => {
+                  isDictatingRef.current = false;
+                  setIsDictating(false);
+                  stopAllMedia();
+                }}
+                className="p-2 bg-[var(--fb-surface-secondary)] hover:bg-[var(--fb-hover)] text-[var(--fb-text-secondary)] rounded-full text-xs font-semibold cursor-pointer transition-all"
+                title="Arrêter la dictée sans envoyer"
+              >
+                <X className="w-4 h-4" />
               </button>
             </div>
           </div>

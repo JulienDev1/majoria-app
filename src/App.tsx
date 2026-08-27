@@ -1734,6 +1734,7 @@ export default function App() {
         isSidebarOpen={!isSidebarCollapsed}
         isCollapsed={isHeaderCollapsed}
         onToggleCollapseHeader={handleToggleHeader}
+        isOnline={isOnline}
       />
 
       {/* Main Layout Area */}
