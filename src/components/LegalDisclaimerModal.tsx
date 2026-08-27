@@ -107,7 +107,7 @@ export const LegalDisclaimerModal: React.FC<LegalDisclaimerModalProps> = ({
                 <span>Clause de Non-Responsabilité Générale (Disclaimer IA)</span>
               </div>
               <p>
-                L'application <strong>MajorI.A</strong> intègre des modèles de traitement automatique du langage naturel et d'intelligence artificielle générative. Les réponses, analyses, codes, résumés, calculs et prédictions fournis par l'assistant ont une vocation strictement <strong>informative, consultative et d'assistance à la productivité</strong>.
+                L'application <strong>Major2I.A</strong> intègre des modèles de traitement automatique du langage naturel et d'intelligence artificielle générative. Les réponses, analyses, codes, résumés, calculs et prédictions fournis par l'assistant ont une vocation strictement <strong>informative, consultative et d'assistance à la productivité</strong>.
               </p>
               <p>
                 L'Éditeur ne garantit en aucun cas l'exactitude absolue, l'exhaustivité ou l'actualité en temps réel des informations générées. L'utilisateur demeure <strong>seul responsable</strong> de la vérification préalable et de l'utilisation qu'il fait des contenus générés. Les sorties de l'IA ne se substituent en aucun cas à un conseil professionnel certifié (médical, juridique, financier, fiscal, comptable ou technique).
@@ -122,13 +122,13 @@ export const LegalDisclaimerModal: React.FC<LegalDisclaimerModalProps> = ({
               </h3>
               <ul className="space-y-1.5 text-slate-300 list-disc list-inside">
                 <li>
-                  <strong>Contenus fournis par l'Utilisateur (Prompts & Entrées) :</strong> L'Utilisateur conserve l'intégralité de ses droits de propriété intellectuelle sur les textes, images, documents ou données qu'il transmet à l'assistant MajorI.A. L'Utilisateur garantit qu'il dispose de tous les droits et autorisations nécessaires sur ces éléments.
+                  <strong>Contenus fournis par l'Utilisateur (Prompts & Entrées) :</strong> L'Utilisateur conserve l'intégralité de ses droits de propriété intellectuelle sur les textes, images, documents ou données qu'il transmet à l'assistant Major2I.A. L'Utilisateur garantit qu'il dispose de tous les droits et autorisations nécessaires sur ces éléments.
                 </li>
                 <li>
                   <strong>Contenus générés par l'IA (Outputs) :</strong> Dans la mesure permise par les lois applicables (notamment le Code de la Propriété Intellectuelle français), les résultats bruts générés par l'assistant en réponse aux requêtes de l'Utilisateur sont mis à la disposition de ce dernier pour un usage personnel ou professionnel, commercial ou non commercial.
                 </li>
                 <li>
-                  <strong>Éléments logiciels & Marque :</strong> L'architecture logicielle, le code source, le design d'interface, les algorithmes de routage, les éléments graphiques et la marque <em>MajorI.A</em> demeurent la propriété exclusive de l'Éditeur. Toute reproduction, décompilation ou rétro-ingénierie non autorisée est formellement prohibée.
+                  <strong>Éléments logiciels & Marque :</strong> L'architecture logicielle, le code source, le design d'interface, les algorithmes de routage, les éléments graphiques et la marque <em>Major2I.A</em> demeurent la propriété exclusive de l'Éditeur. Toute reproduction, décompilation ou rétro-ingénierie non autorisée est formellement prohibée.
                 </li>
               </ul>
             </div>
@@ -140,7 +140,7 @@ export const LegalDisclaimerModal: React.FC<LegalDisclaimerModalProps> = ({
                 2. Gestion des Requêtes Abusives, Sécurité & Suspension d'Accès
               </h3>
               <p className="text-slate-300">
-                Afin de garantir la stabilité du service et le respect de l'ordre public, l'utilisation de MajorI.A est soumise aux règles de modération suivantes :
+                Afin de garantir la stabilité du service et le respect de l'ordre public, l'utilisation de Major2I.A est soumise aux règles de modération suivantes :
               </p>
               <ul className="space-y-1.5 text-slate-300 list-disc list-inside">
                 <li>
@@ -176,7 +176,7 @@ export const LegalDisclaimerModal: React.FC<LegalDisclaimerModalProps> = ({
             {/* LCEN Introduction */}
             <div className="p-4 rounded-xl bg-sky-500/10 border-[0.5px] border-sky-400/30 text-sky-200">
               <p>
-                Conformément aux dispositions des <strong>articles 6-III et 19 de la Loi n° 2004-575 du 21 juin 2004 pour la Confiance dans l'Économie Numérique (LCEN)</strong>, les présentes mentions légales sont portées à la connaissance des utilisateurs et visiteurs de l'application <strong>MajorI.A</strong>.
+                Conformément aux dispositions des <strong>articles 6-III et 19 de la Loi n° 2004-575 du 21 juin 2004 pour la Confiance dans l'Économie Numérique (LCEN)</strong>, les présentes mentions légales sont portées à la connaissance des utilisateurs et visiteurs de l'application <strong>Major2I.A</strong>.
               </p>
             </div>
 
@@ -187,7 +187,7 @@ export const LegalDisclaimerModal: React.FC<LegalDisclaimerModalProps> = ({
                 1. Édition & Publication du Service
               </h3>
               <ul className="space-y-1.5 text-slate-300">
-                <li><strong>Nom de l'application :</strong> MajorI.A (Assistant Personnel & Plateforme IA)</li>
+                <li><strong>Nom de l'application :</strong> Major2I.A (Assistant Personnel & Plateforme IA)</li>
                 <li><strong>Responsable de publication :</strong> Julien (Contact : <span className="font-mono text-sky-300">julien26730@gmail.com</span>)</li>
                 <li><strong>Statut :</strong> Édition de service numérique & applicatif web interactif</li>
                 <li><strong>Contact Support :</strong> <span className="font-mono text-sky-300">julien26730@gmail.com</span></li>

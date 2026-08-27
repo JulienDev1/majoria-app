@@ -194,7 +194,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
       <div className="text-center space-y-3 max-w-3xl mx-auto">
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-sky-500/10 border-[0.5px] border-sky-400/30 text-sky-300 text-xs font-semibold shadow-[0_0_15px_rgba(56,189,248,0.2)]">
           <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-          <span>Abonnements & Forfaits MajorI.A Neural</span>
+          <span>Abonnements & Forfaits Major2I.A Neural</span>
         </div>
         
         <h1 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">

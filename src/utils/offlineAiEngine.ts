@@ -17,7 +17,7 @@ export interface OfflineAiResponse {
 }
 
 /**
- * Intelligent client-side NLP engine for MajorI.A
+ * Intelligent client-side NLP engine for Major2I.A
  * Runs locally with zero internet connection requirement.
  */
 export function generateOfflineResponse(
@@ -96,7 +96,7 @@ export function generateOfflineResponse(
       action: 'add',
       item: {
         titre: taskTitle,
-        description: `Tâche créée en mode hors-ligne par MajorI.A pour ${userName}`,
+        description: `Tâche créée en mode hors-ligne par Major2I.A pour ${userName}`,
         priorite: priority,
         status: 'attente',
       },
@@ -136,7 +136,7 @@ export function generateOfflineResponse(
       action: 'add',
       item: {
         titre: reminderTitle,
-        description: `Rappel généré en mode autonome par MajorI.A`,
+        description: `Rappel généré en mode autonome par Major2I.A`,
         dateRappel: todayStr,
         heure: reminderHour,
         priorite: 'haute',
@@ -196,7 +196,7 @@ export function generateOfflineResponse(
       action: 'add',
       item: {
         titre: favTitle,
-        contenu: `Sauvegarde locale par MajorI.A`,
+        contenu: `Sauvegarde locale par Major2I.A`,
         categorie: 'Général',
       },
     });
@@ -296,7 +296,7 @@ export function generateOfflineResponse(
     lower.includes('qui es-tu') ||
     lower.includes('présente-toi')
   ) {
-    reply = `⚡ **[Mode Hors-Ligne] Bonjour ${userName} !**\n\nJe suis **MajorI.A**, votre assistant personnel intelligent opérant actuellement via son **moteur local de secours**.\n\nVous pouvez me demander de :\n- 📝 Gérer vos **tâches** (*"Ajoute une tâche..."*)\n- 🔔 Programmer des **rappels** (*"Rappelle-moi de..."*)\n- 🧠 Mémoriser des informations (*"Retiens que..."*)\n- 🧮 Réaliser des calculs mathématiques et conversions\n- 📊 Consulter votre agenda et vos notes locales\n\n*Dès que la connexion internet sera rétablie, les fonctionnalités avancées de recherche web et de génération multimodale reprendront automatiquement.*`;
+    reply = `⚡ **[Mode Hors-Ligne] Bonjour ${userName} !**\n\nJe suis **Major2I.A**, votre assistant personnel intelligent opérant actuellement via son **moteur local de secours**.\n\nVous pouvez me demander de :\n- 📝 Gérer vos **tâches** (*"Ajoute une tâche..."*)\n- 🔔 Programmer des **rappels** (*"Rappelle-moi de..."*)\n- 🧠 Mémoriser des informations (*"Retiens que..."*)\n- 🧮 Réaliser des calculs mathématiques et conversions\n- 📊 Consulter votre agenda et vos notes locales\n\n*Dès que la connexion internet sera rétablie, les fonctionnalités avancées de recherche web et de génération multimodale reprendront automatiquement.*`;
     return { reply, offline: true };
   }
 
@@ -307,7 +307,7 @@ export function generateOfflineResponse(
   }
 
   // 12. General structured response fallback
-  reply = `⚡ **[Mode Hors-Ligne] Réponse du Moteur Local MajorI.A**\n\nVotre demande : *"${cleanPrompt}"*\n\nJe fonctionne actuellement en mode autonome (sans connexion active aux serveurs distants). J'ai bien pris en compte votre requête :\n\n- **État du système :** Moteur IA local actif\n- **Sécurité :** Vos données restent 100% confinées à votre appareil\n- **Actions possibles :** Vous pouvez me demander de créer des tâches, des rappels, d'enregistrer des notes ou de réaliser des calculs.\n\n*Pour les analyses approfondies avec recherche web en temps réel, reconnectez votre appareil à Internet.*`;
+  reply = `⚡ **[Mode Hors-Ligne] Réponse du Moteur Local Major2I.A**\n\nVotre demande : *"${cleanPrompt}"*\n\nJe fonctionne actuellement en mode autonome (sans connexion active aux serveurs distants). J'ai bien pris en compte votre requête :\n\n- **État du système :** Moteur IA local actif\n- **Sécurité :** Vos données restent 100% confinées à votre appareil\n- **Actions possibles :** Vous pouvez me demander de créer des tâches, des rappels, d'enregistrer des notes ou de réaliser des calculs.\n\n*Pour les analyses approfondies avec recherche web en temps réel, reconnectez votre appareil à Internet.*`;
 
   return { reply, actions, offline: true };
 }

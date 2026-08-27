@@ -191,7 +191,7 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({
       <div className="mt-auto pt-4 border-t border-[#e4e6eb] flex flex-wrap items-center justify-between gap-3 text-xs text-[#65676b] font-medium">
         <div className="flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-[#42b72a]" />
-          <span>MajorI.A • Système optimisé et sécurisé</span>
+          <span>Major2I.A • Système optimisé et sécurisé</span>
         </div>
         <div className="flex items-center gap-2 text-[#65676b]">
           <Sparkles className="w-3.5 h-3.5 text-[#1877f2]" />

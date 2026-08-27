@@ -61,9 +61,9 @@ let serverStore = {
 
 // Plan configurations
 const PLAN_DEFINITIONS: Record<string, { name: string; amountMonth: number; amountYear: number; energy: number }> = {
-  basic: { name: 'Formule Essentielle (MajorI.A)', amountMonth: 990, amountYear: 9504, energy: 100 },
-  premium: { name: 'Formule Performance (MajorI.A)', amountMonth: 1990, amountYear: 19104, energy: 250 },
-  pro: { name: 'Formule Illimitée Pro (MajorI.A)', amountMonth: 3990, amountYear: 38304, energy: 500 },
+  basic: { name: 'Formule Essentielle (Major2I.A)', amountMonth: 990, amountYear: 9504, energy: 100 },
+  premium: { name: 'Formule Performance (Major2I.A)', amountMonth: 1990, amountYear: 19104, energy: 250 },
+  pro: { name: 'Formule Illimitée Pro (Major2I.A)', amountMonth: 3990, amountYear: 38304, energy: 500 },
 };
 
 // Initialize Gemini Client factory
@@ -555,7 +555,7 @@ app.post('/api/stripe/create-checkout-session', async (req: Request, res: Respon
             name: userId,
             metadata: {
               supabase_user_id: userId,
-              app: 'MajorI.A',
+              app: 'Major2I.A',
             },
           });
           customerId = newCustomer.id;
@@ -574,7 +574,7 @@ app.post('/api/stripe/create-checkout-session', async (req: Request, res: Respon
               currency: 'eur',
               product_data: {
                 name: planInfo.name,
-                description: `Abonnement ${interval === 'year' ? 'Annuel (-20%)' : 'Mensuel'} à l'Assistant IA MajorI.A Neural`,
+                description: `Abonnement ${interval === 'year' ? 'Annuel (-20%)' : 'Mensuel'} à l'Assistant IA Major2I.A Neural`,
               },
               unit_amount: interval === 'year' ? planInfo.amountYear : planInfo.amountMonth,
               recurring: {
@@ -925,7 +925,7 @@ function buildGeminiContents(history: any[], message: string, image?: string) {
       });
     }
   }
-  const currentText = (message || '').trim() || (currentParts.length > 0 ? "Analyse de cette image." : "Bonjour MajorI.A.");
+  const currentText = (message || '').trim() || (currentParts.length > 0 ? "Analyse de cette image." : "Bonjour Major2I.A.");
   currentParts.push({ text: currentText });
   turns.push({ role: 'user', parts: currentParts });
 
@@ -978,7 +978,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
       ? `L'utilisateur avec qui tu discutes s'appelle "${userName}".`
       : "";
 
-    const systemInstruction = `Tu es MajorI.A, un assistant d'intelligence artificielle hautement performant, précis, direct, naturel et chaleureux.
+    const systemInstruction = `Tu es Major2I.A, un assistant d'intelligence artificielle hautement performant, précis, direct, naturel et chaleureux.
 ${userGreetingInstruction}
 
 DIRECTIVES DE RÉPONSE :
@@ -1237,7 +1237,7 @@ DIRECTIVES DE RÉPONSE :
         actions.push({
           type: 'task',
           titre: taskTitle,
-          description: `Tâche créée par MajorI.A`,
+          description: `Tâche créée par Major2I.A`,
           priorite: norm.includes('urgent') || norm.includes('important') ? 'haute' : 'normale',
         });
       }
@@ -1615,7 +1615,7 @@ async function startServer() {
   });
 
   server.listen(PORT, '0.0.0.0', () => {
-    console.log(`⚡ Serveur MajorI.A [Neural Edition] actif sur http://0.0.0.0:${PORT}`);
+    console.log(`⚡ Serveur Major2I.A [Neural Edition] actif sur http://0.0.0.0:${PORT}`);
   });
 }
 

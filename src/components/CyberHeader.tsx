@@ -88,9 +88,9 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
         <div className="flex items-center gap-3 shrink-0">
           <img 
             src="/maskable_icon.png" 
-            alt="MajorI.A Logo" 
+            alt="Major2I.A Logo" 
             className="w-10 h-10 rounded-full object-cover shadow-sm cursor-pointer hover:opacity-95 transition-opacity"
-            title="MajorI.A"
+            title="Major2I.A"
           />
         </div>
 

@@ -13,7 +13,7 @@ export function exportItemToPDF(type: 'favori' | 'memoire' | 'rappel' | 'tache' 
 
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(18);
-  doc.text('MajorI.A - DOCUMENT & RAPPORT', 14, 26);
+  doc.text('Major2I.A - DOCUMENT & RAPPORT', 14, 26);
 
   doc.setTextColor(148, 163, 184);
   doc.setFontSize(10);
@@ -26,7 +26,7 @@ export function exportItemToPDF(type: 'favori' | 'memoire' | 'rappel' | 'tache' 
   // Content
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(14);
-  const title = item.titre || item.contenu?.slice(0, 40) || item.texte?.slice(0, 40) || 'Document MajorI.A';
+  const title = item.titre || item.contenu?.slice(0, 40) || item.texte?.slice(0, 40) || 'Document Major2I.A';
   doc.text(`Titre : ${title}`, 14, 48);
 
   doc.setFontSize(11);
@@ -77,7 +77,7 @@ export function exportItemToPDF(type: 'favori' | 'memoire' | 'rappel' | 'tache' 
         doc.rect(0, 0, 210, 297, 'F');
         y = 20;
       }
-      const roleLabel = msg.role === 'user' ? 'Utilisateur :' : 'MajorI.A :';
+      const roleLabel = msg.role === 'user' ? 'Utilisateur :' : 'Major2I.A :';
       doc.setTextColor(msg.role === 'user' ? 56 : 147, msg.role === 'user' ? 189 : 197, msg.role === 'user' ? 248 : 253);
       doc.text(roleLabel, 14, y);
       y += 6;
@@ -101,8 +101,8 @@ export function exportItemToPDF(type: 'favori' | 'memoire' | 'rappel' | 'tache' 
   // Footer
   doc.setTextColor(100, 116, 139);
   doc.setFontSize(9);
-  doc.text('Généré par MajorI.A - Assistant Personnel Intelligent', 14, 285);
+  doc.text('Généré par Major2I.A - Assistant Personnel Intelligent', 14, 285);
 
-  const filename = `majoria-${type}-${item.id || Date.now()}.pdf`;
+  const filename = `major2ia-${type}-${item.id || Date.now()}.pdf`;
   doc.save(filename);
 }

@@ -458,7 +458,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
             <ShieldCheck className="w-3.5 h-3.5 text-[var(--fb-green)]" />
             Sécurisé
           </span>
-          <span className="font-semibold text-[var(--fb-text-primary)]">MajorI.A 2026</span>
+          <span className="font-semibold text-[var(--fb-text-primary)]">Major2I.A 2026</span>
         </div>
       </aside>
     </>

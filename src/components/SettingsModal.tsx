@@ -150,8 +150,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const handleTestVoice = () => {
     setIsSpeakingTest(true);
     const testText = prenom.trim()
-      ? `Bonjour ${prenom.trim()}, je suis MajorI.A. Comment puis-je vous être utile aujourd'hui ?`
-      : "Bonjour, je suis MajorI.A. Votre voix a été configurée avec succès.";
+      ? `Bonjour ${prenom.trim()}, je suis Major2I.A. Comment puis-je vous être utile aujourd'hui ?`
+      : "Bonjour, je suis Major2I.A. Votre voix a été configurée avec succès.";
     speakCyberResponse(testText, selectedVoice, () => {
       setIsSpeakingTest(false);
     });
@@ -317,41 +317,43 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               {/* Light Mode Choice */}
               <button
                 type="button"
+                id="btn-settings-theme-light"
                 onClick={() => {
                   if (onSetThemeMode) onSetThemeMode('light');
                   playCyberSound('click');
                 }}
                 className={`p-3.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1.5 ${
-                  themeMode === 'light'
-                    ? 'border-[var(--fb-blue)] bg-[var(--fb-blue-light)] text-[var(--fb-blue)] font-bold shadow-xs ring-1 ring-[var(--fb-blue)]'
+                  resolvedTheme === 'light'
+                    ? 'border-[var(--fb-blue)] bg-[var(--fb-blue-light)] text-[var(--fb-blue)] font-bold shadow-xs ring-2 ring-[var(--fb-blue)]/50'
                     : 'border-[var(--fb-border)] bg-[var(--fb-surface)] text-[var(--fb-text-primary)] hover:bg-[var(--fb-surface-secondary)]'
                 }`}
               >
-                <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shadow-2xs">
-                  <Sun className="w-4.5 h-4.5" />
+                <div className="w-9 h-9 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 flex items-center justify-center shadow-xs">
+                  <Sun className="w-5 h-5" />
                 </div>
                 <span className="text-xs font-bold">{t('settings.themeLight')}</span>
-                <span className="text-[11px] text-[var(--fb-text-secondary)]">Fond clair Facebook</span>
+                <span className="text-[11px] text-[var(--fb-text-secondary)]">Thème clair</span>
               </button>
 
               {/* Dark Mode Choice */}
               <button
                 type="button"
+                id="btn-settings-theme-dark"
                 onClick={() => {
                   if (onSetThemeMode) onSetThemeMode('dark');
                   playCyberSound('click');
                 }}
                 className={`p-3.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1.5 ${
-                  themeMode === 'dark'
-                    ? 'border-[var(--fb-blue)] bg-[var(--fb-blue-light)] text-[var(--fb-blue)] font-bold shadow-xs ring-1 ring-[var(--fb-blue)]'
+                  resolvedTheme === 'dark'
+                    ? 'border-[var(--fb-blue)] bg-[var(--fb-blue-light)] text-[var(--fb-blue)] font-bold shadow-xs ring-2 ring-[var(--fb-blue)]/50'
                     : 'border-[var(--fb-border)] bg-[var(--fb-surface)] text-[var(--fb-text-primary)] hover:bg-[var(--fb-surface-secondary)]'
                 }`}
               >
-                <div className="w-8 h-8 rounded-full bg-indigo-900/60 text-indigo-300 flex items-center justify-center shadow-2xs">
-                  <Moon className="w-4.5 h-4.5" />
+                <div className="w-9 h-9 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-300 flex items-center justify-center shadow-xs">
+                  <Moon className="w-5 h-5" />
                 </div>
                 <span className="text-xs font-bold">{t('settings.themeDark')}</span>
-                <span className="text-[11px] text-[var(--fb-text-secondary)]">Repos visuel sombre</span>
+                <span className="text-[11px] text-[var(--fb-text-secondary)]">Thème sombre</span>
               </button>
             </div>
           </div>

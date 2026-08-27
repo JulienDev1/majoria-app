@@ -8,7 +8,7 @@ interface CyberBrainHeadProps {
 }
 
 /**
- * Static MajorI.A Icon Logo
+ * Static Major2I.A Icon Logo
  * Clean, high-tech, razor-sharp vector emblem without distracting sparkles or flashing animations.
  */
 export const CyberBrainHead: React.FC<CyberBrainHeadProps> = ({

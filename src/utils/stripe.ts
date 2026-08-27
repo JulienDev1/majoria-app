@@ -21,7 +21,7 @@ export function getStripe(): Promise<Stripe | null> {
 }
 
 /**
- * Definition of the 4 subscription plans for MajorI.A with -20% annual discount
+ * Definition of the 4 subscription plans for Major2I.A with -20% annual discount
  */
 export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   {

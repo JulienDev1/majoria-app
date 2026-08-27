@@ -82,20 +82,20 @@ export const FormattedMarkdown: React.FC<FormattedMarkdownProps> = ({ content, c
         tokens.push(
           <code
             key={`code-${keyIdx++}`}
-            className="px-1.5 py-0.5 rounded bg-black/40 text-sky-200 border border-white/10 font-mono text-[0.9em]"
+            className="px-1.5 py-0.5 rounded bg-[var(--fb-surface-secondary)] text-[var(--fb-blue)] border border-[var(--fb-border)] font-mono text-[0.9em]"
           >
             {extracted1}
           </code>
         );
       } else if (matchType === 'bold') {
         tokens.push(
-          <strong key={`bold-${keyIdx++}`} className="font-bold text-white">
+          <strong key={`bold-${keyIdx++}`} className="font-bold text-[var(--text-color)]">
             {parseInlineFormatting(extracted1)}
           </strong>
         );
       } else if (matchType === 'italic') {
         tokens.push(
-          <em key={`italic-${keyIdx++}`} className="italic text-slate-200">
+          <em key={`italic-${keyIdx++}`} className="italic text-[var(--text-muted)]">
             {parseInlineFormatting(extracted1)}
           </em>
         );
@@ -106,7 +106,7 @@ export const FormattedMarkdown: React.FC<FormattedMarkdownProps> = ({ content, c
             href={extracted2}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sky-400 hover:text-sky-300 underline underline-offset-2 transition-colors break-all"
+            className="text-[var(--fb-blue)] hover:underline underline-offset-2 transition-colors break-all"
           >
             {extracted1}
           </a>
@@ -127,13 +127,13 @@ export const FormattedMarkdown: React.FC<FormattedMarkdownProps> = ({ content, c
       if (inCodeBlock) {
         // End of code block
         elements.push(
-          <div key={`code-block-${i}`} className="my-2.5 rounded-xl overflow-hidden bg-black/60 border border-white/15">
+          <div key={`code-block-${i}`} className="my-2.5 rounded-xl overflow-hidden bg-[var(--fb-surface-secondary)] border border-[var(--fb-border)] shadow-xs">
             {codeBlockLang && (
-              <div className="px-3 py-1 bg-white/[0.06] text-[10px] uppercase font-mono text-slate-400 border-b border-white/10">
+              <div className="px-3 py-1 bg-[var(--fb-surface-tertiary)] text-[10px] uppercase font-mono text-[var(--text-muted)] border-b border-[var(--fb-border-light)]">
                 {codeBlockLang}
               </div>
             )}
-            <pre className="p-3 text-xs font-mono text-slate-200 overflow-x-auto whitespace-pre">
+            <pre className="p-3 text-xs font-mono text-[var(--text-color)] overflow-x-auto whitespace-pre">
               <code>{codeBlockContent.join('\n')}</code>
             </pre>
           </div>
@@ -163,7 +163,7 @@ export const FormattedMarkdown: React.FC<FormattedMarkdownProps> = ({ content, c
     // Headings
     if (line.startsWith('### ')) {
       elements.push(
-        <h4 key={`h4-${i}`} className="text-sm font-bold text-white mt-3 mb-1">
+        <h4 key={`h4-${i}`} className="text-sm font-bold text-[var(--text-color)] mt-3 mb-1">
           {parseInlineFormatting(line.substring(4))}
         </h4>
       );
@@ -171,7 +171,7 @@ export const FormattedMarkdown: React.FC<FormattedMarkdownProps> = ({ content, c
     }
     if (line.startsWith('## ')) {
       elements.push(
-        <h3 key={`h3-${i}`} className="text-base font-bold text-white mt-3.5 mb-1.5">
+        <h3 key={`h3-${i}`} className="text-base font-bold text-[var(--text-color)] mt-3.5 mb-1.5">
           {parseInlineFormatting(line.substring(3))}
         </h3>
       );
@@ -179,7 +179,7 @@ export const FormattedMarkdown: React.FC<FormattedMarkdownProps> = ({ content, c
     }
     if (line.startsWith('# ')) {
       elements.push(
-        <h2 key={`h2-${i}`} className="text-lg font-extrabold text-white mt-4 mb-2">
+        <h2 key={`h2-${i}`} className="text-lg font-extrabold text-[var(--text-color)] mt-4 mb-2">
           {parseInlineFormatting(line.substring(2))}
         </h2>
       );
@@ -193,8 +193,8 @@ export const FormattedMarkdown: React.FC<FormattedMarkdownProps> = ({ content, c
         const indent = match[1].length > 0 ? 'ml-4' : 'ml-1';
         elements.push(
           <div key={`bullet-${i}`} className={`flex items-start gap-2 ${indent} my-0.5`}>
-            <span className="text-sky-400 mt-1 shrink-0 text-xs">•</span>
-            <span className="flex-1 leading-relaxed">{parseInlineFormatting(match[2])}</span>
+            <span className="text-[var(--fb-blue)] mt-1 shrink-0 text-xs">•</span>
+            <span className="flex-1 leading-relaxed text-[var(--text-color)]">{parseInlineFormatting(match[2])}</span>
           </div>
         );
         continue;
@@ -207,8 +207,8 @@ export const FormattedMarkdown: React.FC<FormattedMarkdownProps> = ({ content, c
       if (match) {
         elements.push(
           <div key={`numbered-${i}`} className="flex items-start gap-2 ml-1 my-0.5">
-            <span className="text-sky-400 font-mono text-xs mt-0.5 shrink-0">{match[1]}.</span>
-            <span className="flex-1 leading-relaxed">{parseInlineFormatting(match[2])}</span>
+            <span className="text-[var(--fb-blue)] font-mono text-xs mt-0.5 shrink-0">{match[1]}.</span>
+            <span className="flex-1 leading-relaxed text-[var(--text-color)]">{parseInlineFormatting(match[2])}</span>
           </div>
         );
         continue;
@@ -218,7 +218,7 @@ export const FormattedMarkdown: React.FC<FormattedMarkdownProps> = ({ content, c
     // Blockquote
     if (line.startsWith('> ')) {
       elements.push(
-        <blockquote key={`quote-${i}`} className="border-l-2 border-sky-400 pl-3 my-1.5 italic text-slate-300">
+        <blockquote key={`quote-${i}`} className="border-l-2 border-[var(--fb-blue)] pl-3 my-1.5 italic text-[var(--text-muted)]">
           {parseInlineFormatting(line.substring(2))}
         </blockquote>
       );
@@ -227,11 +227,11 @@ export const FormattedMarkdown: React.FC<FormattedMarkdownProps> = ({ content, c
 
     // Standard paragraph line
     elements.push(
-      <p key={`p-${i}`} className="leading-relaxed my-0.5">
+      <p key={`p-${i}`} className="leading-relaxed my-0.5 text-[var(--text-color)]">
         {parseInlineFormatting(line)}
       </p>
     );
   }
 
-  return <div className={`space-y-0.5 text-xs sm:text-sm ${className}`}>{elements}</div>;
+  return <div className={`space-y-0.5 text-xs sm:text-sm text-[var(--text-color)] ${className}`}>{elements}</div>;
 };

@@ -306,7 +306,7 @@ export const CameraVideoModal: React.FC<CameraVideoModalProps> = ({
     }
   };
 
-  // Send photo directly to MajorI.A with custom prompt
+  // Send photo directly to Major2I.A with custom prompt
   const handleSendPhotoToMajorIA = () => {
     if (!capturedPhoto) return;
     playCyberSound('click');
@@ -326,7 +326,7 @@ export const CameraVideoModal: React.FC<CameraVideoModalProps> = ({
     onClose();
   };
 
-  // Send recorded video information / key frame to MajorI.A
+  // Send recorded video information / key frame to Major2I.A
   const handleSendVideoToMajorIA = () => {
     playCyberSound('click');
     // Extract thumbnail frame from video playback
@@ -406,11 +406,11 @@ export const CameraVideoModal: React.FC<CameraVideoModalProps> = ({
               <h3 className="text-base sm:text-lg font-bold text-white tracking-wide flex items-center gap-2">
                 <span>Appareil Photo / Vidéo</span>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-400/40">
-                  MajorI.A Vision
+                  Major2I.A Vision
                 </span>
               </h3>
               <p className="text-xs text-slate-300">
-                {mode === 'photo' ? 'Capturez une image ou document pour analyse instantanée' : 'Enregistrez une séquence vidéo pour MajorI.A'}
+                {mode === 'photo' ? 'Capturez une image ou document pour analyse instantanée' : 'Enregistrez une séquence vidéo pour Major2I.A'}
               </p>
             </div>
           </div>
@@ -654,14 +654,14 @@ export const CameraVideoModal: React.FC<CameraVideoModalProps> = ({
           {/* Captured Result Actions & Analysis Options */}
           {(capturedPhoto || recordedVideoUrl) && (
             <div className="space-y-3">
-              {/* Optional Prompt Field for MajorI.A */}
+              {/* Optional Prompt Field for Major2I.A */}
               <div className="relative">
                 <input
                   type="text"
                   placeholder={
                     capturedPhoto 
-                      ? "Instruction pour MajorI.A (ex: 'Décris ce document', 'Résous cet exercice')..." 
-                      : "Instruction pour MajorI.A sur cette vidéo..."
+                      ? "Instruction pour Major2I.A (ex: 'Décris ce document', 'Résous cet exercice')..." 
+                      : "Instruction pour Major2I.A sur cette vidéo..."
                   }
                   value={customPrompt}
                   onChange={(e) => setCustomPrompt(e.target.value)}
@@ -712,14 +712,14 @@ export const CameraVideoModal: React.FC<CameraVideoModalProps> = ({
                   )}
                 </div>
 
-                {/* Primary Action: Send to MajorI.A */}
+                {/* Primary Action: Send to Major2I.A */}
                 <button
                   type="button"
                   onClick={capturedPhoto ? handleSendPhotoToMajorIA : handleSendVideoToMajorIA}
                   className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-sky-600 via-blue-600 to-indigo-600 hover:from-sky-500 hover:to-blue-500 text-white text-xs sm:text-sm font-bold border border-white shadow-[0_0_20px_rgba(56,189,248,0.5)] active:scale-95 transition-all cursor-pointer"
                 >
                   <Sparkles className="w-4 h-4 text-amber-300 animate-spin" />
-                  <span>Envoyer à MajorI.A</span>
+                  <span>Envoyer à Major2I.A</span>
                   <Send className="w-3.5 h-3.5" />
                 </button>
               </div>

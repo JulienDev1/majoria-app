@@ -112,8 +112,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const dictationTimerRef = useRef<any>(null);
+  const silenceTimeoutRef = useRef<any>(null);
   const capturedTextRef = useRef<string>('');
   const baseInputTextRef = useRef<string>('');
+  const isDictatingRef = useRef<boolean>(false);
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -128,6 +130,11 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   }, []);
 
   const stopAllMedia = () => {
+    if (silenceTimeoutRef.current) {
+      clearTimeout(silenceTimeoutRef.current);
+      silenceTimeoutRef.current = null;
+    }
+
     if (recognitionRef.current) {
       try {
         recognitionRef.current.onresult = null;
@@ -171,6 +178,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       dictationTimerRef.current = null;
     }
 
+    isDictatingRef.current = false;
     setIsDictating(false);
     setAudioLevel(0);
   };
@@ -204,163 +212,181 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     capturedTextRef.current = '';
     setLiveTranscript('');
     audioChunksRef.current = [];
+    isDictatingRef.current = true;
+    setIsDictating(true);
+    setDictationSeconds(0);
+    playCyberSound('beep');
 
-    try {
-      // 1. Capture microphone stream
-      let stream: MediaStream | null = null;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ 
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          } 
-        });
-      } catch (errBasic) {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      }
-
-      mediaStreamRef.current = stream;
-
-      // 2. Setup Audio Visualizer (Volume meter)
-      if (stream) {
-        try {
-          const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-          if (AudioContextClass) {
-            const audioCtx = new AudioContextClass();
-            if (audioCtx.state === 'suspended') {
-              audioCtx.resume().catch(() => {});
-            }
-            audioContextRef.current = audioCtx;
-            const analyser = audioCtx.createAnalyser();
-            analyser.fftSize = 64;
-            analyserRef.current = analyser;
-
-            const source = audioCtx.createMediaStreamSource(stream);
-            source.connect(analyser);
-
-            const dataArray = new Uint8Array(analyser.frequencyBinCount);
-            const updateVolume = () => {
-              if (!analyserRef.current) return;
-              analyserRef.current.getByteFrequencyData(dataArray);
-              let sum = 0;
-              for (let i = 0; i < dataArray.length; i++) {
-                sum += dataArray[i];
-              }
-              const avg = sum / dataArray.length;
-              setAudioLevel(Math.min(100, Math.round((avg / 128) * 100)));
-              animationFrameRef.current = requestAnimationFrame(updateVolume);
-            };
-            updateVolume();
-          }
-        } catch (audioCtxErr) {
-          console.warn('AudioContext volume meter warning:', audioCtxErr);
-        }
-
-        // 3. Setup MediaRecorder for high-reliability audio capture & fallback
-        try {
-          let chosenMimeType = '';
-          if (typeof MediaRecorder !== 'undefined') {
-            const types = [
-              'audio/webm;codecs=opus',
-              'audio/webm',
-              'audio/mp4',
-              'audio/ogg;codecs=opus',
-              'audio/ogg',
-              'audio/wav'
-            ];
-            for (const t of types) {
-              if (MediaRecorder.isTypeSupported(t)) {
-                chosenMimeType = t;
-                break;
-              }
-            }
-          }
-
-          const mediaRecorder = chosenMimeType
-            ? new MediaRecorder(stream, { mimeType: chosenMimeType })
-            : new MediaRecorder(stream);
-
-          mediaRecorderRef.current = mediaRecorder;
-          audioChunksRef.current = [];
-
-          mediaRecorder.ondataavailable = (e) => {
-            if (e.data && e.data.size > 0) {
-              audioChunksRef.current.push(e.data);
-            }
-          };
-
-          mediaRecorder.start(200);
-        } catch (recorderErr) {
-          console.warn('MediaRecorder init warning:', recorderErr);
-        }
-      }
-
-      // 4. Setup Web Speech Recognition for instant live typing
-      const SpeechRecognition =
-        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-      if (SpeechRecognition) {
-        try {
-          const recognition = new SpeechRecognition();
-          recognition.lang = 'fr-FR';
-          recognition.continuous = true;
-          recognition.interimResults = true;
-
-          recognition.onresult = (event: any) => {
-            let interim = '';
-            let final = '';
-
-            for (let i = 0; i < event.results.length; i++) {
-              const transcript = event.results[i][0]?.transcript || '';
-              if (event.results[i].isFinal) {
-                final += transcript + ' ';
-              } else {
-                interim += transcript;
-              }
-            }
-
-            const combinedText = (final + interim).trim();
-            if (combinedText) {
-              capturedTextRef.current = combinedText;
-              setLiveTranscript(combinedText);
-
-              const base = baseInputTextRef.current ? baseInputTextRef.current.trim() : '';
-              const fullDisplay = base ? `${base} ${combinedText}` : combinedText;
-              setInputText(fullDisplay);
-            }
-          };
-
-          recognition.onerror = (event: any) => {
-            console.warn('Speech recognition status:', event?.error);
-          };
-
-          recognition.onend = () => {
-            // SpeechRecognition session ended
-          };
-
-          recognition.start();
-          recognitionRef.current = recognition;
-        } catch (speechErr) {
-          console.warn('SpeechRecognition live init warning:', speechErr);
-        }
-      }
-
-      setIsDictating(true);
-      setDictationSeconds(0);
-      playCyberSound('beep');
-
-      dictationTimerRef.current = setInterval(() => {
-        setDictationSeconds((s) => s + 1);
-      }, 1000);
-    } catch (err: any) {
-      console.error('Erreur accès microphone:', err);
-      setMicErrorMessage("Impossible d'accéder au microphone. Vérifiez les autorisations.");
-      stopAllMedia();
+    if (silenceTimeoutRef.current) {
+      clearTimeout(silenceTimeoutRef.current);
+      silenceTimeoutRef.current = null;
     }
+
+    // 1. Setup Web Speech Recognition for instant real-time typing
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    let speechRecognitionActive = false;
+
+    if (SpeechRecognition) {
+      try {
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'fr-FR';
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.maxAlternatives = 1;
+
+        recognition.onresult = (event: any) => {
+          let interim = '';
+          let final = '';
+
+          for (let i = 0; i < event.results.length; i++) {
+            const transcript = event.results[i][0]?.transcript || '';
+            if (event.results[i].isFinal) {
+              final += transcript + ' ';
+            } else {
+              interim += transcript;
+            }
+          }
+
+          const combinedText = (final + interim).trim();
+          if (combinedText) {
+            capturedTextRef.current = combinedText;
+            setLiveTranscript(combinedText);
+
+            const base = baseInputTextRef.current ? baseInputTextRef.current.trim() : '';
+            const fullDisplay = base ? `${base} ${combinedText}` : combinedText;
+            setInputText(fullDisplay);
+
+            // Auto-send on silence (1.8 seconds after speech stops)
+            if (silenceTimeoutRef.current) {
+              clearTimeout(silenceTimeoutRef.current);
+            }
+            silenceTimeoutRef.current = setTimeout(() => {
+              if (isDictatingRef.current && capturedTextRef.current.trim()) {
+                stopRecordingAndSend();
+              }
+            }, 1800);
+          }
+        };
+
+        recognition.onerror = (event: any) => {
+          console.warn('Speech recognition warning:', event?.error);
+          if (event?.error === 'not-allowed') {
+            setMicErrorMessage("Accès microphone non autorisé dans votre navigateur.");
+          }
+        };
+
+        recognition.onend = () => {
+          if (isDictatingRef.current && capturedTextRef.current.trim()) {
+            // Immediate dispatch if speech session completed
+            stopRecordingAndSend();
+          }
+        };
+
+        recognition.start();
+        recognitionRef.current = recognition;
+        speechRecognitionActive = true;
+      } catch (speechErr) {
+        console.warn('Web Speech API start warning:', speechErr);
+      }
+    }
+
+    // 2. Setup Audio Visualizer & Fallback MediaRecorder
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null);
+        if (stream) {
+          mediaStreamRef.current = stream;
+
+          // Audio meter visualizer
+          try {
+            const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+            if (AudioContextClass) {
+              const audioCtx = new AudioContextClass();
+              if (audioCtx.state === 'suspended') {
+                audioCtx.resume().catch(() => {});
+              }
+              audioContextRef.current = audioCtx;
+              const analyser = audioCtx.createAnalyser();
+              analyser.fftSize = 64;
+              analyserRef.current = analyser;
+
+              const source = audioCtx.createMediaStreamSource(stream);
+              source.connect(analyser);
+
+              const dataArray = new Uint8Array(analyser.frequencyBinCount);
+              const updateVolume = () => {
+                if (!analyserRef.current || !isDictatingRef.current) return;
+                analyserRef.current.getByteFrequencyData(dataArray);
+                let sum = 0;
+                for (let i = 0; i < dataArray.length; i++) {
+                  sum += dataArray[i];
+                }
+                const avg = sum / dataArray.length;
+                setAudioLevel(Math.min(100, Math.round((avg / 128) * 100)));
+                animationFrameRef.current = requestAnimationFrame(updateVolume);
+              };
+              updateVolume();
+            }
+          } catch (ctxErr) {
+            console.warn('AudioContext meter:', ctxErr);
+          }
+
+          // Fallback recorder if SpeechRecognition is not available
+          try {
+            let chosenMimeType = '';
+            if (typeof MediaRecorder !== 'undefined') {
+              const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg', 'audio/wav'];
+              for (const t of types) {
+                if (MediaRecorder.isTypeSupported(t)) {
+                  chosenMimeType = t;
+                  break;
+                }
+              }
+            }
+
+            const mediaRecorder = chosenMimeType
+              ? new MediaRecorder(stream, { mimeType: chosenMimeType })
+              : new MediaRecorder(stream);
+
+            mediaRecorderRef.current = mediaRecorder;
+            audioChunksRef.current = [];
+
+            mediaRecorder.ondataavailable = (e) => {
+              if (e.data && e.data.size > 0) {
+                audioChunksRef.current.push(e.data);
+              }
+            };
+
+            mediaRecorder.start(200);
+          } catch (recErr) {
+            console.warn('MediaRecorder fallback init:', recErr);
+          }
+        }
+      }
+    } catch (mediaErr) {
+      console.warn('getUserMedia warning:', mediaErr);
+    }
+
+    if (!speechRecognitionActive && !mediaStreamRef.current) {
+      setMicErrorMessage("Impossible d'activer le microphone.");
+      stopAllMedia();
+      return;
+    }
+
+    dictationTimerRef.current = setInterval(() => {
+      setDictationSeconds((s) => s + 1);
+    }, 1000);
   };
 
   const stopRecordingAndSend = async (customText?: string) => {
+    if (silenceTimeoutRef.current) {
+      clearTimeout(silenceTimeoutRef.current);
+      silenceTimeoutRef.current = null;
+    }
+
+    isDictatingRef.current = false;
     setIsDictating(false);
     playCyberSound('click');
 
@@ -373,7 +399,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       textToUse = `${base} ${textToUse}`.trim();
     }
 
-    // Stop Web Speech Recognition
+    // Stop Web Speech Recognition immediately
     if (recognitionRef.current) {
       try {
         recognitionRef.current.onresult = null;
@@ -396,7 +422,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       dictationTimerRef.current = null;
     }
 
-    // If live text was captured via Web Speech API, write and send immediately!
+    // If live text was captured via real-time Web Speech API, send immediately without delay!
     const cleanedImmediate = cleanSpokenTranscript(textToUse);
     if (cleanedImmediate.trim()) {
       stopAllMedia();
@@ -410,8 +436,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       return;
     }
 
-    // If Web Speech API didn't return text (e.g. mobile browser limitations),
-    // transcribe the recorded audio chunks with the high-precision Gemini API!
+    // If no text was captured in real-time (e.g. browser without Web Speech),
+    // transcribe the recorded audio chunks with Gemini API instantly!
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       setIsTranscribingAudio(true);
 
@@ -463,6 +489,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             stopAllMedia();
           }
         } catch (blobErr) {
+          console.error('Erreur Blob audio:', blobErr);
           setIsTranscribingAudio(false);
           stopAllMedia();
         }
@@ -470,7 +497,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
       try {
         mediaRecorderRef.current.stop();
-      } catch (stopErr) {
+      } catch (e) {
         setIsTranscribingAudio(false);
         stopAllMedia();
       }
@@ -568,7 +595,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             <div className="relative shrink-0">
               <img 
                 src="/maskable_icon.png" 
-                alt="MajorI.A" 
+                alt="Major2I.A" 
                 className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover shadow-sm" 
               />
               <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-[var(--fb-green)] border-2 border-[var(--fb-surface)]" />
@@ -643,7 +670,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   {userProfile?.prenom ? userProfile.prenom[0].toUpperCase() : <User className="w-5 h-5" />}
                 </div>
                 <div 
-                  onClick={() => setInputText("Bonjour MajorI.A, aide-moi à...")}
+                  onClick={() => setInputText("Bonjour Major2I.A, aide-moi à...")}
                   className="flex-1 bg-[var(--fb-surface)]/60 hover:bg-[var(--fb-surface)]/90 text-[var(--fb-text-primary)] placeholder-[var(--fb-text-secondary)] text-sm sm:text-base px-4 py-2.5 rounded-full cursor-pointer transition-colors border border-[var(--fb-border-light)] font-medium"
                 >
                   Que voulez-vous demander à l'IA, {userProfile?.prenom || userName} ?
@@ -693,7 +720,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 {!isUser && (
                   <img 
                     src="/maskable_icon.png" 
-                    alt="MajorI.A" 
+                    alt="Major2I.A" 
                     className="w-9 h-9 rounded-full object-cover shrink-0 shadow-sm mt-1 ring-1 ring-white/50" 
                   />
                 )}
@@ -710,7 +737,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   {!isUser && (
                     <div className="flex items-center justify-between pb-3 mb-3 border-b border-[var(--fb-border-light)]">
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-[var(--fb-text-primary)] text-sm">MajorI.A</span>
+                        <span className="font-bold text-[var(--fb-text-primary)] text-sm">Major2I.A</span>
                         <Check className="w-3.5 h-3.5 text-[var(--fb-blue)]" />
                         <span className="text-xs text-[var(--fb-text-secondary)] font-medium flex items-center gap-1">
                           • {new Date(msg.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
@@ -741,7 +768,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                     ) : !msg.contenu && isLoading && idx === conversation.messages.length - 1 ? (
                       <div className="flex items-center gap-2 text-sm text-[var(--fb-blue)] font-bold py-2">
                         <Loader2 className="w-4 h-4 text-[var(--fb-blue)] animate-spin" />
-                        <span className="animate-pulse">MajorI.A génère votre réponse...</span>
+                        <span className="animate-pulse">Major2I.A génère votre réponse...</span>
                       </div>
                     ) : (
                       <div className="relative prose prose-slate dark:prose-invert max-w-none">
@@ -829,7 +856,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
                       <button
                         type="button"
-                        onClick={() => exportItemToPDF('conversation', { titre: "Réponse MajorI.A", contenu: msg.contenu, date: msg.date })}
+                        onClick={() => exportItemToPDF('conversation', { titre: "Réponse Major2I.A", contenu: msg.contenu, date: msg.date })}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-[var(--fb-surface)]/50 hover:text-[var(--fb-text-primary)] transition-colors cursor-pointer"
                       >
                         <FileText className="w-4 h-4" />
@@ -861,12 +888,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           <div className="flex gap-2.5 items-center">
             <img 
               src="/maskable_icon.png" 
-              alt="MajorI.A" 
+              alt="Major2I.A" 
               className="w-9 h-9 rounded-full object-cover shrink-0 shadow-sm" 
             />
             <div className="p-3.5 rounded-2xl bg-[var(--chat-bubble-assistant)] backdrop-blur-xs border border-[var(--chat-bubble-border-ai)] flex items-center gap-2 text-xs font-bold text-[var(--fb-text-primary)] shadow-sm">
               <Loader2 className="w-4 h-4 text-[var(--fb-blue)] animate-spin" />
-              <span>MajorI.A réfléchit et formule sa réponse...</span>
+              <span>Major2I.A réfléchit et formule sa réponse...</span>
             </div>
           </div>
         )}
@@ -883,28 +910,28 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
         {/* Live Audio Dictation Bar */}
         {isDictating && (
-          <div className="p-3.5 rounded-2xl bg-white/40 backdrop-blur-xs border-2 border-[#fa383e] shadow-md flex items-center justify-between gap-3">
+          <div className="p-3.5 rounded-2xl bg-[var(--fb-surface)]/90 backdrop-blur-xs border-2 border-[var(--fb-red)] shadow-md flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
-              <span className="w-3 h-3 rounded-full bg-[#fa383e] animate-ping inline-block" />
+              <span className="w-3 h-3 rounded-full bg-[var(--fb-red)] animate-ping inline-block" />
               <div>
-                <div className="font-bold text-[#fa383e] text-xs sm:text-sm">Microphone actif ({dictationSeconds}s)</div>
-                <div className="text-xs text-[#050505] font-medium truncate max-w-xs sm:max-w-md">
+                <div className="font-bold text-[var(--fb-red)] text-xs sm:text-sm">Microphone actif ({dictationSeconds}s)</div>
+                <div className="text-xs text-[var(--fb-text-primary)] font-medium truncate max-w-xs sm:max-w-md">
                   {liveTranscript ? `"${liveTranscript}"` : "Parlez, le texte s'inscrit en direct..."}
                 </div>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
-              <div className="w-16 sm:w-24 h-2 bg-white/60 rounded-full overflow-hidden border border-[#ced0d4]">
+              <div className="w-16 sm:w-24 h-2 bg-[var(--fb-surface-secondary)] rounded-full overflow-hidden border border-[var(--fb-border)]">
                 <div 
-                  className="h-full bg-[#fa383e] transition-all duration-75"
+                  className="h-full bg-[var(--fb-red)] transition-all duration-75"
                   style={{ width: `${Math.max(20, audioLevel)}%` }}
                 />
               </div>
               <button
                 type="button"
                 onClick={() => stopRecordingAndSend()}
-                className="px-3 py-1.5 bg-[#fa383e] hover:bg-rose-600 text-white rounded-lg font-bold text-xs flex items-center gap-1 cursor-pointer shadow-sm"
+                className="px-3 py-1.5 bg-[var(--fb-red)] hover:bg-rose-600 text-white rounded-lg font-bold text-xs flex items-center gap-1 cursor-pointer shadow-sm"
               >
                 <Square className="w-3 h-3 fill-current" />
                 <span>Envoyer</span>
@@ -1023,8 +1050,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
         {/* Selected Image Preview */}
         {selectedImage && (
-          <div className="mt-2.5 px-3 py-1.5 bg-[#f0f2f5] border border-[#e4e6eb] rounded-xl flex items-center gap-3 max-w-4xl mx-auto">
-            <div className="relative w-9 h-9 rounded-lg border border-[#ced0d4] overflow-hidden bg-black">
+          <div className="mt-2.5 px-3 py-1.5 bg-[var(--fb-surface-secondary)] border border-[var(--fb-border)] rounded-xl flex items-center gap-3 max-w-4xl mx-auto">
+            <div className="relative w-9 h-9 rounded-lg border border-[var(--fb-border)] overflow-hidden bg-black">
               <img src={selectedImage} alt="Attachment" className="w-full h-full object-cover" />
               <button
                 type="button"
@@ -1032,12 +1059,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   setSelectedImage(null);
                   setSelectedImageName(null);
                 }}
-                className="absolute top-0 right-0 bg-[#fa383e] text-white p-0.5"
+                className="absolute top-0 right-0 bg-[var(--fb-red)] text-white p-0.5"
               >
                 <X className="w-2.5 h-2.5" />
               </button>
             </div>
-            <span className="text-xs font-medium text-[#050505] truncate">{selectedImageName}</span>
+            <span className="text-xs font-medium text-[var(--fb-text-primary)] truncate">{selectedImageName}</span>
           </div>
         )}
       </div>

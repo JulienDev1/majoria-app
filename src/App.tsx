@@ -475,7 +475,7 @@ export default function App() {
       document.body.style.setProperty('--page-bg-color', 'transparent');
     } else {
       document.body.style.setProperty('--page-bg-image', 'none');
-      document.body.style.setProperty('--page-bg-color', bg || '#020612');
+      document.body.style.setProperty('--page-bg-color', bg || 'var(--fb-bg)');
     }
   }, []);
 
@@ -489,8 +489,10 @@ export default function App() {
     }
 
     // 2. Settings check
-    const savedBg = localStorage.getItem('neo-bg') || '#020612';
-    applyBackground(savedBg);
+    const savedBg = localStorage.getItem('neo-bg') || '';
+    if (savedBg) {
+      applyBackground(savedBg);
+    }
 
     const savedConfidential = localStorage.getItem('neo-mode-confidentiel') === '1';
     setConfidentialMode(savedConfidential);
@@ -511,11 +513,16 @@ export default function App() {
   }, [applyBackground, checkAndApplyMonthlyRollover]);
 
   const loadAllData = async () => {
-    // Load Conversations
+    // Load Conversations & auto-migrate any "MajorI.A" to "Major2I.A"
     const savedConvs = safeLoad<Conversation[]>('neo-conversations', []);
     if (savedConvs.length > 0) {
-      setConversations(savedConvs);
-      setActiveConversationId(savedConvs[0].id);
+      const migrated = savedConvs.map((c) => ({
+        ...c,
+        titre: (c.titre || '').replace(/MajorI\.A/g, 'Major2I.A'),
+      }));
+      setConversations(migrated);
+      setActiveConversationId(migrated[0].id);
+      safeSave('neo-conversations', migrated);
     } else {
       // Seed Initial Greeting Conversation with user name if present
       const initialConv: Conversation = {
@@ -529,8 +536,8 @@ export default function App() {
           {
             role: 'neo',
             contenu: userProfile.prenom 
-              ? `Bonjour ${userProfile.prenom}, et bienvenue sur MajorI.A. Comment puis-je vous aider aujourd'hui ?`
-              : "Bonjour et bienvenue sur MajorI.A. Comment puis-je vous aider aujourd'hui ?",
+              ? `Bonjour ${userProfile.prenom}, et bienvenue sur Major2I.A. Comment puis-je vous aider aujourd'hui ?`
+              : "Bonjour et bienvenue sur Major2I.A. Comment puis-je vous aider aujourd'hui ?",
             date: new Date().toISOString(),
           },
         ],
@@ -659,7 +666,7 @@ export default function App() {
             if ('Notification' in window && Notification.permission === 'granted') {
               try {
                 const bodyText = `${r.titre}${r.description ? `\n${r.description}` : ''}${endDateInfo}`;
-                new Notification(`🔔 MajorI.A - Rappel d’échéance`, {
+                new Notification(`🔔 Major2I.A - Rappel d’échéance`, {
                   body: bodyText,
                   icon: '/favicon.ico',
                   tag: key,
@@ -712,7 +719,7 @@ export default function App() {
     const newId = Date.now();
     const newConv: Conversation = {
       id: newId,
-      titre: `Session MajorI.A #${conversations.length + 1}`,
+      titre: `Session Major2I.A #${conversations.length + 1}`,
       messages: [],
       tags: [],
       favori: false,
@@ -746,7 +753,7 @@ export default function App() {
       const newId = Date.now();
       const freshConv: Conversation = {
         id: newId,
-        titre: 'Session MajorI.A #1',
+        titre: 'Session Major2I.A #1',
         messages: [],
         tags: [],
         favori: false,
@@ -823,7 +830,7 @@ export default function App() {
         } else if (actType === 'reminder' || actType === 'rappel') {
           const item: Rappel = {
             id: itemData.id || Date.now() + Math.floor(Math.random() * 1000),
-            titre: itemData.titre || itemData.nom || 'Rappel MajorI.A',
+            titre: itemData.titre || itemData.nom || 'Rappel Major2I.A',
             description: itemData.description || '',
             dateRappel: itemData.dateRappel || new Date().toISOString().split('T')[0],
             heure: itemData.heure || '12:00',
@@ -855,7 +862,7 @@ export default function App() {
         } else if (actType === 'task' || actType === 'tache') {
           const item: Tache = {
             id: itemData.id || Date.now() + Math.floor(Math.random() * 1000),
-            titre: itemData.titre || itemData.nom || 'Tâche MajorI.A',
+            titre: itemData.titre || itemData.nom || 'Tâche Major2I.A',
             description: itemData.description || '',
             priorite: (itemData.priorite as Priority) || 'normale',
             status: itemData.status || 'attente',
@@ -939,7 +946,7 @@ export default function App() {
     showToast(`🔋 +${amount}% Batterie ajoutés ! (Niveau actuel : ${next}%)`, 'success');
   };
 
-  // Send Message to Gemini MajorI.A with Supabase RPC consumption call
+  // Send Message to Gemini Major2I.A with Supabase RPC consumption call
   const handleSendMessage = async (text: string, image?: string) => {
     // 1. Décrémentation d'énergie via Supabase RPC
     const creditResult = await callUseCredit(user?.nom);
@@ -973,7 +980,7 @@ export default function App() {
       const newId = Date.now();
       targetConv = {
         id: newId,
-        titre: `Session MajorI.A #${conversations.length + 1}`,
+        titre: `Session Major2I.A #${conversations.length + 1}`,
         messages: [],
         tags: [],
         favori: false,
@@ -1657,7 +1664,7 @@ export default function App() {
 
   // Reset all local data
   const handleClearAllData = () => {
-    if (confirm('Êtes-vous sûr de vouloir effacer toutes les données locales de MajorI.A ?')) {
+    if (confirm('Êtes-vous sûr de vouloir effacer toutes les données locales de Major2I.A ?')) {
       localStorage.clear();
       setConversations([]);
       setFavoris([]);
@@ -1675,7 +1682,7 @@ export default function App() {
   const isCustomBackground = Boolean(bgColor && (bgColor.startsWith('url(') || bgColor.startsWith('data:') || bgColor.startsWith('blob:')));
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden flex flex-col font-sans select-none text-slate-100">
+    <div className="relative w-screen h-screen overflow-hidden flex flex-col font-sans select-none text-[var(--text-color)]">
       
       {/* Background Layer: Completely replaces preset background when custom image is imported */}
       {isCustomBackground ? (
@@ -2034,7 +2041,9 @@ export default function App() {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         themeMode={themeMode}
-        onUpdateThemeMode={handleUpdateThemeMode}
+        resolvedTheme={themeMode === 'system' ? (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : themeMode}
+        onSetThemeMode={handleUpdateThemeMode}
+        onToggleTheme={handleToggleTheme}
         chatBgImage={chatBgImage}
         onSetChatBgImage={handleSetChatBgImage}
         bgColor={bgColor}

@@ -1,5 +1,5 @@
 /**
- * Intelligent Action Extractor for MajorI.A
+ * Intelligent Action Extractor for Major2I.A
  * Extracts structured commands (Reminders, Tasks, Memory Notes, Favorites)
  * from explicit ACTION_JSON blocks as well as natural conversational French language.
  */
@@ -192,7 +192,7 @@ export function extractActionsFromText(userPrompt: string, aiReply?: string): Ex
     actions.push({
       type: 'task',
       titre: taskTitle,
-      description: `Tâche enregistrée par MajorI.A`,
+      description: `Tâche enregistrée par Major2I.A`,
       priorite: isUrgent ? 'haute' : 'normale',
     });
 
