@@ -652,6 +652,27 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
 
           {/* Quick Clear / Reset & AI Retranscribe buttons */}
           <div className="flex items-center gap-2 flex-wrap">
+            {(transcribedText || interimText) && (
+              <button
+                type="button"
+                onClick={() => {
+                  const text = (transcribedText + ' ' + interimText).trim();
+                  if (text) {
+                    if (isRecording) {
+                      handleStopRecording();
+                    }
+                    onSendToChat(text);
+                    playCyberSound('beep');
+                  }
+                }}
+                className="px-3.5 py-2 rounded-full bg-[#1877f2] hover:bg-[#166fe5] text-white text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
+                title="Transmettre immédiatement le texte au Chatbot"
+              >
+                <MessageSquare className="w-4 h-4" />
+                <span>Envoyer au Chat</span>
+              </button>
+            )}
+
             {lastRecordedBlob && !isRecording && (
               <button
                 type="button"
@@ -672,9 +693,9 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
                 <button
                   type="button"
                   onClick={handleSaveTranscription}
-                  className="px-3.5 py-2 rounded-full bg-[#1877f2] hover:bg-[#166fe5] text-white text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                  className="px-3.5 py-2 rounded-full bg-[#f0f2f5] hover:bg-[#e4e6eb] text-[#050505] text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
                 >
-                  <Sparkles className="w-4 h-4" />
+                  <Sparkles className="w-4 h-4 text-[#1877f2]" />
                   <span>Enregistrer</span>
                 </button>
 

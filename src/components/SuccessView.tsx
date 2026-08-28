@@ -107,23 +107,9 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
       } catch (err: any) {
         console.error('Erreur vérification session:', err);
         if (isMounted) {
-          const energy = planParam === 'pro' ? 500 : planParam === 'basic' ? 100 : 250;
-          setStatus('success');
-          setSessionData({
-            planId: planParam,
-            energyPercent: energy,
-            transactionId: sessionId,
-            date: new Date().toLocaleDateString('fr-FR')
-          });
-          if (onSubscriptionActivated) {
-            onSubscriptionActivated({
-              userId: user?.nom || 'user_active',
-              planId: planParam as any,
-              planName: planParam === 'pro' ? 'Formule Illimitée Pro' : planParam === 'basic' ? 'Formule Essentielle' : 'Formule Performance',
-              status: 'active',
-              interval: 'month'
-            }, energy);
-          }
+          setStatus('error');
+          setErrorMessage(err?.message || 'La vérification du paiement a échoué. Votre transaction n\'a pas pu être validée.');
+          playCyberSound('alert');
         }
       }
     }
@@ -169,6 +155,45 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
         </div>
       )}
 
+      {status === 'error' && (
+        <div className="p-8 sm:p-10 rounded-3xl bg-[#030914]/95 border-[0.5px] border-rose-500/50 backdrop-blur-2xl space-y-6 shadow-[0_0_50px_rgba(244,63,94,0.2)]">
+          <div className="relative mx-auto w-16 h-16 flex items-center justify-center rounded-full bg-rose-500/15 border border-rose-500/30 text-rose-400">
+            <AlertCircle className="w-10 h-10" />
+          </div>
+
+          <div className="space-y-2">
+            <h2 className="text-xl sm:text-2xl font-extrabold text-white">
+              Vérification du paiement interrompue
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-300">
+              {errorMessage || "Le paiement n'a pas pu être validé par la passerelle de paiement. Aucun montant n'a été prélevé et aucun accès n'a été débloqué."}
+            </p>
+          </div>
+
+          <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                playCyberSound('click');
+                window.location.href = '/pricing';
+              }}
+              className="w-full sm:w-auto px-6 py-3 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs sm:text-sm transition-all cursor-pointer shadow-lg shadow-sky-500/20"
+            >
+              Retourner aux Formules
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                playCyberSound('click');
+                onNavigateToDashboard();
+              }}
+              className="w-full sm:w-auto px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs sm:text-sm transition-all cursor-pointer"
+            >
+              Retour au Dashboard
+            </button>
+          </div>
+        </div>
+      )}
       {status === 'success' && (
         <div className="p-8 sm:p-10 rounded-3xl bg-[#030914]/95 border-[0.5px] border-emerald-500/50 backdrop-blur-2xl space-y-6 shadow-[0_0_50px_rgba(16,185,129,0.2)]">
           

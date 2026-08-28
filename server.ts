@@ -685,16 +685,29 @@ app.post('/api/stripe/verify-session', async (req: Request, res: Response) => {
           expand: ['subscription', 'customer'],
         });
 
+        // Strict payment check: verify that Stripe marks the session as paid or complete
+        if (session.payment_status !== 'paid' && session.status !== 'complete') {
+          return res.status(400).json({
+            success: false,
+            error: 'Le paiement n\'a pas encore été validé par Stripe. Veuillez compléter votre règlement.',
+          });
+        }
+
         planId = session.metadata?.planId || 'premium';
         interval = session.metadata?.interval || 'month';
         stripeCustomerId = typeof session.customer === 'string' ? session.customer : (session.customer as any)?.id || '';
         stripeSubscriptionId = typeof session.subscription === 'string' ? session.subscription : (session.subscription as any)?.id || '';
-      } catch (e) {
+      } catch (e: any) {
         console.warn('Session retrieval fallback:', e);
+        return res.status(400).json({
+          success: false,
+          error: e?.message || 'Impossible de vérifier la session Stripe.',
+        });
       }
     } else {
-      // Mock or simulation parameters
+      // Mock or simulation parameters with validation
       planId = req.body?.planId || 'premium';
+      interval = req.body?.interval || 'month';
     }
 
     const planInfo = PLAN_DEFINITIONS[planId] || PLAN_DEFINITIONS.premium;

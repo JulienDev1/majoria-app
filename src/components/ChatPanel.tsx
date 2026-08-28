@@ -416,8 +416,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     }
 
     // If live text was captured via real-time Web Speech API, send immediately without delay!
-    const cleanedImmediate = cleanSpokenTranscript(textToUse);
-    if (cleanedImmediate.trim()) {
+    const immediateText = (textToUse || '').trim();
+    if (immediateText) {
       stopAllMedia();
       setInputText('');
       setLiveTranscript('');
@@ -425,7 +425,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       const imgToSend = selectedImage;
       setSelectedImage(null);
       setSelectedImageName(null);
-      await onSendMessage(cleanedImmediate.trim(), imgToSend || undefined);
+      const cleaned = cleanSpokenTranscript(immediateText) || immediateText;
+      await onSendMessage(cleaned.trim(), imgToSend || undefined);
       return;
     }
 
@@ -457,7 +458,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 if (res.ok) {
                   const data = await res.json();
                   const transText = (data.transcription || '').trim();
-                  const cleanTrans = cleanSpokenTranscript(transText);
+                  const cleanTrans = cleanSpokenTranscript(transText) || transText;
                   if (cleanTrans) {
                     const finalCombined = base ? `${base} ${cleanTrans}` : cleanTrans;
                     setInputText('');
@@ -759,7 +760,49 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   {/* Message Text Content */}
                   <div className={`text-sm sm:text-[15px] leading-relaxed break-words font-sans font-medium ${isUser ? 'text-white' : 'text-[var(--fb-text-primary)]'}`}>
                     {isUser ? (
-                      <div className="whitespace-pre-wrap">{msg.contenu}</div>
+                      <>
+                        <div className="whitespace-pre-wrap">{msg.contenu}</div>
+                        {/* User Bubble Actions (Copy / Coller & Time) */}
+                        <div className="mt-2.5 pt-2 border-t border-white/20 flex items-center justify-between gap-2 text-xs text-white/90">
+                          <span className="text-[10px] text-white/70 font-mono">
+                            {new Date(msg.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                          
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setInputText((prev) => (prev ? `${prev}\n${msg.contenu}` : msg.contenu));
+                                playCyberSound('beep');
+                              }}
+                              title="Coller dans le champ de saisie"
+                              className="px-2 py-1 rounded-md bg-white/10 hover:bg-white/25 text-white text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                            >
+                              <Sparkles className="w-3 h-3 text-sky-200" />
+                              <span className="hidden sm:inline">Coller</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleCopyMessage(msg.contenu, idx)}
+                              title="Copier le message"
+                              className="px-2 py-1 rounded-md bg-white/10 hover:bg-white/25 text-white text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                            >
+                              {copiedIndex === idx ? (
+                                <>
+                                  <Check className="w-3 h-3 text-emerald-300" />
+                                  <span className="text-emerald-300 font-bold">Copié</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3 h-3" />
+                                  <span>Copier</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      </>
                     ) : !msg.contenu && isLoading && idx === conversation.messages.length - 1 ? (
                       <div className="flex items-center gap-2 text-sm text-[var(--fb-blue)] font-bold py-2">
                         <Loader2 className="w-4 h-4 text-[var(--fb-blue)] animate-spin" />

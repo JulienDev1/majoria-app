@@ -226,7 +226,10 @@ export async function createCustomerPortalSession(params?: { returnUrl?: string 
 /**
  * Verify and refresh subscription from checkout session ID
  */
-export async function verifyCheckoutSession(sessionId: string): Promise<{
+export async function verifyCheckoutSession(
+  sessionId: string,
+  extra?: { planId?: string; interval?: BillingInterval }
+): Promise<{
   success: boolean;
   subscription?: UserSubscription;
   planId?: string;
@@ -248,6 +251,8 @@ export async function verifyCheckoutSession(sessionId: string): Promise<{
     body: JSON.stringify({
       sessionId,
       userId,
+      planId: extra?.planId,
+      interval: extra?.interval,
     }),
   });
 
