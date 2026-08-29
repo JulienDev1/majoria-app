@@ -187,14 +187,15 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
           console.warn('AudioContext not available:', err);
         }
 
-        // 3. Setup MediaRecorder with mimeType detection
+        // 3. Setup MediaRecorder with safe mimeType detection
         try {
           let chosenMimeType = '';
-          if (typeof MediaRecorder !== 'undefined') {
+          if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported) {
             const types = [
               'audio/webm;codecs=opus',
               'audio/webm',
               'audio/mp4',
+              'audio/aac',
               'audio/ogg;codecs=opus',
               'audio/ogg',
               'audio/wav'
@@ -207,12 +208,12 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
             }
           }
 
-          const recorderOptions: MediaRecorderOptions = {
-            audioBitsPerSecond: 32000,
-          };
-          if (chosenMimeType) recorderOptions.mimeType = chosenMimeType;
-
-          const mediaRecorder = new MediaRecorder(stream, recorderOptions);
+          let mediaRecorder: MediaRecorder;
+          if (chosenMimeType) {
+            mediaRecorder = new MediaRecorder(stream, { mimeType: chosenMimeType });
+          } else {
+            mediaRecorder = new MediaRecorder(stream);
+          }
 
           mediaRecorderRef.current = mediaRecorder;
 
@@ -222,7 +223,7 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
             }
           };
 
-          mediaRecorder.start(250);
+          mediaRecorder.start(200);
         } catch (err) {
           console.warn('MediaRecorder init error:', err);
         }

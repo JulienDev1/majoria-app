@@ -329,8 +329,16 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             // Fallback recorder if SpeechRecognition is not available or misses last words
             try {
               let chosenMimeType = '';
-              if (typeof MediaRecorder !== 'undefined') {
-                const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg', 'audio/wav'];
+              if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported) {
+                const types = [
+                  'audio/webm;codecs=opus',
+                  'audio/webm',
+                  'audio/mp4',
+                  'audio/aac',
+                  'audio/ogg;codecs=opus',
+                  'audio/ogg',
+                  'audio/wav'
+                ];
                 for (const t of types) {
                   if (MediaRecorder.isTypeSupported(t)) {
                     chosenMimeType = t;
@@ -339,12 +347,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 }
               }
 
-              const recorderOptions: MediaRecorderOptions = {
-                audioBitsPerSecond: 32000,
-              };
-              if (chosenMimeType) recorderOptions.mimeType = chosenMimeType;
-
-              const mediaRecorder = new MediaRecorder(stream, recorderOptions);
+              let mediaRecorder: MediaRecorder;
+              if (chosenMimeType) {
+                mediaRecorder = new MediaRecorder(stream, { mimeType: chosenMimeType });
+              } else {
+                mediaRecorder = new MediaRecorder(stream);
+              }
 
               mediaRecorderRef.current = mediaRecorder;
               audioChunksRef.current = [];

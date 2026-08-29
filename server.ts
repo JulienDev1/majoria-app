@@ -1492,7 +1492,7 @@ app.post('/api/assistant/deep-link', handleMobileAssistantDeepLink);
 app.post('/api/deep-link', handleMobileAssistantDeepLink);
 app.post('/api/mobile-assistant', handleMobileAssistantDeepLink);
 
-// TRANSCRIPTION AUDIO / VOIX ENDPOINT
+// TRANSCRIPTION AUDIO / VOIX ENDPOINT (GEMINI MULTIMODAL HIGH-ACCURACY)
 app.post('/api/transcribe', async (req: Request, res: Response) => {
   try {
     const { audioData, mimeType, language } = req.body;
@@ -1501,29 +1501,39 @@ app.post('/api/transcribe', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Données audio requises (base64)' });
     }
 
-    // Extract raw base64 data
+    // Extract raw base64 data reliably
     let base64 = audioData;
     let type = mimeType || 'audio/webm';
-    if (typeof audioData === 'string' && audioData.startsWith('data:')) {
-      const match = audioData.match(/^data:(.*?);base64,(.*)$/);
-      if (match) {
-        type = match[1];
-        base64 = match[2];
+    if (typeof audioData === 'string' && audioData.includes('base64,')) {
+      const parts = audioData.split('base64,');
+      base64 = parts[1];
+      const header = parts[0];
+      const mimeMatch = header.match(/data:([^;]+)/);
+      if (mimeMatch) {
+        type = mimeMatch[1];
+      }
+    } else if (typeof audioData === 'string' && audioData.startsWith('data:')) {
+      const commaIdx = audioData.indexOf(',');
+      if (commaIdx !== -1) {
+        base64 = audioData.slice(commaIdx + 1);
       }
     }
+    base64 = (base64 || '').replace(/\s+/g, '');
 
-    // Normalize mime type for Gemini (strip codecs parameter like ;codecs=opus)
-    let cleanType = type.split(';')[0].trim().toLowerCase();
-    if (cleanType === 'audio/x-m4a' || cleanType === 'audio/m4a') cleanType = 'audio/mp4';
+    // Normalize mime type for Gemini supported audio codecs
+    let cleanType = (type || '').split(';')[0].trim().toLowerCase();
+    if (cleanType === 'audio/x-m4a' || cleanType === 'audio/m4a' || cleanType === 'audio/mp4a-latm') cleanType = 'audio/mp4';
     if (cleanType === 'audio/wave' || cleanType === 'audio/x-wav') cleanType = 'audio/wav';
-    if (cleanType === 'audio/ogg;codecs=opus' || cleanType === 'audio/ogg') cleanType = 'audio/ogg';
-    if (!cleanType || cleanType === 'audio' || cleanType === 'audio/unknown') cleanType = 'audio/webm';
+    if (cleanType === 'audio/ogg' || cleanType === 'audio/vorbis' || cleanType === 'audio/opus') cleanType = 'audio/ogg';
+    if (cleanType === 'audio/mpeg' || cleanType === 'audio/mp3') cleanType = 'audio/mp3';
+    if (cleanType === 'audio/webm' || cleanType.startsWith('audio/webm')) cleanType = 'audio/webm';
+    if (!cleanType || !cleanType.startsWith('audio/')) cleanType = 'audio/webm';
 
     const ai = getGenAI();
-    const promptText = `Écoute cet enregistrement audio et retranscris fidèlement et mot pour mot ce qui est prononcé en ${language || 'français'}. Ne génère aucun commentaire, aucune explication, aucune mention de transcription, donne uniquement le texte exact prononcé.`;
+    const promptText = `Écoute cet enregistrement audio et retranscris fidèlement, mot pour mot et avec exactitude chaque parole prononcée en ${language || 'français'}. Rends UNIQUEMENT le texte exact dit, sans ajouter de guillemets, d'introduction, d'explication ou de commentaire.`;
 
     let response: any = null;
-    const transcribeModels = ['gemini-flash-latest', 'gemini-3.7-flash', 'gemini-3.1-flash-lite'];
+    const transcribeModels = ['gemini-2.5-flash', 'gemini-3.7-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
 
     for (const modelName of transcribeModels) {
       try {
@@ -1545,11 +1555,11 @@ app.post('/api/transcribe', async (req: Request, res: Response) => {
               }
             ],
             config: {
-              temperature: 0.1,
-              maxOutputTokens: 600,
+              temperature: 0.0,
+              maxOutputTokens: 1024,
             }
           }),
-          12000,
+          10000,
           `Timeout transcription ${modelName}`
         );
         if (response && response.text && response.text.trim().length > 0) {
