@@ -1518,10 +1518,10 @@ app.post('/api/transcribe', async (req: Request, res: Response) => {
     if (!type || type === 'audio') type = 'audio/webm';
 
     const ai = getGenAI();
-    const promptText = `Transcris fidèlement et mot pour mot cet enregistrement vocal en texte clair et bien ponctué en français (ou dans la langue parlée : ${language || 'français'}). Ne rajoute aucun commentaire, donne uniquement le texte transcrit exact.`;
+    const promptText = `Transcris immédiatement et mot pour mot cet enregistrement vocal en texte clair sans aucun commentaire ni texte additionnel. Langue : ${language || 'français'}.`;
 
     let response: any = null;
-    const transcribeModels = ['gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-3.7-flash'];
+    const transcribeModels = ['gemini-flash-latest', 'gemini-3.1-flash-lite'];
 
     for (const modelName of transcribeModels) {
       try {
@@ -1543,13 +1543,11 @@ app.post('/api/transcribe', async (req: Request, res: Response) => {
               }
             ],
             config: {
-              temperature: 0.1,
-              thinkingConfig: {
-                thinkingLevel: ThinkingLevel.MINIMAL,
-              },
+              temperature: 0.0,
+              maxOutputTokens: 300,
             }
           }),
-          6000,
+          4000,
           `Timeout transcription ${modelName}`
         );
         if (response && response.text && response.text.trim().length > 0) {

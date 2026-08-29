@@ -326,36 +326,39 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             console.warn('AudioContext meter:', ctxErr);
           }
 
-          // Fallback recorder if SpeechRecognition is not available
-          try {
-            let chosenMimeType = '';
-            if (typeof MediaRecorder !== 'undefined') {
-              const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg', 'audio/wav'];
-              for (const t of types) {
-                if (MediaRecorder.isTypeSupported(t)) {
-                  chosenMimeType = t;
-                  break;
+            // Fallback recorder if SpeechRecognition is not available or misses last words
+            try {
+              let chosenMimeType = '';
+              if (typeof MediaRecorder !== 'undefined') {
+                const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg', 'audio/wav'];
+                for (const t of types) {
+                  if (MediaRecorder.isTypeSupported(t)) {
+                    chosenMimeType = t;
+                    break;
+                  }
                 }
               }
+
+              const recorderOptions: MediaRecorderOptions = {
+                audioBitsPerSecond: 32000,
+              };
+              if (chosenMimeType) recorderOptions.mimeType = chosenMimeType;
+
+              const mediaRecorder = new MediaRecorder(stream, recorderOptions);
+
+              mediaRecorderRef.current = mediaRecorder;
+              audioChunksRef.current = [];
+
+              mediaRecorder.ondataavailable = (e) => {
+                if (e.data && e.data.size > 0) {
+                  audioChunksRef.current.push(e.data);
+                }
+              };
+
+              mediaRecorder.start(100);
+            } catch (recErr) {
+              console.warn('MediaRecorder fallback init:', recErr);
             }
-
-            const mediaRecorder = chosenMimeType
-              ? new MediaRecorder(stream, { mimeType: chosenMimeType })
-              : new MediaRecorder(stream);
-
-            mediaRecorderRef.current = mediaRecorder;
-            audioChunksRef.current = [];
-
-            mediaRecorder.ondataavailable = (e) => {
-              if (e.data && e.data.size > 0) {
-                audioChunksRef.current.push(e.data);
-              }
-            };
-
-            mediaRecorder.start(200);
-          } catch (recErr) {
-            console.warn('MediaRecorder fallback init:', recErr);
-          }
         }
       }
     } catch (mediaErr) {
@@ -392,12 +395,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       textToUse = `${base} ${textToUse}`.trim();
     }
 
-    // Stop Web Speech Recognition immediately
+    // Stop Web Speech Recognition gracefully (do not wipe results before stopping)
     if (recognitionRef.current) {
       try {
-        recognitionRef.current.onresult = null;
-        recognitionRef.current.onerror = null;
-        recognitionRef.current.onend = null;
         recognitionRef.current.stop();
       } catch (e) {}
       recognitionRef.current = null;
@@ -415,8 +415,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       dictationTimerRef.current = null;
     }
 
-    // If live text was captured via real-time Web Speech API, send immediately without delay!
-    const immediateText = (textToUse || '').trim();
+    // If live text was captured via real-time Web Speech API, send immediately with ZERO delay!
+    const immediateText = (textToUse || liveTranscript || capturedTextRef.current || '').trim();
     if (immediateText) {
       stopAllMedia();
       setInputText('');
@@ -431,7 +431,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     }
 
     // If no text was captured in real-time (e.g. browser without Web Speech),
-    // transcribe the recorded audio chunks with Gemini API instantly!
+    // transcribe the recorded audio chunks with Gemini AI ultra-fast!
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       setIsTranscribingAudio(true);
 
@@ -445,21 +445,26 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             reader.onload = async () => {
               try {
                 const base64Data = reader.result as string;
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 6000);
+
                 const res = await fetch('/api/transcribe', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
+                  signal: controller.signal,
                   body: JSON.stringify({
                     audioData: base64Data,
                     mimeType,
                     language: 'fr',
                   }),
                 });
+                clearTimeout(timeoutId);
 
                 if (res.ok) {
                   const data = await res.json();
                   const transText = (data.transcription || '').trim();
                   const cleanTrans = cleanSpokenTranscript(transText) || transText;
-                  if (cleanTrans) {
+                  if (cleanTrans && !cleanTrans.includes("Message vocal reçu et sauvegardé")) {
                     const finalCombined = base ? `${base} ${cleanTrans}` : cleanTrans;
                     setInputText('');
                     setLiveTranscript('');
@@ -471,7 +476,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   }
                 }
               } catch (err) {
-                console.error('Erreur transcription fallback:', err);
+                console.error('Erreur transcription rapide:', err);
               } finally {
                 setIsTranscribingAudio(false);
                 stopAllMedia();

@@ -77,10 +77,10 @@ export default async function handler(req: any, res: any) {
     if (!type || type === 'audio') type = 'audio/webm';
 
     const ai = new GoogleGenAI({ apiKey });
-    const promptText = `Transcris fidèlement et mot pour mot cet enregistrement vocal en texte clair et bien ponctué en français (ou dans la langue parlée : ${language || 'français'}). Ne rajoute aucun commentaire, donne uniquement le texte transcrit exact.`;
+    const promptText = `Transcris immédiatement et mot pour mot cet enregistrement vocal en texte clair sans aucun commentaire ni texte additionnel. Langue : ${language || 'français'}.`;
 
     let response: any = null;
-    const transcribeModels = ['gemini-flash-latest', 'gemini-3.7-flash', 'gemini-3.1-flash-lite'];
+    const transcribeModels = ['gemini-flash-latest', 'gemini-3.1-flash-lite'];
 
     for (const modelName of transcribeModels) {
       try {
@@ -101,7 +101,8 @@ export default async function handler(req: any, res: any) {
             },
           ],
           config: {
-            temperature: 0.1,
+            temperature: 0.0,
+            maxOutputTokens: 300,
           },
         });
         if (response && response.text && response.text.trim().length > 0) {

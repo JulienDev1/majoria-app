@@ -207,9 +207,12 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
             }
           }
 
-          const mediaRecorder = chosenMimeType
-            ? new MediaRecorder(stream, { mimeType: chosenMimeType })
-            : new MediaRecorder(stream);
+          const recorderOptions: MediaRecorderOptions = {
+            audioBitsPerSecond: 32000,
+          };
+          if (chosenMimeType) recorderOptions.mimeType = chosenMimeType;
+
+          const mediaRecorder = new MediaRecorder(stream, recorderOptions);
 
           mediaRecorderRef.current = mediaRecorder;
 
