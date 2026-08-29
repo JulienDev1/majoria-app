@@ -454,7 +454,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               try {
                 const base64Data = reader.result as string;
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 15000);
+                const timeoutId = setTimeout(() => controller.abort(), 45000);
 
                 const res = await fetch('/api/transcribe', {
                   method: 'POST',
@@ -482,14 +482,21 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                     setSelectedImageName(null);
                     await onSendMessage(finalCombined.trim(), imgToSend || undefined);
                   } else {
-                    setMicErrorMessage("Aucune parole détectée. Veuillez parler plus près du micro.");
+                    setMicErrorMessage("Aucune parole détectée dans l'enregistrement. Veuillez parler plus près du micro.");
                   }
                 } else {
-                  setMicErrorMessage("Impossible de transcrire l'enregistrement vocal.");
+                  const errorData = await res.json().catch(() => ({}));
+                  setMicErrorMessage(errorData.error || "Impossible de transcrire l'enregistrement vocal.");
                 }
-              } catch (err) {
+              } catch (err: any) {
                 console.error('Erreur transcription rapide:', err);
-                setMicErrorMessage("Délai de transcription dépassé. Veuillez réessayer.");
+                if (err?.name === 'AbortError') {
+                  setMicErrorMessage("Délai de transcription dépassé (connexion lente). Veuillez réessayer.");
+                } else if (typeof navigator !== 'undefined' && !navigator.onLine) {
+                  setMicErrorMessage("Aucune connexion Internet disponible.");
+                } else {
+                  setMicErrorMessage("Erreur lors de la transcription vocale. Veuillez réessayer.");
+                }
               } finally {
                 setIsTranscribingAudio(false);
                 stopAllMedia();
@@ -509,6 +516,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       };
 
       try {
+        if (typeof mediaRecorderRef.current.requestData === 'function') {
+          mediaRecorderRef.current.requestData();
+        }
         mediaRecorderRef.current.stop();
       } catch (e) {
         setIsTranscribingAudio(false);

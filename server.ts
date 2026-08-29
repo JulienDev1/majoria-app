@@ -15,7 +15,8 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Servir le dossier public et dist à la racine
 app.use(express.static(path.join(process.cwd(), 'public')));
@@ -1533,7 +1534,7 @@ app.post('/api/transcribe', async (req: Request, res: Response) => {
     const promptText = `Écoute cet enregistrement audio et retranscris fidèlement, mot pour mot et avec exactitude chaque parole prononcée en ${language || 'français'}. Rends UNIQUEMENT le texte exact dit, sans ajouter de guillemets, d'introduction, d'explication ou de commentaire.`;
 
     let response: any = null;
-    const transcribeModels = ['gemini-2.5-flash', 'gemini-3.7-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
+    const transcribeModels = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-3.7-flash'];
 
     for (const modelName of transcribeModels) {
       try {
@@ -1559,7 +1560,7 @@ app.post('/api/transcribe', async (req: Request, res: Response) => {
               maxOutputTokens: 1024,
             }
           }),
-          10000,
+          25000,
           `Timeout transcription ${modelName}`
         );
         if (response && response.text && response.text.trim().length > 0) {

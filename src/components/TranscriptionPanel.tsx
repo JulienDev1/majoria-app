@@ -370,15 +370,20 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
       reader.onload = async () => {
         try {
           const base64Data = reader.result as string;
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 60000);
+
           const response = await fetch('/api/transcribe', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
             body: JSON.stringify({
               audioData: base64Data,
               mimeType,
               language: selectedLanguage === 'fr-FR' ? 'français' : 'anglais',
             }),
           });
+          clearTimeout(timeoutId);
 
           const data = await response.json();
 
@@ -403,7 +408,11 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
           }
         } catch (err: any) {
           console.error('Erreur API Transcription:', err);
-          onShowToast('Erreur lors du traitement de l\'enregistrement vocal', 'danger');
+          if (err?.name === 'AbortError') {
+            onShowToast('Délai d\'attente dépassé (connexion lente). Veuillez réessayer.', 'danger');
+          } else {
+            onShowToast(err?.message || 'Erreur lors du traitement de l\'enregistrement vocal', 'danger');
+          }
         } finally {
           setIsProcessingAI(false);
         }
@@ -420,8 +429,8 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 25 * 1024 * 1024) {
-      onShowToast('Fichier trop volumineux (max 25 Mo)', 'warning');
+    if (file.size > 40 * 1024 * 1024) {
+      onShowToast('Fichier trop volumineux (max 40 Mo)', 'warning');
       return;
     }
 
@@ -434,16 +443,20 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
       reader.onload = async () => {
         try {
           const base64Data = reader.result as string;
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 90000);
           
           const response = await fetch('/api/transcribe', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
             body: JSON.stringify({
               audioData: base64Data,
               mimeType: file.type || 'audio/mp3',
               language: selectedLanguage === 'fr-FR' ? 'français' : 'anglais',
             }),
           });
+          clearTimeout(timeoutId);
 
           const data = await response.json();
 
@@ -468,7 +481,11 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
           }
         } catch (error: any) {
           console.error('Upload transcription error:', error);
-          onShowToast('Erreur lors de la transcription du fichier audio', 'danger');
+          if (error?.name === 'AbortError') {
+            onShowToast('Délai dépassé pour le fichier audio volumineux. Veuillez réessayer.', 'danger');
+          } else {
+            onShowToast(error?.message || 'Erreur lors de la transcription du fichier audio', 'danger');
+          }
         } finally {
           setIsUploading(false);
         }

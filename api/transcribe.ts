@@ -92,7 +92,7 @@ export default async function handler(req: any, res: any) {
     const promptText = `Écoute cet enregistrement audio et retranscris fidèlement, mot pour mot et avec exactitude chaque parole prononcée en ${language || 'français'}. Rends UNIQUEMENT le texte exact dit, sans ajouter de guillemets, d'introduction, d'explication ou de commentaire.`;
 
     let response: any = null;
-    const transcribeModels = ['gemini-2.5-flash', 'gemini-3.7-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
+    const transcribeModels = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-3.7-flash'];
 
     for (const modelName of transcribeModels) {
       try {
