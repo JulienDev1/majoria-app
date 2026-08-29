@@ -1531,10 +1531,10 @@ app.post('/api/transcribe', async (req: Request, res: Response) => {
     if (!cleanType || !cleanType.startsWith('audio/')) cleanType = 'audio/webm';
 
     const ai = getGenAI();
-    const promptText = `Écoute cet enregistrement audio et retranscris fidèlement, mot pour mot et avec exactitude chaque parole prononcée en ${language || 'français'}. Rends UNIQUEMENT le texte exact dit, sans ajouter de guillemets, d'introduction, d'explication ou de commentaire.`;
+    const promptText = `Écoute cet enregistrement audio et retranscris fidèlement, mot pour mot et avec exactitude chaque parole prononcée en ${language || 'français'}. Rends UNIQUEMENT le texte exact dit, sans ajouter de guillemets, d'introduction, d'explication ou de commentaire. S'il n'y a aucune parole ou uniquement du silence, réponds simplement : [SILENCE].`;
 
     let response: any = null;
-    const transcribeModels = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-3.7-flash'];
+    const transcribeModels = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-flash-latest'];
 
     for (const modelName of transcribeModels) {
       try {
@@ -1560,7 +1560,7 @@ app.post('/api/transcribe', async (req: Request, res: Response) => {
               maxOutputTokens: 1024,
             }
           }),
-          25000,
+          15000,
           `Timeout transcription ${modelName}`
         );
         if (response && response.text && response.text.trim().length > 0) {
@@ -1575,6 +1575,9 @@ app.post('/api/transcribe', async (req: Request, res: Response) => {
     // Strip surrounding quotes or prefixes
     rawText = rawText.replace(/^["'«»]+|["'«»]+$/g, '').trim();
     rawText = rawText.replace(/^(transcription|texte transcrit|résultat)\s*:\s*/i, '').trim();
+    if (rawText.toUpperCase() === '[SILENCE]' || rawText.toUpperCase() === 'SILENCE' || rawText.toLowerCase() === 'silence.') {
+      rawText = '';
+    }
 
     return res.json({
       success: true,

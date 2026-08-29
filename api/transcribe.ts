@@ -89,10 +89,10 @@ export default async function handler(req: any, res: any) {
     if (!cleanType || !cleanType.startsWith('audio/')) cleanType = 'audio/webm';
 
     const ai = new GoogleGenAI({ apiKey });
-    const promptText = `Écoute cet enregistrement audio et retranscris fidèlement, mot pour mot et avec exactitude chaque parole prononcée en ${language || 'français'}. Rends UNIQUEMENT le texte exact dit, sans ajouter de guillemets, d'introduction, d'explication ou de commentaire.`;
+    const promptText = `Écoute cet enregistrement audio et retranscris fidèlement, mot pour mot et avec exactitude chaque parole prononcée en ${language || 'français'}. Rends UNIQUEMENT le texte exact dit, sans ajouter de guillemets, d'introduction, d'explication ou de commentaire. S'il n'y a aucune parole ou uniquement du silence, réponds simplement : [SILENCE].`;
 
     let response: any = null;
-    const transcribeModels = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-3.7-flash'];
+    const transcribeModels = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-flash-latest'];
 
     for (const modelName of transcribeModels) {
       try {
@@ -128,6 +128,9 @@ export default async function handler(req: any, res: any) {
     let rawText = response?.text?.trim() || '';
     rawText = rawText.replace(/^["'«»]+|["'«»]+$/g, '').trim();
     rawText = rawText.replace(/^(transcription|texte transcrit|résultat)\s*:\s*/i, '').trim();
+    if (rawText.toUpperCase() === '[SILENCE]' || rawText.toUpperCase() === 'SILENCE' || rawText.toLowerCase() === 'silence.') {
+      rawText = '';
+    }
 
     res.status(200).json({
       success: true,

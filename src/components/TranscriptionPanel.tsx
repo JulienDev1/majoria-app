@@ -344,6 +344,9 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
       };
 
       try {
+        if (typeof mediaRecorderRef.current.requestData === 'function') {
+          mediaRecorderRef.current.requestData();
+        }
         mediaRecorderRef.current.stop();
       } catch (e) {
         if (streamRef.current) {
@@ -404,7 +407,7 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
             };
             setSavedTranscriptions((prev) => [newItem, ...prev]);
           } else {
-            throw new Error(data.error || 'Transcription vide');
+            onShowToast("Aucune parole détectée. Veuillez parler plus près du micro.", "warning");
           }
         } catch (err: any) {
           console.error('Erreur API Transcription:', err);
