@@ -4,26 +4,21 @@ import {
   Sparkles, 
   Flame, 
   ArrowRight, 
-  CreditCard, 
   ShieldCheck, 
-  ExternalLink, 
-  Settings, 
   RotateCcw, 
   Zap, 
   BatteryCharging, 
   Scale, 
   ShieldAlert, 
-  Lock, 
-  AlertCircle,
   CheckCircle2,
   Send,
-  HelpCircle,
   ChevronRight,
   Layers,
-  X
+  AlertCircle,
+  ExternalLink
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { SUBSCRIPTION_PLANS, createCheckoutSession, createCustomerPortalSession, fetchUserSubscription, verifyCheckoutSession } from '../utils/stripe';
+import { SUBSCRIPTION_PLANS, createCheckoutSession, createCustomerPortalSession, fetchUserSubscription } from '../utils/stripe';
 import { SubscriptionPlan, BillingInterval, UserSubscription, UserProfile, RolloverEnergyInfo } from '../types';
 import { playCyberSound } from '../utils/security';
 import { LegalDisclaimerModal } from './LegalDisclaimerModal';
@@ -70,16 +65,6 @@ export const PricingView: React.FC<PricingViewProps> = ({
   const [contactMessage, setContactMessage] = useState('');
   const [contactSuccess, setContactSuccess] = useState(false);
 
-  // Dedicated Payment Checkout & Verification Modal State
-  const [activeCheckoutPlan, setActiveCheckoutPlan] = useState<SubscriptionPlan | null>(null);
-  const [paymentStep, setPaymentStep] = useState<'details' | 'verifying' | 'success' | 'error'>('details');
-  const [cardNumber, setCardNumber] = useState('4242 •••• •••• 4242');
-  const [cardExpiry, setCardExpiry] = useState('12/28');
-  const [cardCvc, setCardCvc] = useState('888');
-  const [cardHolder, setCardHolder] = useState(user?.nom || 'Client Major2I.A');
-  const [paymentError, setPaymentError] = useState<string | null>(null);
-  const [paymentSessionInfo, setPaymentSessionInfo] = useState<any>(null);
-
   // Legal Modal
   const [showLegalModal, setShowLegalModal] = useState(false);
   const [legalTab, setLegalTab] = useState<'cgv' | 'lcen'>('cgv');
@@ -118,12 +103,11 @@ export const PricingView: React.FC<PricingViewProps> = ({
     } catch {}
   };
 
-  // Open the payment checkout modal for the selected plan
-  const handlePlanAction = (plan: SubscriptionPlan) => {
+  // 100% Real Stripe Checkout Redirection
+  const handlePlanAction = async (plan: SubscriptionPlan) => {
     playCyberSound('click');
     setErrorMessage(null);
     setSuccessMessage(null);
-    setPaymentError(null);
 
     // 1. Enterprise custom plan
     if (plan.id === 'custom') {
@@ -138,88 +122,36 @@ export const PricingView: React.FC<PricingViewProps> = ({
       return;
     }
 
-    // 3. Open dedicated secure payment checkout terminal
-    setActiveCheckoutPlan(plan);
-    setPaymentStep('details');
-    setCardHolder(user?.nom || 'Client Major2I.A');
-    playCyberSound('beep');
-  };
-
-  // Process and verify payment transaction with the server / Stripe
-  const handleConfirmAndProcessPayment = async () => {
-    if (!activeCheckoutPlan) return;
-
+    // 3. Initiate real Stripe Checkout session & redirect
     try {
-      setPaymentStep('verifying');
-      setPaymentError(null);
+      setLoadingPlanId(plan.id);
       playCyberSound('matrix');
 
-      // 1. Request session creation from server
+      const successUrl = `${window.location.origin}/success?session_id={CHECKOUT_SESSION_ID}&plan=${plan.id}`;
+      const cancelUrl = `${window.location.origin}/pricing`;
+
       const sessionResult = await createCheckoutSession({
-        planId: activeCheckoutPlan.id,
+        planId: plan.id,
         interval: billingInterval,
-        successUrl: `${window.location.origin}/pricing`,
-        cancelUrl: `${window.location.origin}/pricing`,
+        successUrl,
+        cancelUrl,
       });
 
-      const effectiveSessionId = sessionResult.sessionId || `cs_test_mock_${Date.now()}`;
-
-      // 2. STRICT PAYMENT VERIFICATION with the server
-      const verifyResult = await verifyCheckoutSession(effectiveSessionId, {
-        planId: activeCheckoutPlan.id,
-        interval: billingInterval,
-      });
-
-      // Verify that the server confirmed the payment successfully
-      if (!verifyResult || !verifyResult.success) {
-        throw new Error(verifyResult?.message || "Le paiement n'a pas pu être validé par la passerelle de paiement.");
+      if (!sessionResult || !sessionResult.url) {
+        throw new Error("L'API Stripe n'a pas retourné d'URL de redirection.");
       }
 
-      // 3. ONLY ON CONFIRMED PAYMENT: Activate subscription and trigger festive celebration!
-      const targetEnergy = verifyResult.energyPercent || (activeCheckoutPlan.id === 'pro' ? 500 : activeCheckoutPlan.id === 'premium' ? 250 : 100);
-      const effectiveUserId = user?.nom || localStorage.getItem('neo-auth-user') || 'user_active';
-
-      const newSub: UserSubscription = verifyResult.subscription || {
-        userId: effectiveUserId,
-        planId: activeCheckoutPlan.id,
-        planName: activeCheckoutPlan.name,
-        status: 'active',
-        interval: billingInterval,
-        currentPeriodEnd: new Date(Date.now() + (billingInterval === 'year' ? 365 : 30) * 24 * 3600 * 1000).toISOString(),
-      };
-
-      // Persist verified subscription
-      localStorage.setItem(`neo-user-sub-${effectiveUserId}`, JSON.stringify(newSub));
-      localStorage.setItem('neo-battery-energy', targetEnergy.toString());
-      localStorage.setItem('neo-local-credits', targetEnergy.toString());
-      localStorage.setItem(`neo-user-credits-${effectiveUserId}`, targetEnergy.toString());
-
-      setSubscription(newSub);
-      if (onSubscriptionUpdate) {
-        onSubscriptionUpdate(newSub);
-      }
-      if (onPerformRollover) {
-        onPerformRollover();
-      }
-
-      setPaymentSessionInfo({
-        transactionId: effectiveSessionId,
-        planName: activeCheckoutPlan.name,
-        amount: billingInterval === 'year' ? (activeCheckoutPlan.annualMonthlyPrice * 12).toFixed(2) : activeCheckoutPlan.monthlyPrice.toFixed(2),
-        interval: billingInterval === 'year' ? 'Annuel (-20%)' : 'Mensuel',
-        energy: targetEnergy,
-      });
-
-      setPaymentStep('success');
-      playCyberSound('success');
-      triggerConfetti();
-
-      setSuccessMessage(`✨ Formule ${activeCheckoutPlan.name} activée avec succès ! Votre batterie est rechargée à ${targetEnergy}%.`);
+      console.log('Session Stripe créée avec succès. Redirection vers Stripe Checkout:', sessionResult.url);
+      
+      // Direct redirection to Stripe's secure checkout page
+      window.location.href = sessionResult.url;
     } catch (err: any) {
-      console.error('Erreur vérification paiement:', err);
-      setPaymentStep('error');
-      setPaymentError(err?.message || "Échec de validation du paiement. Aucun montant n'a été débité et l'accès n'a pas été accordé.");
+      console.error('Erreur API Stripe Checkout:', err?.message || err, err);
+      setErrorMessage(
+        err?.message || 'Erreur lors de la redirection vers le paiement sécurisé Stripe.'
+      );
       playCyberSound('alert');
+      setLoadingPlanId(null);
     }
   };
 
@@ -704,229 +636,6 @@ export const PricingView: React.FC<PricingViewProps> = ({
           </button>
         )}
       </div>
-
-      {/* Secure Checkout & Verification Modal */}
-      {activeCheckoutPlan && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="relative w-full max-w-lg rounded-3xl bg-[#030914] border-[0.5px] border-sky-400/40 p-6 sm:p-8 shadow-[0_0_60px_rgba(56,189,248,0.15)] text-left space-y-6">
-            
-            {/* Header */}
-            <div className="flex items-center justify-between pb-4 border-b border-white/10">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-sky-500/10 border border-sky-400/30 text-sky-400">
-                  <CreditCard className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base sm:text-lg font-extrabold text-white">
-                    Passerelle de Paiement Sécurisée
-                  </h3>
-                  <p className="text-xs text-slate-400">
-                    Vérification stricte de transaction bancaire
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  playCyberSound('click');
-                  setActiveCheckoutPlan(null);
-                  setPaymentStep('details');
-                }}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Step 1: Payment Details */}
-            {paymentStep === 'details' && (
-              <div className="space-y-4">
-                {/* Plan Summary */}
-                <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 flex items-center justify-between">
-                  <div>
-                    <span className="text-xs text-slate-400 block">Formule sélectionnée</span>
-                    <h4 className="text-sm sm:text-base font-bold text-white flex items-center gap-1.5">
-                      <span>{activeCheckoutPlan.name}</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 font-mono">
-                        {billingInterval === 'year' ? 'Annuel (-20%)' : 'Mensuel'}
-                      </span>
-                    </h4>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-lg sm:text-xl font-black text-emerald-400">
-                      {billingInterval === 'year'
-                        ? (activeCheckoutPlan.annualMonthlyPrice * 12).toFixed(2)
-                        : activeCheckoutPlan.monthlyPrice.toFixed(2)} €
-                    </span>
-                    <span className="text-[10px] text-slate-400 block">
-                      {billingInterval === 'year' ? 'TTC / an' : 'TTC / mois'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Card Inputs */}
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">Titulaire de la carte</label>
-                    <input
-                      type="text"
-                      value={cardHolder}
-                      onChange={(e) => setCardHolder(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/15 text-white text-xs focus:outline-none focus:border-sky-400"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">Numéro de carte bancaire</label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={cardNumber}
-                        onChange={(e) => setCardNumber(e.target.value)}
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/15 text-white text-xs font-mono focus:outline-none focus:border-sky-400"
-                      />
-                      <div className="absolute right-3 top-2.5 flex items-center gap-1 text-[10px] text-slate-400">
-                        <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                        <span>3DS 2.0</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">Date d'expiration</label>
-                      <input
-                        type="text"
-                        value={cardExpiry}
-                        onChange={(e) => setCardExpiry(e.target.value)}
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/15 text-white text-xs font-mono focus:outline-none focus:border-sky-400"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">Code CVC / CVV</label>
-                      <input
-                        type="password"
-                        maxLength={4}
-                        value={cardCvc}
-                        onChange={(e) => setCardCvc(e.target.value)}
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/15 text-white text-xs font-mono focus:outline-none focus:border-sky-400"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-400/20 text-[11px] text-sky-200 flex items-start gap-2">
-                  <ShieldCheck className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
-                  <span>
-                    La formule ne sera activée qu'après confirmation et vérification stricte du débit par les serveurs sécurisés.
-                  </span>
-                </div>
-
-                {/* Confirm Button */}
-                <button
-                  type="button"
-                  onClick={handleConfirmAndProcessPayment}
-                  className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-sky-500 hover:from-emerald-400 hover:to-sky-400 text-slate-950 font-extrabold text-sm transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <Lock className="w-4 h-4" />
-                  <span>Payer et Valider le Règlement</span>
-                </button>
-              </div>
-            )}
-
-            {/* Step 2: Strict Verifying in Progress */}
-            {paymentStep === 'verifying' && (
-              <div className="py-8 text-center space-y-4">
-                <div className="w-14 h-14 border-4 border-sky-400 border-t-transparent rounded-full animate-spin mx-auto" />
-                <div className="space-y-1.5">
-                  <h4 className="text-base font-bold text-white">
-                    Vérification du règlement en cours...
-                  </h4>
-                  <p className="text-xs text-slate-400 max-w-xs mx-auto">
-                    Interrogation des serveurs de paiement, contrôle 3D-Secure et validation de la transaction.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Step 3: Payment Confirmed Success */}
-            {paymentStep === 'success' && (
-              <div className="py-4 text-center space-y-5">
-                <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-400/50 text-emerald-400 flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/30">
-                  <CheckCircle2 className="w-10 h-10" />
-                </div>
-
-                <div className="space-y-1">
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-400/30 text-emerald-300 text-xs font-bold">
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Paiement vérifié & validé</span>
-                  </div>
-                  <h4 className="text-lg font-black text-white">
-                    Souscription Débloquée !
-                  </h4>
-                  <p className="text-xs text-slate-300">
-                    Votre transaction <code className="text-sky-300 font-mono text-[10px]">{paymentSessionInfo?.transactionId?.slice(0, 16)}...</code> a été validée avec succès.
-                  </p>
-                </div>
-
-                <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 text-left space-y-2 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Montant réglé :</span>
-                    <span className="font-bold text-emerald-400">{paymentSessionInfo?.amount} €</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Batterie IA :</span>
-                    <span className="font-bold text-sky-400">{paymentSessionInfo?.energy}% capacité</span>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    playCyberSound('click');
-                    setActiveCheckoutPlan(null);
-                    setPaymentStep('details');
-                    if (isModalMode && onCloseModal) {
-                      onCloseModal();
-                    }
-                  }}
-                  className="w-full py-3 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs sm:text-sm transition-all cursor-pointer shadow-lg shadow-emerald-500/20"
-                >
-                  Continuer avec mon forfait actif
-                </button>
-              </div>
-            )}
-
-            {/* Step 4: Error on Payment */}
-            {paymentStep === 'error' && (
-              <div className="py-4 text-center space-y-4">
-                <div className="w-14 h-14 rounded-full bg-rose-500/20 border border-rose-400/50 text-rose-400 flex items-center justify-center mx-auto">
-                  <AlertCircle className="w-8 h-8" />
-                </div>
-                <div className="space-y-1.5">
-                  <h4 className="text-base font-bold text-white">
-                    Paiement non validé
-                  </h4>
-                  <p className="text-xs text-rose-300">
-                    {paymentError || "Le paiement n'a pas pu être confirmé. Aucun accès n'a été débloqué."}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    playCyberSound('click');
-                    setPaymentStep('details');
-                  }}
-                  className="w-full py-2.5 px-4 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs transition-all cursor-pointer"
-                >
-                  Réessayer avec d'autres identifiants
-                </button>
-              </div>
-            )}
-
-          </div>
-        </div>
-      )}
 
       {/* Legal Modal Component */}
       <LegalDisclaimerModal

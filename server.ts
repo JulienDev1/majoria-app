@@ -35,16 +35,16 @@ if (supabaseUrl && supabaseKey) {
   }
 }
 
-// Initialize Stripe Client with secret key or mock support
+// Initialize Stripe Client with secret key
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY || '';
-const stripe = stripeSecretKey && stripeSecretKey !== 'sk_test_placeholder' 
-  ? new Stripe(stripeSecretKey, { apiVersion: '2025-02-24.acacia' as any })
+const stripe = stripeSecretKey && stripeSecretKey.trim() !== '' && stripeSecretKey !== 'sk_test_placeholder' 
+  ? new Stripe(stripeSecretKey.trim(), { apiVersion: '2025-02-24.acacia' as any })
   : null;
 
 if (stripe) {
   console.log('Stripe SDK initialized successfully with live/test secret key.');
 } else {
-  console.log('Stripe SDK in sandbox simulation mode (configure STRIPE_SECRET_KEY to enable live checkout).');
+  console.log('Stripe SDK: configure STRIPE_SECRET_KEY to enable live checkout.');
 }
 
 // In-memory data store for server-side persistence fallback
@@ -522,13 +522,21 @@ async function authenticateSupabaseUser(req: Request): Promise<{ userId: string;
 }
 
 /**
- * Route 1: POST /api/stripe/create-checkout-session
- * Initialise une session Stripe Checkout pour un abonnement récurrent
+ * Helper: Création d'une session Stripe Checkout
  */
-app.post('/api/stripe/create-checkout-session', async (req: Request, res: Response) => {
+async function handleCreateCheckoutSession(req: Request, res: Response) {
   try {
-    const { planId = 'premium', interval = 'month', successUrl, cancelUrl } = req.body;
+    const { planId = 'premium', interval = 'month', successUrl, cancelUrl } = req.body || {};
     const { userId, userEmail } = await authenticateSupabaseUser(req);
+
+    const activeStripeKey = process.env.STRIPE_SECRET_KEY || '';
+    const activeStripe = stripe || (activeStripeKey.trim() !== '' ? new Stripe(activeStripeKey.trim(), { apiVersion: '2025-02-24.acacia' as any }) : null);
+
+    if (!activeStripe) {
+      return res.status(400).json({
+        error: 'Configuration Stripe manquante sur le serveur : variable STRIPE_SECRET_KEY non renseignée dans les paramètres.',
+      });
+    }
 
     const planInfo = PLAN_DEFINITIONS[planId] || PLAN_DEFINITIONS.premium;
     const hostOrigin = req.headers.origin || `http://${req.headers.host || 'localhost:3000'}`;
@@ -539,18 +547,16 @@ app.post('/api/stripe/create-checkout-session', async (req: Request, res: Respon
 
     const effectiveCancelUrl = cancelUrl || `${hostOrigin}/pricing`;
 
-    // If Stripe is configured with live / test secret key
-    if (stripe) {
-      // 1. Récupère ou crée le Stripe Customer ID
-      let customerId = serverStore.stripeCustomers[userId];
+    // 1. Récupère ou crée le Stripe Customer ID
+    let customerId = serverStore.stripeCustomers[userId];
 
-      if (!customerId) {
-        // Recherche si un client Stripe existe déjà avec cet email
-        const existingCustomers = await stripe.customers.list({ email: userEmail, limit: 1 });
+    if (!customerId) {
+      try {
+        const existingCustomers = await activeStripe.customers.list({ email: userEmail, limit: 1 });
         if (existingCustomers.data.length > 0) {
           customerId = existingCustomers.data[0].id;
         } else {
-          const newCustomer = await stripe.customers.create({
+          const newCustomer = await activeStripe.customers.create({
             email: userEmail,
             name: userId,
             metadata: {
@@ -561,60 +567,62 @@ app.post('/api/stripe/create-checkout-session', async (req: Request, res: Respon
           customerId = newCustomer.id;
         }
         serverStore.stripeCustomers[userId] = customerId;
+      } catch (custErr: any) {
+        console.warn('Création client Stripe optionnelle ignorée:', custErr?.message);
       }
-
-      // 2. Création de la Checkout Session
-      const session = await stripe.checkout.sessions.create({
-        customer: customerId,
-        payment_method_types: ['card'],
-        mode: 'subscription',
-        line_items: [
-          {
-            price_data: {
-              currency: 'eur',
-              product_data: {
-                name: planInfo.name,
-                description: `Abonnement ${interval === 'year' ? 'Annuel (-20%)' : 'Mensuel'} à l'Assistant IA Major2I.A Neural`,
-              },
-              unit_amount: interval === 'year' ? planInfo.amountYear : planInfo.amountMonth,
-              recurring: {
-                interval: interval === 'year' ? 'year' : 'month',
-              },
-            },
-            quantity: 1,
-          },
-        ],
-        success_url: effectiveSuccessUrl,
-        cancel_url: effectiveCancelUrl,
-        metadata: {
-          userId,
-          userEmail,
-          planId,
-          interval,
-        },
-      });
-
-      return res.json({
-        url: session.url,
-        sessionId: session.id,
-      });
     }
 
-    // 3. Fallback Sandbox / Simulation locale si la clé Stripe n'est pas encore saisie
-    const simulatedSessionId = `cs_test_mock_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-    const simulatedRedirectUrl = `/success?session_id=${simulatedSessionId}&plan=${planId}`;
+    // 2. Création de la Checkout Session Stripe
+    const session = await activeStripe.checkout.sessions.create({
+      ...(customerId ? { customer: customerId } : { customer_email: userEmail }),
+      payment_method_types: ['card'],
+      mode: 'subscription',
+      line_items: [
+        {
+          price_data: {
+            currency: 'eur',
+            product_data: {
+              name: planInfo.name,
+              description: `Abonnement ${interval === 'year' ? 'Annuel (-20%)' : 'Mensuel'} à l'Assistant IA Major2I.A Neural`,
+            },
+            unit_amount: interval === 'year' ? planInfo.amountYear : planInfo.amountMonth,
+            recurring: {
+              interval: interval === 'year' ? 'year' : 'month',
+            },
+          },
+          quantity: 1,
+        },
+      ],
+      success_url: effectiveSuccessUrl,
+      cancel_url: effectiveCancelUrl,
+      metadata: {
+        userId,
+        userEmail,
+        planId,
+        interval,
+      },
+    });
+
+    if (!session || !session.url) {
+      throw new Error('Stripe n\'a pas généré d\'URL de redirection valide.');
+    }
 
     return res.json({
-      url: simulatedRedirectUrl,
-      sessionId: simulatedSessionId,
-      isSimulated: true,
-      message: 'Mode simulation activé. Pour utiliser de vrais paiements, configurez STRIPE_SECRET_KEY.',
+      url: session.url,
+      sessionId: session.id,
     });
   } catch (error: any) {
-    console.error('Erreur create-checkout-session:', error);
+    console.error('Erreur Stripe Checkout create-checkout-session:', error);
     res.status(500).json({ error: error?.message || 'Erreur lors de la création de la session Stripe' });
   }
-});
+}
+
+/**
+ * Route: POST /api/create-checkout-session & /api/stripe/create-checkout-session
+ * Compatible Vercel, Node.js et Express
+ */
+app.post('/api/create-checkout-session', handleCreateCheckoutSession);
+app.post('/api/stripe/create-checkout-session', handleCreateCheckoutSession);
 
 /**
  * Route 2: POST /api/stripe/create-portal-session
@@ -665,23 +673,26 @@ app.post('/api/stripe/create-portal-session', async (req: Request, res: Response
 });
 
 /**
- * Route 3: POST /api/stripe/verify-session
+ * Route 3: POST /api/stripe/verify-session & /api/verify-session
  * Vérifie le statut de la session Checkout et synchronise les droits dans Supabase
  */
-app.post('/api/stripe/verify-session', async (req: Request, res: Response) => {
+async function handleVerifySession(req: Request, res: Response) {
   try {
     const { sessionId, userId: explicitUserId } = req.body;
     const { userId: authUserId, userEmail } = await authenticateSupabaseUser(req);
     const userId = explicitUserId || authUserId;
+
+    const activeStripeKey = process.env.STRIPE_SECRET_KEY || '';
+    const activeStripe = stripe || (activeStripeKey.trim() !== '' ? new Stripe(activeStripeKey.trim(), { apiVersion: '2025-02-24.acacia' as any }) : null);
 
     let planId = 'premium';
     let interval = 'month';
     let stripeCustomerId = '';
     let stripeSubscriptionId = '';
 
-    if (stripe && sessionId && sessionId.startsWith('cs_') && !sessionId.startsWith('cs_test_mock_')) {
+    if (activeStripe && sessionId && sessionId.startsWith('cs_') && !sessionId.startsWith('cs_test_mock_')) {
       try {
-        const session = await stripe.checkout.sessions.retrieve(sessionId, {
+        const session = await activeStripe.checkout.sessions.retrieve(sessionId, {
           expand: ['subscription', 'customer'],
         });
 
@@ -765,7 +776,10 @@ app.post('/api/stripe/verify-session', async (req: Request, res: Response) => {
     console.error('Erreur verify-session:', error);
     res.status(500).json({ error: error?.message || 'Échec de validation de la session' });
   }
-});
+}
+
+app.post('/api/stripe/verify-session', handleVerifySession);
+app.post('/api/verify-session', handleVerifySession);
 
 /**
  * Route 4: GET /api/stripe/subscription

@@ -2,9 +2,11 @@ import { loadStripe, Stripe } from '@stripe/stripe-js';
 import { getSupabaseClient } from './supabase';
 import { SubscriptionPlan, BillingInterval, UserSubscription } from '../types';
 
-// Stripe Publishable Key from Vite environment or configuration
+// Stripe Publishable Key from Vite environment (reads VITE_STRIPE_PUBLIC_KEY)
 const STRIPE_PUBLISHABLE_KEY = 
+  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_STRIPE_PUBLIC_KEY) ||
   (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_STRIPE_PUBLISHABLE_KEY) ||
+  (typeof process !== 'undefined' && (process as any).env?.VITE_STRIPE_PUBLIC_KEY) ||
   (typeof process !== 'undefined' && (process as any).env?.VITE_STRIPE_PUBLISHABLE_KEY) ||
   'pk_test_51MockStripeKeyForMajorIADevelopment0000000000000000000000000000000000000000000000000000000000000000';
 
@@ -159,7 +161,7 @@ export async function createCheckoutSession(params: {
 }): Promise<{ url: string; sessionId?: string; isSimulated?: boolean }> {
   const { token, userId, userEmail } = await getAuthHeader();
 
-  const successUrl = params.successUrl || `${window.location.origin}/success?session_id={CHECKOUT_SESSION_ID}`;
+  const successUrl = params.successUrl || `${window.location.origin}/success?session_id={CHECKOUT_SESSION_ID}&plan=${params.planId}`;
   const cancelUrl = params.cancelUrl || `${window.location.origin}/pricing`;
 
   const headers: Record<string, string> = {
@@ -169,25 +171,49 @@ export async function createCheckoutSession(params: {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch('/api/stripe/create-checkout-session', {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      planId: params.planId,
-      interval: params.interval,
-      userId,
-      userEmail,
-      successUrl,
-      cancelUrl,
-    }),
-  });
+  const payload = {
+    planId: params.planId,
+    interval: params.interval,
+    userId,
+    userEmail,
+    successUrl,
+    cancelUrl,
+  };
+
+  let response: Response;
+  try {
+    response = await fetch('/api/create-checkout-session', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+
+    if (response.status === 404) {
+      // Fallback to Express router path if needed
+      response = await fetch('/api/stripe/create-checkout-session', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+    }
+  } catch (netErr: any) {
+    console.error('Erreur réseau Stripe Checkout:', netErr);
+    throw new Error('Impossible de contacter le serveur de paiement. Vérifiez votre connexion Internet.');
+  }
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ error: 'Erreur réseau lors de la création de la session' }));
-    throw new Error(errorData.error || `Erreur serveur (${response.status})`);
+    const errorData = await response.json().catch(() => ({ error: `Erreur serveur HTTP ${response.status}` }));
+    const errorMessage = errorData.error || errorData.message || `Erreur (${response.status})`;
+    console.error('Erreur retournée par l\'API Stripe Checkout:', errorMessage, errorData);
+    throw new Error(errorMessage);
   }
 
   const data = await response.json();
+  if (!data || !data.url) {
+    console.error('Réponse invalide de l\'API Stripe:', data);
+    throw new Error('Stripe n\'a pas retourné d\'URL de redirection valide.');
+  }
+
   return data;
 }
 
