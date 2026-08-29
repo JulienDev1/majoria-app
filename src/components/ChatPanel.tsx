@@ -440,13 +440,13 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           const mimeType = mediaRecorderRef.current?.mimeType || 'audio/webm';
           const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
 
-          if (audioBlob.size > 200) {
+          if (audioBlob.size > 50) {
             const reader = new FileReader();
             reader.onload = async () => {
               try {
                 const base64Data = reader.result as string;
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 6000);
+                const timeoutId = setTimeout(() => controller.abort(), 15000);
 
                 const res = await fetch('/api/transcribe', {
                   method: 'POST',
@@ -464,7 +464,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   const data = await res.json();
                   const transText = (data.transcription || '').trim();
                   const cleanTrans = cleanSpokenTranscript(transText) || transText;
-                  if (cleanTrans && !cleanTrans.includes("Message vocal reçu et sauvegardé")) {
+                  if (cleanTrans) {
                     const finalCombined = base ? `${base} ${cleanTrans}` : cleanTrans;
                     setInputText('');
                     setLiveTranscript('');
@@ -473,10 +473,15 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                     setSelectedImage(null);
                     setSelectedImageName(null);
                     await onSendMessage(finalCombined.trim(), imgToSend || undefined);
+                  } else {
+                    setMicErrorMessage("Aucune parole détectée. Veuillez parler plus près du micro.");
                   }
+                } else {
+                  setMicErrorMessage("Impossible de transcrire l'enregistrement vocal.");
                 }
               } catch (err) {
                 console.error('Erreur transcription rapide:', err);
+                setMicErrorMessage("Délai de transcription dépassé. Veuillez réessayer.");
               } finally {
                 setIsTranscribingAudio(false);
                 stopAllMedia();
@@ -486,6 +491,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           } else {
             setIsTranscribingAudio(false);
             stopAllMedia();
+            setMicErrorMessage("Enregistrement trop court.");
           }
         } catch (blobErr) {
           console.error('Erreur Blob audio:', blobErr);

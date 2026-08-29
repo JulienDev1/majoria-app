@@ -72,15 +72,17 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    type = type.split(';')[0].trim().toLowerCase();
-    if (type === 'audio/x-m4a') type = 'audio/mp4';
-    if (!type || type === 'audio') type = 'audio/webm';
+    let cleanType = type.split(';')[0].trim().toLowerCase();
+    if (cleanType === 'audio/x-m4a' || cleanType === 'audio/m4a') cleanType = 'audio/mp4';
+    if (cleanType === 'audio/wave' || cleanType === 'audio/x-wav') cleanType = 'audio/wav';
+    if (cleanType === 'audio/ogg;codecs=opus' || cleanType === 'audio/ogg') cleanType = 'audio/ogg';
+    if (!cleanType || cleanType === 'audio' || cleanType === 'audio/unknown') cleanType = 'audio/webm';
 
     const ai = new GoogleGenAI({ apiKey });
-    const promptText = `Transcris immédiatement et mot pour mot cet enregistrement vocal en texte clair sans aucun commentaire ni texte additionnel. Langue : ${language || 'français'}.`;
+    const promptText = `Écoute cet enregistrement audio et retranscris fidèlement et mot pour mot ce qui est prononcé en ${language || 'français'}. Ne génère aucun commentaire, aucune explication, aucune mention de transcription, donne uniquement le texte exact prononcé.`;
 
     let response: any = null;
-    const transcribeModels = ['gemini-flash-latest', 'gemini-3.1-flash-lite'];
+    const transcribeModels = ['gemini-flash-latest', 'gemini-3.7-flash', 'gemini-3.1-flash-lite'];
 
     for (const modelName of transcribeModels) {
       try {
@@ -92,7 +94,7 @@ export default async function handler(req: any, res: any) {
               parts: [
                 {
                   inlineData: {
-                    mimeType: type,
+                    mimeType: cleanType,
                     data: base64,
                   },
                 },
@@ -101,8 +103,8 @@ export default async function handler(req: any, res: any) {
             },
           ],
           config: {
-            temperature: 0.0,
-            maxOutputTokens: 300,
+            temperature: 0.1,
+            maxOutputTokens: 600,
           },
         });
         if (response && response.text && response.text.trim().length > 0) {
@@ -113,10 +115,13 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    const transcription = response?.text?.trim() || "Message vocal reçu et enregistré avec succès.";
+    let rawText = response?.text?.trim() || '';
+    rawText = rawText.replace(/^["'«»]+|["'«»]+$/g, '').trim();
+    rawText = rawText.replace(/^(transcription|texte transcrit|résultat)\s*:\s*/i, '').trim();
+
     res.status(200).json({
       success: true,
-      transcription,
+      transcription: rawText,
       language: language || 'fr',
       timestamp: new Date().toISOString(),
     });

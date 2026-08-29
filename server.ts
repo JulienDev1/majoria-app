@@ -1513,15 +1513,17 @@ app.post('/api/transcribe', async (req: Request, res: Response) => {
     }
 
     // Normalize mime type for Gemini (strip codecs parameter like ;codecs=opus)
-    type = type.split(';')[0].trim().toLowerCase();
-    if (type === 'audio/x-m4a') type = 'audio/mp4';
-    if (!type || type === 'audio') type = 'audio/webm';
+    let cleanType = type.split(';')[0].trim().toLowerCase();
+    if (cleanType === 'audio/x-m4a' || cleanType === 'audio/m4a') cleanType = 'audio/mp4';
+    if (cleanType === 'audio/wave' || cleanType === 'audio/x-wav') cleanType = 'audio/wav';
+    if (cleanType === 'audio/ogg;codecs=opus' || cleanType === 'audio/ogg') cleanType = 'audio/ogg';
+    if (!cleanType || cleanType === 'audio' || cleanType === 'audio/unknown') cleanType = 'audio/webm';
 
     const ai = getGenAI();
-    const promptText = `Transcris immédiatement et mot pour mot cet enregistrement vocal en texte clair sans aucun commentaire ni texte additionnel. Langue : ${language || 'français'}.`;
+    const promptText = `Écoute cet enregistrement audio et retranscris fidèlement et mot pour mot ce qui est prononcé en ${language || 'français'}. Ne génère aucun commentaire, aucune explication, aucune mention de transcription, donne uniquement le texte exact prononcé.`;
 
     let response: any = null;
-    const transcribeModels = ['gemini-flash-latest', 'gemini-3.1-flash-lite'];
+    const transcribeModels = ['gemini-flash-latest', 'gemini-3.7-flash', 'gemini-3.1-flash-lite'];
 
     for (const modelName of transcribeModels) {
       try {
@@ -1534,7 +1536,7 @@ app.post('/api/transcribe', async (req: Request, res: Response) => {
                 parts: [
                   {
                     inlineData: {
-                      mimeType: type,
+                      mimeType: cleanType,
                       data: base64
                     }
                   },
@@ -1543,11 +1545,11 @@ app.post('/api/transcribe', async (req: Request, res: Response) => {
               }
             ],
             config: {
-              temperature: 0.0,
-              maxOutputTokens: 300,
+              temperature: 0.1,
+              maxOutputTokens: 600,
             }
           }),
-          4000,
+          12000,
           `Timeout transcription ${modelName}`
         );
         if (response && response.text && response.text.trim().length > 0) {
@@ -1558,18 +1560,22 @@ app.post('/api/transcribe', async (req: Request, res: Response) => {
       }
     }
 
-    const transcription = response?.text?.trim() || "Message vocal reçu et enregistré avec succès.";
+    let rawText = response?.text?.trim() || '';
+    // Strip surrounding quotes or prefixes
+    rawText = rawText.replace(/^["'«»]+|["'«»]+$/g, '').trim();
+    rawText = rawText.replace(/^(transcription|texte transcrit|résultat)\s*:\s*/i, '').trim();
+
     return res.json({
       success: true,
-      transcription,
+      transcription: rawText,
       language: language || 'fr',
       timestamp: new Date().toISOString()
     });
   } catch (error: any) {
     console.error('Erreur API Transcription:', error);
-    res.status(200).json({
-      success: true,
-      transcription: "Message vocal reçu et sauvegardé.",
+    res.status(500).json({
+      success: false,
+      error: error?.message || 'Erreur lors de la transcription audio',
       language: req.body?.language || 'fr'
     });
   }

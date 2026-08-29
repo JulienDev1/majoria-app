@@ -328,10 +328,12 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
         setLastRecordedBlob(audioBlob);
 
         // If Web Speech API didn't capture text or blob has voice data, transcribe via Gemini AI
-        if (!hadLiveText && audioBlob.size > 200) {
+        if (!hadLiveText && audioBlob.size > 50) {
           await transcribeBlobWithGemini(audioBlob, mimeType);
         } else if (hadLiveText) {
           onShowToast('Enregistrement terminé avec succès', 'success');
+        } else {
+          onShowToast('Enregistrement trop court ou silencieux', 'warning');
         }
 
         if (streamRef.current) {
