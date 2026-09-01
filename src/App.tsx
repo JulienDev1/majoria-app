@@ -1061,6 +1061,8 @@ export default function App() {
       return;
     }
 
+    const effectiveUserId = user?.nom || (user as any)?.id || userProfile?.id || (typeof window !== 'undefined' ? localStorage.getItem('neo-auth-user') : null) || 'anon_user';
+
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -1069,15 +1071,16 @@ export default function App() {
           'Accept': 'text/event-stream, application/json',
         },
         body: JSON.stringify({
-          userId: user?.id || userProfile?.id || 'anon_user',
+          userId: effectiveUserId,
+          user_id: effectiveUserId,
           message: safeMessageText,
           image,
           history: (targetConv?.messages || []).slice(-10),
           userProfile: {
-            id: user?.id || userProfile?.id || 'anon_user',
+            id: effectiveUserId,
             prenom: userProfile.prenom || '',
-            nom: userProfile.nom || '',
-            userName: user?.nom || '',
+            nom: userProfile.nom || user?.nom || '',
+            userName: user?.nom || userProfile.prenom || '',
           },
           stream: true,
         }),
@@ -1162,6 +1165,14 @@ export default function App() {
                 finalActions = parsed.actions || [];
                 finalSources = parsed.sources || [];
                 finalSearchQueries = parsed.searchQueries || [];
+
+                // Appliquer immédiatement le solde de crédits serveur dans l'état local
+                if (typeof parsed.credits === 'number') {
+                  setEnergyPercent(parsed.credits);
+                  localStorage.setItem('neo-battery-energy', parsed.credits.toString());
+                  localStorage.setItem('neo-local-credits', parsed.credits.toString());
+                  localStorage.setItem(`neo-user-credits-${effectiveUserId}`, parsed.credits.toString());
+                }
               } else if (parsed.type === 'error') {
                 throw new Error(parsed.error || 'Erreur lors du streaming');
               }
@@ -1218,6 +1229,14 @@ export default function App() {
       } else {
         // Fallback for non-streaming response
         const data = await res.json();
+
+        // Appliquer immédiatement le solde de crédits serveur dans l'état local
+        if (typeof data.credits === 'number') {
+          setEnergyPercent(data.credits);
+          localStorage.setItem('neo-battery-energy', data.credits.toString());
+          localStorage.setItem('neo-local-credits', data.credits.toString());
+          localStorage.setItem(`neo-user-credits-${effectiveUserId}`, data.credits.toString());
+        }
 
         const replyContent = confidentialMode
           ? sanitizeConfidentialText(data.reply)
