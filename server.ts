@@ -883,6 +883,15 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
               },
               { onConflict: 'user_id' }
             );
+
+            await serverSupabase.from('user_credits').upsert(
+              {
+                user_id: userId,
+                credits: planInfo.energy, // Récupère le nombre de crédits du forfait
+                plan: planId
+              },
+              { onConflict: 'user_id' }
+            );
           }
         }
         break;
