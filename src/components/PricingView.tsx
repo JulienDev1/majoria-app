@@ -444,25 +444,45 @@ export const PricingView: React.FC<PricingViewProps> = ({
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-950/90 border-[0.5px] border-white/20 text-xs sm:text-sm font-mono shadow-inner">
-            <span className="text-emerald-400 font-bold">{energyPercent}%</span>
-            <span className="text-slate-300">{t('header.remaining')}</span>
-          </div>
+          {(() => {
+            const credits = typeof energyPercent === 'number' ? Math.max(0, energyPercent) : 30;
+            const maxCredits = credits > 30 ? (credits > 250 ? 500 : credits > 100 ? 250 : 100) : 30;
+            const batteryPercentage = Math.min(100, Math.max(0, Math.round((credits / maxCredits) * 100)));
+            return (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-950/90 border-[0.5px] border-white/20 text-xs sm:text-sm font-mono shadow-inner">
+                <span className="text-emerald-400 font-bold">{credits} / {maxCredits}</span>
+                <span className="text-slate-300">({batteryPercentage}%)</span>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Battery Gauge Bar */}
-        <div className="space-y-1.5">
-          <div className="flex justify-between text-xs text-slate-300">
-            <span className="font-medium">{t('settings.energyLevel')} :</span>
-            <span className="text-white font-bold font-mono">{energyPercent}% {t('settings.energyAvailable')}</span>
-          </div>
-          <div className="w-full h-3.5 bg-slate-950 rounded-full overflow-hidden border-[0.5px] border-white/20 p-0.5 shadow-inner">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-teal-400 to-sky-400 transition-all duration-500 shadow-sm"
-              style={{ width: `${Math.min(100, energyPercent || 80)}%` }}
-            />
-          </div>
-        </div>
+        {(() => {
+          const credits = typeof energyPercent === 'number' ? Math.max(0, energyPercent) : 30;
+          const maxCredits = credits > 30 ? (credits > 250 ? 500 : credits > 100 ? 250 : 100) : 30;
+          const batteryPercentage = Math.min(100, Math.max(0, Math.round((credits / maxCredits) * 100)));
+          return (
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-xs text-slate-300">
+                <span className="font-medium">{t('settings.energyLevel')} :</span>
+                <span className="text-white font-bold font-mono">{credits} / {maxCredits} crédits ({batteryPercentage}%)</span>
+              </div>
+              <div className="w-full h-3.5 bg-slate-950 rounded-full overflow-hidden border-[0.5px] border-white/20 p-0.5 shadow-inner">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 shadow-sm ${
+                    credits <= 0
+                      ? 'bg-rose-500'
+                      : batteryPercentage <= 25
+                      ? 'bg-amber-500'
+                      : 'bg-gradient-to-r from-emerald-500 via-teal-400 to-sky-400'
+                  }`}
+                  style={{ width: `${batteryPercentage}%` }}
+                />
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Monthly Rollover Logic Box */}
         <div className="p-3.5 rounded-xl bg-slate-950/80 border-[0.5px] border-emerald-500/30 space-y-2.5">
@@ -480,7 +500,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
           </p>
           <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-white/5">
             <span className="text-xs text-slate-300">
-              {t('settings.totalEnergyAvailable')} : <strong className="text-emerald-300 font-mono text-sm">{(energyPercent || 80) + (rolloverInfo?.rolloverEnergy || 35)}%</strong>
+              {t('settings.totalEnergyAvailable')} : <strong className="text-emerald-300 font-mono text-sm">{(typeof energyPercent === 'number' ? energyPercent : 30) + (rolloverInfo?.rolloverEnergy || 35)}%</strong>
             </span>
             {onPerformRollover && (
               <button

@@ -414,43 +414,67 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
         )}
 
         {/* Battery / Energy Card */}
-        <div className="p-3 border-t border-[var(--fb-border-light)] shrink-0">
-          <div className="flex items-center justify-between gap-2.5 p-2.5 rounded-xl bg-[var(--fb-surface)] border border-[var(--fb-border-light)] shadow-sm">
-            <div className="flex items-center gap-2">
-              <div className={`p-1.5 rounded-full ${
-                effectiveEnergy <= 0 
-                  ? 'bg-rose-100 dark:bg-rose-950/40 text-[var(--fb-red)]' 
-                  : effectiveEnergy <= 25
-                  ? 'bg-amber-100 dark:bg-amber-950/40 text-[var(--fb-gold)]'
-                  : 'bg-green-100 dark:bg-green-950/40 text-[var(--fb-green)]'
-              }`}>
-                <BatteryCharging className="w-4 h-4" />
-              </div>
-              <div>
-                <div className="text-[10px] uppercase font-bold text-[var(--fb-text-secondary)] tracking-wider">Batterie IA</div>
-                <div className="text-xs font-bold text-[var(--fb-text-primary)] flex items-center gap-1">
-                  <span>{effectiveEnergy}%</span>
-                  <span className="text-[10px] font-normal text-[var(--fb-text-secondary)]">{t('header.remaining')}</span>
+        {(() => {
+          const credits = typeof energyPercent === 'number' ? Math.max(0, energyPercent) : 30;
+          const maxCredits = credits > 30 ? (credits > 250 ? 500 : credits > 100 ? 250 : 100) : 30;
+          const batteryPercentage = Math.min(100, Math.max(0, Math.round((credits / maxCredits) * 100)));
+
+          return (
+            <div className="p-3 border-t border-[var(--fb-border-light)] shrink-0">
+              <div className="flex flex-col gap-2 p-2.5 rounded-xl bg-[var(--fb-surface)] border border-[var(--fb-border-light)] shadow-sm">
+                <div className="flex items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className={`p-1.5 rounded-full ${
+                      credits <= 0 
+                        ? 'bg-rose-100 dark:bg-rose-950/40 text-[var(--fb-red)]' 
+                        : batteryPercentage <= 25
+                        ? 'bg-amber-100 dark:bg-amber-950/40 text-[var(--fb-gold)]'
+                        : 'bg-green-100 dark:bg-green-950/40 text-[var(--fb-green)]'
+                    }`}>
+                      <BatteryCharging className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase font-bold text-[var(--fb-text-secondary)] tracking-wider">Batterie IA restante</div>
+                      <div className="text-xs font-bold text-[var(--fb-text-primary)] flex items-center gap-1.5">
+                        <span className="font-mono">{credits} / {maxCredits}</span>
+                        <span className="text-[10px] font-semibold text-[var(--fb-text-secondary)]">({batteryPercentage}%)</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {onOpenForfaits && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playCyberSound('click');
+                        onOpenForfaits();
+                      }}
+                      className="px-2.5 py-1.5 rounded-full bg-[var(--fb-blue)] hover:bg-[var(--fb-blue-hover)] text-white text-xs font-bold shadow-sm transition-all flex items-center gap-1 cursor-pointer"
+                      title={t('header.plansTitle')}
+                    >
+                      <Flame className="w-3.5 h-3.5 text-white" />
+                      <span>{t('header.plansBtn')}</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Dynamic Battery Level Bar */}
+                <div className="w-full bg-[var(--fb-surface-secondary)] h-1.5 rounded-full overflow-hidden border border-[var(--fb-border-light)]">
+                  <div 
+                    className={`h-full rounded-full transition-all duration-500 ${
+                      credits <= 0
+                        ? 'bg-rose-500'
+                        : batteryPercentage <= 25
+                        ? 'bg-amber-500'
+                        : 'bg-emerald-500'
+                    }`}
+                    style={{ width: `${batteryPercentage}%` }}
+                  />
                 </div>
               </div>
             </div>
-
-            {onOpenForfaits && (
-              <button
-                type="button"
-                onClick={() => {
-                  playCyberSound('click');
-                  onOpenForfaits();
-                }}
-                className="px-2.5 py-1.5 rounded-full bg-[var(--fb-blue)] hover:bg-[var(--fb-blue-hover)] text-white text-xs font-bold shadow-sm transition-all flex items-center gap-1 cursor-pointer"
-                title={t('header.plansTitle')}
-              >
-                <Flame className="w-3.5 h-3.5 text-white" />
-                <span>{t('header.plansBtn')}</span>
-              </button>
-            )}
-          </div>
-        </div>
+          );
+        })()}
 
         {/* Status footer */}
         <div className="p-2.5 border-t border-[var(--fb-border-light)] text-xs flex items-center justify-between shrink-0 text-[var(--fb-text-secondary)]">

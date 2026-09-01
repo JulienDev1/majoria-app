@@ -604,23 +604,23 @@ export default function App() {
 
     // Load Supabase Energy / Battery with Subscription priority
     try {
-      const authUser = localStorage.getItem('neo-auth-user') || undefined;
-      const sub = await fetchUserSubscription(authUser);
+      const effectiveUserId = user?.nom || (user as any)?.id || userProfile?.id || getOrCreateUserId();
+      const sub = await fetchUserSubscription(effectiveUserId);
       if (sub && (sub.status === 'active' || sub.status === 'trialing')) {
         setCurrentSubscription(sub);
         const targetEnergy = sub.planId === 'pro' ? 500 : sub.planId === 'premium' ? 250 : 100;
         setEnergyPercent((prev) => (prev === null || prev < 100 ? targetEnergy : Math.max(prev, targetEnergy)));
         localStorage.setItem('neo-battery-energy', targetEnergy.toString());
         localStorage.setItem('neo-local-credits', targetEnergy.toString());
-        if (authUser) {
-          localStorage.setItem(`neo-user-credits-${authUser}`, targetEnergy.toString());
-        }
-        syncCreditsToSupabase(authUser, targetEnergy).catch(() => {});
+        localStorage.setItem(`neo-user-credits-${effectiveUserId}`, targetEnergy.toString());
+        syncCreditsToSupabase(effectiveUserId, targetEnergy).catch(() => {});
       } else {
-        const balance = await getCreditBalance(authUser);
+        const balance = await getCreditBalance(effectiveUserId);
         if (balance !== null && balance >= 0) {
           setEnergyPercent(balance);
           localStorage.setItem('neo-battery-energy', balance.toString());
+          localStorage.setItem('neo-local-credits', balance.toString());
+          localStorage.setItem(`neo-user-credits-${effectiveUserId}`, balance.toString());
         }
       }
     } catch (err) {
@@ -949,31 +949,38 @@ export default function App() {
     showToast(`🔋 +${amount}% Batterie ajoutés ! (Niveau actuel : ${next}%)`, 'success');
   };
 
-  // Send Message to Gemini Major2I.A with Supabase RPC consumption call
+  // Send Message to Gemini Major2I.A with dynamic credit control
   const handleSendMessage = async (text: string, image?: string) => {
-    // 1. Décrémentation d'énergie via Supabase RPC
-    const creditResult = await callUseCredit(user?.nom);
+    const effectiveUserId = user?.nom || (user as any)?.id || userProfile?.id || getOrCreateUserId();
 
-    // 2. Si la batterie est déchargée (-1 ou 0%), bloquer l'envoi
+    // 1. Décrémentation d'énergie et vérification du solde
+    const creditResult = await callUseCredit(effectiveUserId);
+
+    // 2. Si la batterie est déchargée (0% ou moins), bloquer l'envoi
     if (creditResult.isExhausted || creditResult.balance === -1 || (energyPercent !== null && energyPercent <= 0)) {
       playCyberSound('alert');
       setEnergyPercent(0);
       localStorage.setItem('neo-battery-energy', '0');
+      localStorage.setItem('neo-local-credits', '0');
+      localStorage.setItem(`neo-user-credits-${effectiveUserId}`, '0');
       showToast("⛔ Batterie IA déchargée (0% restant). Veuillez souscrire à un forfait ou recharger pour continuer.", 'danger');
       setIsForfaitsOpen(true);
       return;
     }
 
-    // 3. Mettre à jour le pourcentage de batterie restant
+    // 3. Mise à jour optimiste du solde de batterie
     if (creditResult.balance !== null && creditResult.balance >= 0) {
       setEnergyPercent(creditResult.balance);
       localStorage.setItem('neo-battery-energy', creditResult.balance.toString());
+      localStorage.setItem('neo-local-credits', creditResult.balance.toString());
+      localStorage.setItem(`neo-user-credits-${effectiveUserId}`, creditResult.balance.toString());
     } else {
-      // Local decrement fallback (e.g. -2% per query)
-      const cur = typeof energyPercent === 'number' ? energyPercent : 80;
+      const cur = typeof energyPercent === 'number' ? energyPercent : 30;
       const next = Math.max(0, cur - 1);
       setEnergyPercent(next);
       localStorage.setItem('neo-battery-energy', next.toString());
+      localStorage.setItem('neo-local-credits', next.toString());
+      localStorage.setItem(`neo-user-credits-${effectiveUserId}`, next.toString());
     }
 
     let targetConv = activeConversation;
@@ -1063,8 +1070,6 @@ export default function App() {
       }
       return;
     }
-
-    const effectiveUserId = user?.nom || (user as any)?.id || userProfile?.id || getOrCreateUserId();
 
     try {
       const res = await fetch('/api/chat', {

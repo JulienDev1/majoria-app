@@ -573,8 +573,8 @@ app.post('/api/supabase/use-credit', async (req: Request, res: Response) => {
   return res.json({ success: true, balance: creditCheck.remainingCredits, credits: creditCheck.remainingCredits, isExhausted: false, source: 'server-proxy' });
 });
 
-app.get('/api/supabase/credits', async (req: Request, res: Response) => {
-  const userId = (req.query?.userId as string) || req.body?.userId || req.body?.userProfile?.id || req.body?.userProfile?.email || 'anon_user';
+const handleGetCredits = async (req: Request, res: Response) => {
+  const userId = (req.query?.user_id as string) || (req.query?.userId as string) || req.body?.user_id || req.body?.userId || req.body?.userProfile?.id || req.body?.userProfile?.email || 'anon_user';
   const client = supabaseAdmin || serverSupabase;
 
   // Check active subscription first
@@ -594,40 +594,59 @@ app.get('/api/supabase/credits', async (req: Request, res: Response) => {
       if (subRow && (subRow.status === 'active' || subRow.status === 'trialing')) {
         const plan = PLAN_DEFINITIONS[subRow.plan_id] || PLAN_DEFINITIONS.basic;
         const targetEnergy = plan.energy || 100;
-        return res.json({ balance: targetEnergy });
+        return res.json({ success: true, balance: targetEnergy, credits: targetEnergy, maxCredits: targetEnergy, percentage: 100 });
       }
 
-      const { data, error } = await client.rpc('get_credits', { user_id: userId });
-      if (!error && typeof data === 'number') {
-        const effective = (sub && sub.status === 'active' && data < 100) ? 100 : data;
-        return res.json({ balance: effective });
-      }
       // Table check
       const { data: row } = await client
         .from('user_credits')
-        .select('credits')
+        .select('credits, credits_used')
         .eq('user_id', userId)
         .maybeSingle();
 
       if (row && typeof row.credits === 'number') {
-        const effective = (sub && sub.status === 'active' && row.credits < 100) ? 100 : row.credits;
-        return res.json({ balance: effective });
+        const credits = row.credits;
+        const maxCredits = 30;
+        const percentage = Math.min(100, Math.max(0, Math.round((credits / maxCredits) * 100)));
+        return res.json({ success: true, balance: credits, credits, maxCredits, percentage, credits_used: row.credits_used || 0 });
       }
-    } catch {}
+
+      // Ensure row exists with 30 credits if new user
+      await client.from('user_credits').upsert(
+        {
+          user_id: userId,
+          credits: 30,
+          credits_used: 0,
+          plan: 'free',
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id' }
+      );
+
+      return res.json({ success: true, balance: 30, credits: 30, maxCredits: 30, percentage: 100, credits_used: 0 });
+    } catch (err) {
+      console.warn('Erreur Supabase get credits:', err);
+    }
   }
 
   if (sub && sub.status === 'active') {
     const plan = PLAN_DEFINITIONS[sub.planId] || PLAN_DEFINITIONS.basic;
     const targetEnergy = plan.energy || 100;
     serverStore.userCredits[userId] = Math.max(serverStore.userCredits[userId] || 0, targetEnergy);
-    return res.json({ balance: serverStore.userCredits[userId] });
+    return res.json({ success: true, balance: serverStore.userCredits[userId], credits: serverStore.userCredits[userId], maxCredits: targetEnergy, percentage: 100 });
   }
 
   if (serverStore.userCredits[userId] === undefined) {
-    serverStore.userCredits[userId] = 100;
+    serverStore.userCredits[userId] = 30;
   }
-  return res.json({ balance: serverStore.userCredits[userId] });
-});
+  const credits = serverStore.userCredits[userId];
+  const maxCredits = 30;
+  const percentage = Math.min(100, Math.max(0, Math.round((credits / maxCredits) * 100)));
+  return res.json({ success: true, balance: credits, credits, maxCredits, percentage });
+};
+
+app.get('/api/supabase/credits', handleGetCredits);
+app.get('/api/credits', handleGetCredits);
 
 app.post('/api/supabase/set-credits', async (req: Request, res: Response) => {
   const credits = Number(req.body?.credits) >= 0 ? Number(req.body.credits) : 100;

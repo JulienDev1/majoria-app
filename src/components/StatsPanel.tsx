@@ -41,7 +41,9 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({
   const activeReminders = rappels.filter((r) => r.statut === 'actif').length;
   const totalMessages = conversations.reduce((acc, c) => acc + c.messages.length, 0);
 
-  const effectiveEnergy = typeof energyPercent === 'number' ? energyPercent : 80;
+  const credits = typeof energyPercent === 'number' ? Math.max(0, energyPercent) : 30;
+  const maxCredits = credits > 30 ? (credits > 250 ? 500 : credits > 100 ? 250 : 100) : 30;
+  const batteryPercentage = Math.min(100, Math.max(0, Math.round((credits / maxCredits) * 100)));
   const rollover = rolloverInfo?.rolloverEnergy || 35;
 
   const metrics = [
@@ -68,8 +70,8 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({
     },
     { 
       label: 'Autonomie Batterie IA', 
-      val: `${effectiveEnergy}%`, 
-      sub: `+${rollover}% reporté du mois précédent`, 
+      val: `${batteryPercentage}%`, 
+      sub: `${credits} / ${maxCredits} crédits restants`, 
       icon: BatteryCharging, 
       color: 'text-emerald-300',
     },
@@ -161,21 +163,27 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({
               Consommation & Report d'Énergie
             </h3>
             <span className="text-xs px-2.5 py-1 rounded-full bg-[#e7f3ff] text-[#1877f2] font-bold">
-              {effectiveEnergy}% actif
+              {credits} / {maxCredits} crédits ({batteryPercentage}%)
             </span>
           </div>
 
           <div className="w-full h-2.5 bg-[#f0f2f5] rounded-full overflow-hidden border border-[#e4e6eb]">
             <div
-              className="h-full rounded-full bg-[#1877f2] transition-all duration-500"
-              style={{ width: `${Math.min(100, effectiveEnergy)}%` }}
+              className={`h-full rounded-full transition-all duration-500 ${
+                credits <= 0
+                  ? 'bg-rose-500'
+                  : batteryPercentage <= 25
+                  ? 'bg-amber-500'
+                  : 'bg-[#1877f2]'
+              }`}
+              style={{ width: `${batteryPercentage}%` }}
             />
           </div>
 
           <div className="grid grid-cols-2 gap-2 text-xs pt-2">
             <div className="p-3 rounded-xl bg-[#f0f2f5] border border-[#e4e6eb] space-y-1">
               <div className="text-[#65676b] font-semibold">Autonomie mensuelle :</div>
-              <div className="text-sm sm:text-base font-bold text-[#050505]">{effectiveEnergy}% disponible</div>
+              <div className="text-sm sm:text-base font-bold text-[#050505]">{credits} / {maxCredits} ({batteryPercentage}%)</div>
             </div>
             <div className="p-3 rounded-xl bg-[#e7f3ff] border border-[#dbe7f2] space-y-1">
               <div className="text-[#1877f2] font-semibold flex items-center gap-1">
