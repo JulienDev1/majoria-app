@@ -1196,7 +1196,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
     const { message, image, history, userProfile, stream = true } = req.body;
 
     // Vérification préliminaire du solde
-    const userId = req.body.userId || req.body.user_id || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
+    const userId = req.body.user_id || req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
 
     const client = supabaseAdmin || serverSupabase;
     if (client) {

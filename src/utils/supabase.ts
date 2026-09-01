@@ -1,4 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { getOrCreateUserId, setStoredUserId, getStoredUserId } from './userId';
+
+export { getOrCreateUserId, setStoredUserId, getStoredUserId };
 
 export interface UseCreditResult {
   success: boolean;

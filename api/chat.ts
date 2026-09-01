@@ -1,4 +1,74 @@
 import { GoogleGenAI } from '@google/genai';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+
+// Initialize Supabase clients for Vercel Serverless Function
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+
+let supabaseAdmin: SupabaseClient | null = null;
+if (supabaseUrl && supabaseServiceKey) {
+  try {
+    supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+  } catch (err) {
+    console.warn('Failed to initialize Supabase Admin Client in serverless:', err);
+  }
+}
+
+let serverSupabase: SupabaseClient | null = null;
+const supabaseKey = supabaseServiceKey || supabaseAnonKey;
+if (supabaseUrl && supabaseKey) {
+  try {
+    serverSupabase = createClient(supabaseUrl, supabaseKey);
+  } catch (err) {
+    console.warn('Failed to initialize Supabase Client in serverless:', err);
+  }
+}
+
+// In-memory fallback
+const fallbackUserCredits: Record<string, number> = {};
+
+async function deductCredit(userId: string): Promise<number | undefined> {
+  const client = supabaseAdmin || serverSupabase;
+  if (!client) {
+    if (fallbackUserCredits[userId] === undefined) fallbackUserCredits[userId] = 30;
+    fallbackUserCredits[userId] = Math.max(0, fallbackUserCredits[userId] - 1);
+    return fallbackUserCredits[userId];
+  }
+
+  try {
+    const { data: userRow } = await client
+      .from('user_credits')
+      .select('credits, credits_used')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    const currentCredits = userRow && typeof userRow.credits === 'number' ? userRow.credits : (fallbackUserCredits[userId] ?? 30);
+    const newCredits = Math.max(0, currentCredits - 1);
+    const creditsUsed = typeof userRow?.credits_used === 'number' ? userRow.credits_used + 1 : (30 - newCredits);
+
+    await client
+      .from('user_credits')
+      .upsert(
+        {
+          user_id: userId,
+          credits: newCredits,
+          credits_used: creditsUsed,
+          plan: 'free',
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id' }
+      );
+
+    fallbackUserCredits[userId] = newCredits;
+    return newCredits;
+  } catch (err) {
+    console.error('Erreur deductCredit serverless:', err);
+    if (fallbackUserCredits[userId] === undefined) fallbackUserCredits[userId] = 30;
+    fallbackUserCredits[userId] = Math.max(0, fallbackUserCredits[userId] - 1);
+    return fallbackUserCredits[userId];
+  }
+}
 
 // Helper to extract JSON body safely from Vercel / Node serverless request
 async function parseBody(req: any): Promise<any> {
@@ -128,6 +198,25 @@ export default async function handler(req: any, res: any) {
 
     const body = await parseBody(req);
     const { message, image, history = [], userProfile } = body;
+    const userId = body.user_id || body.userId || userProfile?.id || userProfile?.email || 'anon_user';
+
+    const client = supabaseAdmin || serverSupabase;
+    if (client) {
+      try {
+        const { data: userRow } = await client
+          .from('user_credits')
+          .select('credits')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (userRow && typeof userRow.credits === 'number' && userRow.credits <= 0) {
+          res.status(403).json({ error: 'Crédits épuisés. Veuillez recharger votre forfait.' });
+          return;
+        }
+      } catch (checkErr) {
+        console.warn('Vérification préliminaire crédits serverless:', checkErr);
+      }
+    }
 
     if (!message && !image) {
       res.status(400).json({ error: 'Message ou image requis.' });
@@ -297,6 +386,38 @@ DIRECTIVES DE RÉPONSE :
       }
     }
 
+    // Exécution post-génération : déduire 1 crédit et enregistrer dans la table conversations
+    let updatedBalance: number | undefined = undefined;
+    try {
+      const remaining = await deductCredit(userId);
+      if (typeof remaining === 'number') {
+        updatedBalance = remaining;
+      }
+
+      const userMessage = message || (image ? '[Image fournie]' : '');
+      const aiResponse = reply || 'Transmission reçue.';
+
+      if (supabaseAdmin) {
+        await supabaseAdmin.from('conversations').insert([
+          {
+            user_id: userId,
+            message: userMessage,
+            response: aiResponse,
+          },
+        ]);
+      } else if (serverSupabase) {
+        await serverSupabase.from('conversations').insert([
+          {
+            user_id: userId,
+            message: userMessage,
+            response: aiResponse,
+          },
+        ]);
+      }
+    } catch (dbErr) {
+      console.warn('Erreur post-traitement Supabase serverless:', dbErr);
+    }
+
     // Send final completion payload
     res.write(`data: ${JSON.stringify({
       type: 'done',
@@ -304,6 +425,7 @@ DIRECTIVES DE RÉPONSE :
       actions,
       sources: uniqueSources,
       searchQueries: Array.from(new Set(searchQueries)),
+      credits: updatedBalance,
       shouldSpeak: false,
       timestamp: new Date().toISOString(),
     })}\n\n`);

@@ -27,6 +27,7 @@ import {
   sanitizeConfidentialText,
 } from './utils/security';
 import { callUseCredit, getCreditBalance, syncCreditsToSupabase } from './utils/supabase';
+import { getOrCreateUserId, setStoredUserId } from './utils/userId';
 import { fetchUserSubscription } from './utils/stripe';
 import { MilkyWayGalaxy, GalaxyColorScheme } from './components/MilkyWayGalaxy';
 import { CyberHeader } from './components/CyberHeader';
@@ -128,16 +129,13 @@ export default function App() {
   // User & Profile State
   const [user, setUser] = useState<{ nom: string } | null>(() => {
     if (typeof window !== 'undefined') {
-      let authUser = localStorage.getItem('neo-auth-user');
+      const authUser = localStorage.getItem('neo-auth-user') || localStorage.getItem('user_id');
       const authHash = localStorage.getItem('neo-auth-hash');
       if (authUser && authHash) {
         return { nom: authUser };
       }
-      // Ensure there is always a persistent user_id in localStorage
-      if (!authUser) {
-        authUser = `anon_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-        localStorage.setItem('neo-auth-user', authUser);
-      }
+      // Ensure there is always a stable, persistent user_id in localStorage
+      getOrCreateUserId();
     }
     return null;
   });
@@ -1066,14 +1064,7 @@ export default function App() {
       return;
     }
 
-    let effectiveUserId = user?.nom || (user as any)?.id || userProfile?.id || (typeof window !== 'undefined' ? localStorage.getItem('neo-auth-user') : null);
-    if (!effectiveUserId && typeof window !== 'undefined') {
-      effectiveUserId = `anon_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      localStorage.setItem('neo-auth-user', effectiveUserId);
-    }
-    if (!effectiveUserId) {
-      effectiveUserId = `anon_${Date.now()}`;
-    }
+    const effectiveUserId = user?.nom || (user as any)?.id || userProfile?.id || getOrCreateUserId();
 
     try {
       const res = await fetch('/api/chat', {
@@ -1083,8 +1074,8 @@ export default function App() {
           'Accept': 'text/event-stream, application/json',
         },
         body: JSON.stringify({
-          userId: effectiveUserId,
           user_id: effectiveUserId,
+          userId: effectiveUserId,
           message: safeMessageText,
           image,
           history: (targetConv?.messages || []).slice(-10),
