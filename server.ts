@@ -1566,40 +1566,41 @@ DIRECTIVES DE RÉPONSE :
         }
 
         // 2. Insérer l'échange dans la table conversations (avec supabaseAdmin)
-        const conversationRecord = {
-          user_id: userId,
-          titre: message ? (message.length > 60 ? message.substring(0, 57) + '...' : message) : 'Discussion Major2I.A',
-          messages: [
-            {
-              role: 'user',
-              contenu: message || (image ? '[Image fournie]' : ''),
-              image: image || undefined,
-              date: new Date().toISOString()
-            },
-            {
-              role: 'neo',
-              contenu: reply || 'Transmission reçue.',
-              sources: uniqueSources,
-              searchQueries: Array.from(new Set(searchQueries)),
-              date: new Date().toISOString()
-            }
-          ],
-          tags: ['ia', 'chat'],
-          favori: false,
-          categorie: 'general',
-          date: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
+        const userMessage = message || (image ? '[Image fournie]' : '');
+        const aiResponse = reply || 'Transmission reçue.';
 
-        const { error: convInsertError } = await client
-          .from('conversations')
-          .insert([conversationRecord]);
+        if (supabaseAdmin) {
+          const { error: convInsertError } = await supabaseAdmin
+            .from('conversations')
+            .insert([
+              {
+                user_id: userId,
+                message: userMessage,
+                response: aiResponse
+              }
+            ]);
 
-        if (convInsertError) {
-          console.warn('[Supabase] Note/Erreur insertion conversations:', convInsertError.message || convInsertError);
-        } else {
-          console.log(`[Supabase] Échange conversation inséré avec succès pour ${userId}`);
+          if (convInsertError) {
+            console.warn('[Supabase] Note/Erreur insertion conversations:', convInsertError.message || convInsertError);
+          } else {
+            console.log(`[Supabase] Échange conversation inséré avec succès pour ${userId}`);
+          }
+        } else if (serverSupabase) {
+          const { error: convInsertError } = await serverSupabase
+            .from('conversations')
+            .insert([
+              {
+                user_id: userId,
+                message: userMessage,
+                response: aiResponse
+              }
+            ]);
+
+          if (convInsertError) {
+            console.warn('[Supabase] Note/Erreur insertion conversations:', convInsertError.message || convInsertError);
+          } else {
+            console.log(`[Supabase] Échange conversation inséré avec succès pour ${userId}`);
+          }
         }
       } catch (supabaseOpsErr) {
         console.error('[Supabase] Erreur lors des opérations post-réponse:', supabaseOpsErr);
