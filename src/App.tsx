@@ -128,10 +128,15 @@ export default function App() {
   // User & Profile State
   const [user, setUser] = useState<{ nom: string } | null>(() => {
     if (typeof window !== 'undefined') {
-      const authUser = localStorage.getItem('neo-auth-user');
+      let authUser = localStorage.getItem('neo-auth-user');
       const authHash = localStorage.getItem('neo-auth-hash');
       if (authUser && authHash) {
         return { nom: authUser };
+      }
+      // Ensure there is always a persistent user_id in localStorage
+      if (!authUser) {
+        authUser = `anon_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        localStorage.setItem('neo-auth-user', authUser);
       }
     }
     return null;
@@ -1061,7 +1066,14 @@ export default function App() {
       return;
     }
 
-    const effectiveUserId = user?.nom || (user as any)?.id || userProfile?.id || (typeof window !== 'undefined' ? localStorage.getItem('neo-auth-user') : null) || 'anon_user';
+    let effectiveUserId = user?.nom || (user as any)?.id || userProfile?.id || (typeof window !== 'undefined' ? localStorage.getItem('neo-auth-user') : null);
+    if (!effectiveUserId && typeof window !== 'undefined') {
+      effectiveUserId = `anon_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      localStorage.setItem('neo-auth-user', effectiveUserId);
+    }
+    if (!effectiveUserId) {
+      effectiveUserId = `anon_${Date.now()}`;
+    }
 
     try {
       const res = await fetch('/api/chat', {
