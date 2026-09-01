@@ -1069,10 +1069,12 @@ export default function App() {
           'Accept': 'text/event-stream, application/json',
         },
         body: JSON.stringify({
+          userId: user?.id || userProfile?.id || 'anon_user',
           message: safeMessageText,
           image,
           history: (targetConv?.messages || []).slice(-10),
           userProfile: {
+            id: user?.id || userProfile?.id || 'anon_user',
             prenom: userProfile.prenom || '',
             nom: userProfile.nom || '',
             userName: user?.nom || '',

@@ -1027,6 +1027,24 @@ app.post('/api/chat', async (req: Request, res: Response) => {
   try {
     const { message, image, history, userProfile, stream = true } = req.body;
 
+    // Vérification et déduction du crédit de manière sécurisée
+    if (serverSupabase) {
+      const userId = req.body.userId || req.body.userProfile?.id;
+
+      if (!userId) {
+        return res.status(401).json({ error: 'Utilisateur non identifié.' });
+      }
+      const { data: creditsRemaining, error: creditErr } = await serverSupabase.rpc('use_credit', {
+        user_id: userId
+      });
+
+      if (creditErr) {
+        console.error('Erreur RPC use_credit :', creditErr);
+      } else if (creditsRemaining === -1) {
+        return res.status(403).json({ error: 'Crédits épuisés. Veuillez recharger votre forfait.' });
+      }
+    }
+
     if (!message && !image) {
       return res.status(400).json({ error: 'Message ou image requis' });
     }
