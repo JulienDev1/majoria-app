@@ -23,16 +23,78 @@ app.use(express.static(path.join(process.cwd(), 'public')));
 app.use(express.static(path.join(process.cwd(), 'dist')));
 
 // Initialize Supabase client if env vars available
-let serverSupabase: SupabaseClient | null = null;
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
+// Client avec droits administrateur (contourne RLS si clé de service disponible)
+let supabaseAdmin: SupabaseClient | null = null;
+if (supabaseUrl && supabaseServiceKey) {
+  try {
+    supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+    console.log('Supabase Admin Client initialized successfully.');
+  } catch (err) {
+    console.warn('Failed to initialize Supabase Admin Client:', err);
+  }
+}
+
+let serverSupabase: SupabaseClient | null = null;
+const supabaseKey = supabaseServiceKey || supabaseAnonKey;
 if (supabaseUrl && supabaseKey) {
   try {
     serverSupabase = createClient(supabaseUrl, supabaseKey);
     console.log('Supabase Server Client initialized successfully.');
   } catch (err) {
     console.warn('Failed to initialize Supabase Server Client:', err);
+  }
+}
+
+async function deductUserCredit(userId?: string): Promise<{ success: boolean; remainingCredits: number }> {
+  const effectiveId = (userId && String(userId).trim()) || 'anon_user';
+  const client = supabaseAdmin || serverSupabase;
+
+  if (!client) {
+    return { success: true, remainingCredits: 30 };
+  }
+
+  try {
+    // Récupération du solde
+    const { data: userRow } = await client
+      .from('user_credits')
+      .select('credits')
+      .eq('user_id', effectiveId)
+      .maybeSingle();
+
+    let currentCredits = userRow ? userRow.credits : 30;
+
+    if (currentCredits <= 0) {
+      return { success: false, remainingCredits: 0 };
+    }
+
+    const newCredits = currentCredits - 1;
+
+    // Upsert automatique (crée la ligne si elle n'existe pas)
+    const { error: upsertError } = await client
+      .from('user_credits')
+      .upsert(
+        { 
+          user_id: effectiveId, 
+          credits: newCredits,
+          credits_used: (30 - newCredits),
+          plan: 'free',
+          updated_at: new Date().toISOString()
+        },
+        { onConflict: 'user_id' }
+      );
+
+    if (upsertError) {
+      console.error('Erreur Supabase :', upsertError);
+    }
+
+    return { success: true, remainingCredits: newCredits };
+  } catch (err) {
+    console.error('Erreur deductUserCredit:', err);
+    return { success: true, remainingCredits: 30 };
   }
 }
 
@@ -89,71 +151,149 @@ app.get('/api/health', (req: Request, res: Response) => {
 });
 
 // FAVORIS ENDPOINTS
-app.get('/api/favoris', (req: Request, res: Response) => {
-  res.json(serverStore.favoris);
+app.get('/api/favoris', async (req: Request, res: Response) => {
+  const userId = req.body?.userId || req.body?.userProfile?.id || req.body?.userProfile?.email || (req.query?.userId as string) || 'anon_user';
+  const client = supabaseAdmin || serverSupabase;
+  if (client) {
+    try {
+      const { data, error } = await client
+        .from('favoris')
+        .select('*')
+        .eq('user_id', userId)
+        .order('date', { ascending: false });
+      if (!error && Array.isArray(data)) {
+        return res.json(data);
+      }
+    } catch {}
+  }
+  const userFavoris = serverStore.favoris.filter(f => !f.userId || f.userId === userId);
+  res.json(userFavoris);
 });
 
-app.post('/api/favoris', (req: Request, res: Response) => {
-  const item = { id: Date.now(), ...req.body, date: req.body.date || new Date().toISOString() };
+app.post('/api/favoris', async (req: Request, res: Response) => {
+  const userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
+  const item = { id: Date.now(), ...req.body, userId, user_id: userId, date: req.body.date || new Date().toISOString() };
+  const client = supabaseAdmin || serverSupabase;
+  if (client) {
+    try {
+      await client.from('favoris').upsert(item, { onConflict: 'id' });
+    } catch {}
+  }
   serverStore.favoris.unshift(item);
   res.status(201).json(item);
 });
 
-app.put('/api/favoris/:id', (req: Request, res: Response) => {
+app.put('/api/favoris/:id', async (req: Request, res: Response) => {
+  const userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
   const id = Number(req.params.id);
+  const client = supabaseAdmin || serverSupabase;
+  if (client) {
+    try {
+      await client.from('favoris').update({ ...req.body, user_id: userId }).eq('id', id);
+    } catch {}
+  }
   const idx = serverStore.favoris.findIndex(f => f.id === id);
   if (idx !== -1) {
-    serverStore.favoris[idx] = { ...serverStore.favoris[idx], ...req.body };
+    serverStore.favoris[idx] = { ...serverStore.favoris[idx], ...req.body, userId };
     res.json(serverStore.favoris[idx]);
   } else {
     res.status(404).json({ error: 'Favori introuvable' });
   }
 });
 
-app.patch('/api/favoris/:id', (req: Request, res: Response) => {
+app.patch('/api/favoris/:id', async (req: Request, res: Response) => {
+  const userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
   const id = Number(req.params.id);
+  const client = supabaseAdmin || serverSupabase;
+  if (client) {
+    try {
+      await client.from('favoris').update({ ...req.body, user_id: userId }).eq('id', id);
+    } catch {}
+  }
   const idx = serverStore.favoris.findIndex(f => f.id === id);
   if (idx !== -1) {
-    serverStore.favoris[idx] = { ...serverStore.favoris[idx], ...req.body };
+    serverStore.favoris[idx] = { ...serverStore.favoris[idx], ...req.body, userId };
     res.json(serverStore.favoris[idx]);
   } else {
     res.status(404).json({ error: 'Favori introuvable' });
   }
 });
 
-app.delete('/api/favoris/:id', (req: Request, res: Response) => {
+app.delete('/api/favoris/:id', async (req: Request, res: Response) => {
   const id = Number(req.params.id);
+  const client = supabaseAdmin || serverSupabase;
+  if (client) {
+    try {
+      await client.from('favoris').delete().eq('id', id);
+    } catch {}
+  }
   serverStore.favoris = serverStore.favoris.filter(f => f.id !== id);
   res.json({ success: true });
 });
 
 // MEMOIRE ENDPOINTS
-app.get('/api/memoire', (req: Request, res: Response) => {
-  res.json(serverStore.memoire);
+app.get('/api/memoire', async (req: Request, res: Response) => {
+  const userId = req.body?.userId || req.body?.userProfile?.id || req.body?.userProfile?.email || (req.query?.userId as string) || 'anon_user';
+  const client = supabaseAdmin || serverSupabase;
+  if (client) {
+    try {
+      const { data, error } = await client
+        .from('memoire')
+        .select('*')
+        .eq('user_id', userId)
+        .order('date', { ascending: false });
+      if (!error && Array.isArray(data)) {
+        return res.json(data);
+      }
+    } catch {}
+  }
+  const userMemoire = serverStore.memoire.filter(m => !m.userId || m.userId === userId);
+  res.json(userMemoire);
 });
 
-app.post('/api/memoire', (req: Request, res: Response) => {
-  const item = { id: Date.now(), importance: 3, tags: [], ...req.body, date: req.body.date || new Date().toISOString() };
+app.post('/api/memoire', async (req: Request, res: Response) => {
+  const userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
+  const item = { id: Date.now(), importance: 3, tags: [], ...req.body, userId, user_id: userId, date: req.body.date || new Date().toISOString() };
+  const client = supabaseAdmin || serverSupabase;
+  if (client) {
+    try {
+      await client.from('memoire').upsert(item, { onConflict: 'id' });
+    } catch {}
+  }
   serverStore.memoire.unshift(item);
   res.status(201).json(item);
 });
 
-app.put('/api/memoire/:id', (req: Request, res: Response) => {
+app.put('/api/memoire/:id', async (req: Request, res: Response) => {
+  const userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
   const id = Number(req.params.id);
+  const client = supabaseAdmin || serverSupabase;
+  if (client) {
+    try {
+      await client.from('memoire').update({ ...req.body, user_id: userId }).eq('id', id);
+    } catch {}
+  }
   const idx = serverStore.memoire.findIndex(m => m.id === id);
   if (idx !== -1) {
-    serverStore.memoire[idx] = { ...serverStore.memoire[idx], ...req.body };
+    serverStore.memoire[idx] = { ...serverStore.memoire[idx], ...req.body, userId };
     res.json(serverStore.memoire[idx]);
   } else {
     res.status(404).json({ error: 'Mémoire introuvable' });
   }
 });
 
-app.patch('/api/memoire/:id', (req: Request, res: Response) => {
+app.patch('/api/memoire/:id', async (req: Request, res: Response) => {
+  const userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
   const id = Number(req.params.id);
+  const client = supabaseAdmin || serverSupabase;
+  if (client) {
+    try {
+      await client.from('memoire').update({ ...req.body, user_id: userId }).eq('id', id);
+    } catch {}
+  }
   const idx = serverStore.memoire.findIndex(m => m.id === id);
   if (idx !== -1) {
-    serverStore.memoire[idx] = { ...serverStore.memoire[idx], ...req.body };
+    serverStore.memoire[idx] = { ...serverStore.memoire[idx], ...req.body, userId };
     res.json(serverStore.memoire[idx]);
   } else {
     res.status(404).json({ error: 'Mémoire introuvable' });
@@ -161,251 +301,227 @@ app.patch('/api/memoire/:id', (req: Request, res: Response) => {
 });
 
 app.get('/api/memoire/recherche/:q', (req: Request, res: Response) => {
+  const userId = req.body?.userId || req.body?.userProfile?.id || req.body?.userProfile?.email || (req.query?.userId as string) || 'anon_user';
   const q = (req.params.q || '').toLowerCase();
-  const results = serverStore.memoire.filter(m => 
-    (m.contenu || '').toLowerCase().includes(q) ||
-    (m.tags || []).some((t: string) => t.toLowerCase().includes(q))
-  );
+  const results = serverStore.memoire
+    .filter(m => !m.userId || m.userId === userId)
+    .filter(m => 
+      (m.contenu || '').toLowerCase().includes(q) ||
+      (m.tags || []).some((t: string) => t.toLowerCase().includes(q))
+    );
   res.json(results);
 });
 
-app.delete('/api/memoire/:id', (req: Request, res: Response) => {
+app.delete('/api/memoire/:id', async (req: Request, res: Response) => {
   const id = Number(req.params.id);
+  const client = supabaseAdmin || serverSupabase;
+  if (client) {
+    try {
+      await client.from('memoire').delete().eq('id', id);
+    } catch {}
+  }
   serverStore.memoire = serverStore.memoire.filter(m => m.id !== id);
   res.json({ success: true });
 });
 
 // RAPPELS ENDPOINTS
-app.get('/api/rappels', (req: Request, res: Response) => {
-  res.json(serverStore.rappels);
+app.get('/api/rappels', async (req: Request, res: Response) => {
+  const userId = req.body?.userId || req.body?.userProfile?.id || req.body?.userProfile?.email || (req.query?.userId as string) || 'anon_user';
+  const client = supabaseAdmin || serverSupabase;
+  if (client) {
+    try {
+      const { data, error } = await client
+        .from('rappels')
+        .select('*')
+        .eq('user_id', userId)
+        .order('date_rappel', { ascending: true });
+      if (!error && Array.isArray(data)) {
+        return res.json(data);
+      }
+    } catch {}
+  }
+  const userRappels = serverStore.rappels.filter(r => !r.userId || r.userId === userId);
+  res.json(userRappels);
 });
 
-app.post('/api/rappels', (req: Request, res: Response) => {
+app.post('/api/rappels', async (req: Request, res: Response) => {
+  const userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
   const item = { 
     id: Date.now(), 
     statut: 'actif',
     priorite: 'normale',
     ...req.body, 
+    userId,
+    user_id: userId,
     dateCreation: req.body.dateCreation || new Date().toISOString() 
   };
+  const client = supabaseAdmin || serverSupabase;
+  if (client) {
+    try {
+      await client.from('rappels').upsert(item, { onConflict: 'id' });
+    } catch {}
+  }
   serverStore.rappels.unshift(item);
   res.status(201).json(item);
 });
 
-app.put('/api/rappels/:id', (req: Request, res: Response) => {
+app.put('/api/rappels/:id', async (req: Request, res: Response) => {
+  const userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
   const id = Number(req.params.id);
+  const client = supabaseAdmin || serverSupabase;
+  if (client) {
+    try {
+      await client.from('rappels').update({ ...req.body, user_id: userId }).eq('id', id);
+    } catch {}
+  }
   const idx = serverStore.rappels.findIndex(r => r.id === id);
   if (idx !== -1) {
-    serverStore.rappels[idx] = { ...serverStore.rappels[idx], ...req.body };
+    serverStore.rappels[idx] = { ...serverStore.rappels[idx], ...req.body, userId };
     res.json(serverStore.rappels[idx]);
   } else {
     res.status(404).json({ error: 'Rappel introuvable' });
   }
 });
 
-app.delete('/api/rappels/:id', (req: Request, res: Response) => {
+app.delete('/api/rappels/:id', async (req: Request, res: Response) => {
   const id = Number(req.params.id);
+  const client = supabaseAdmin || serverSupabase;
+  if (client) {
+    try {
+      await client.from('rappels').delete().eq('id', id);
+    } catch {}
+  }
   serverStore.rappels = serverStore.rappels.filter(r => r.id !== id);
   res.json({ success: true });
 });
 
 // TACHES ENDPOINTS
-app.get('/api/taches', (req: Request, res: Response) => {
-  res.json(serverStore.taches);
+app.get('/api/taches', async (req: Request, res: Response) => {
+  const userId = req.body?.userId || req.body?.userProfile?.id || req.body?.userProfile?.email || (req.query?.userId as string) || 'anon_user';
+  const client = supabaseAdmin || serverSupabase;
+  if (client) {
+    try {
+      const { data, error } = await client
+        .from('taches')
+        .select('*')
+        .eq('user_id', userId)
+        .order('date_creation', { ascending: false });
+      if (!error && Array.isArray(data)) {
+        return res.json(data);
+      }
+    } catch {}
+  }
+  const userTaches = serverStore.taches.filter(t => !t.userId || t.userId === userId);
+  res.json(userTaches);
 });
 
-app.post('/api/taches', (req: Request, res: Response) => {
+app.post('/api/taches', async (req: Request, res: Response) => {
+  const userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
   const item = { 
     id: Date.now(), 
     status: 'attente',
     priorite: 'normale',
     ...req.body, 
+    userId,
+    user_id: userId,
     dateCreation: req.body.dateCreation || new Date().toISOString() 
   };
+  const client = supabaseAdmin || serverSupabase;
+  if (client) {
+    try {
+      await client.from('taches').upsert(item, { onConflict: 'id' });
+    } catch {}
+  }
   serverStore.taches.unshift(item);
   res.status(201).json(item);
 });
 
-app.put('/api/taches/:id', (req: Request, res: Response) => {
+app.put('/api/taches/:id', async (req: Request, res: Response) => {
+  const userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
   const id = Number(req.params.id);
+  const client = supabaseAdmin || serverSupabase;
+  if (client) {
+    try {
+      await client.from('taches').update({ ...req.body, user_id: userId }).eq('id', id);
+    } catch {}
+  }
   const idx = serverStore.taches.findIndex(t => t.id === id);
   if (idx !== -1) {
-    serverStore.taches[idx] = { ...serverStore.taches[idx], ...req.body };
+    serverStore.taches[idx] = { ...serverStore.taches[idx], ...req.body, userId };
     res.json(serverStore.taches[idx]);
   } else {
     res.status(404).json({ error: 'Tâche introuvable' });
   }
 });
 
-app.delete('/api/taches/:id', (req: Request, res: Response) => {
+app.delete('/api/taches/:id', async (req: Request, res: Response) => {
   const id = Number(req.params.id);
+  const client = supabaseAdmin || serverSupabase;
+  if (client) {
+    try {
+      await client.from('taches').delete().eq('id', id);
+    } catch {}
+  }
   serverStore.taches = serverStore.taches.filter(t => t.id !== id);
   res.json({ success: true });
 });
 
 // SUPABASE RPC & CREDITS ENDPOINTS
 app.post('/api/supabase/ensure-user', async (req: Request, res: Response) => {
-  const { userId, defaultCredits = 30 } = req.body || {};
-  const effectiveUserId = (userId && String(userId).trim()) || 'user_default';
+  const userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
+  const defaultCredits = Number(req.body.defaultCredits) || 30;
+  const client = supabaseAdmin || serverSupabase;
 
-  if (serverSupabase) {
+  if (client) {
     try {
-      const { data, error } = await serverSupabase
+      const { data, error } = await client
         .from('user_credits')
         .select('user_id, credits')
-        .eq('user_id', effectiveUserId)
+        .eq('user_id', userId)
         .maybeSingle();
 
       if (!data || error) {
-        await serverSupabase
+        await client
           .from('user_credits')
-          .upsert({ user_id: effectiveUserId, credits: defaultCredits }, { onConflict: 'user_id' });
+          .upsert({ user_id: userId, credits: defaultCredits, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
       }
     } catch (e) {
       console.warn('Server ensure-user Supabase table err:', e);
     }
   }
 
-  if (serverStore.userCredits[effectiveUserId] === undefined) {
-    serverStore.userCredits[effectiveUserId] = defaultCredits;
+  if (serverStore.userCredits[userId] === undefined) {
+    serverStore.userCredits[userId] = defaultCredits;
   }
 
-  res.json({ success: true, userId: effectiveUserId, credits: serverStore.userCredits[effectiveUserId] });
+  res.json({ success: true, userId, credits: serverStore.userCredits[userId] });
 });
 
 app.post('/api/supabase/use-credit', async (req: Request, res: Response) => {
-  const { userId } = req.body || {};
-  const effectiveUserId = (userId && String(userId).trim()) || 'user_default';
+  const userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
+  const creditCheck = await deductUserCredit(userId);
 
-  // 1. If Supabase is connected on server
-  if (serverSupabase) {
-    try {
-      // Step A: Ensure user exists in user_credits with 30 default credits if possible
-      try {
-        const { data: existingUser } = await serverSupabase
-          .from('user_credits')
-          .select('user_id, credits')
-          .eq('user_id', effectiveUserId)
-          .maybeSingle();
-
-        if (!existingUser) {
-          await serverSupabase
-            .from('user_credits')
-            .upsert({ user_id: effectiveUserId, credits: 30 }, { onConflict: 'user_id' });
-        }
-      } catch {
-        // Table may not exist yet, ignore
-      }
-
-      // Step B: Call RPC use_credit with various common signatures
-      let rpcResult: { data: any; error: any } = { data: null, error: null };
-      
-      try {
-        const r1 = await serverSupabase.rpc('use_credit', { user_id: effectiveUserId });
-        if (!r1.error && r1.data !== null && r1.data !== undefined) {
-          rpcResult = r1;
-        } else {
-          const r2 = await serverSupabase.rpc('use_credit', { p_user_id: effectiveUserId });
-          if (!r2.error && r2.data !== null && r2.data !== undefined) {
-            rpcResult = r2;
-          } else {
-            const r3 = await serverSupabase.rpc('use_credit');
-            if (!r3.error && r3.data !== null && r3.data !== undefined) {
-              rpcResult = r3;
-            } else {
-              rpcResult = { data: null, error: r1.error || r2.error || r3.error };
-            }
-          }
-        }
-      } catch (rpcErr) {
-        rpcResult = { error: rpcErr, data: null };
-      }
-
-      const { data, error } = rpcResult;
-      if (!error && data !== null && data !== undefined) {
-        const val = typeof data === 'number' ? data : Number(data);
-        if (!isNaN(val)) {
-          if (val === -1) {
-            return res.json({ success: false, balance: -1, isExhausted: true, error: 'Crédits épuisés (-1)', source: 'supabase-rpc' });
-          }
-          return res.json({ success: true, balance: val, isExhausted: false, source: 'supabase-rpc' });
-        }
-      }
-
-      // Step C: Fallback to direct user_credits table query if RPC is not available
-      try {
-        const { data: userRow, error: tableErr } = await serverSupabase
-          .from('user_credits')
-          .select('credits')
-          .eq('user_id', effectiveUserId)
-          .maybeSingle();
-
-        if (!tableErr && userRow !== null && userRow !== undefined) {
-          let current = userRow?.credits !== undefined ? Number(userRow.credits) : 30;
-          if (isNaN(current)) current = 30;
-
-          if (current <= 0) {
-            return res.json({ success: false, balance: -1, isExhausted: true, error: 'Crédits épuisés (-1)', source: 'supabase-table' });
-          }
-
-          const decremented = current - 1;
-          await serverSupabase
-            .from('user_credits')
-            .upsert({ user_id: effectiveUserId, credits: decremented }, { onConflict: 'user_id' });
-
-          return res.json({ success: true, balance: decremented, isExhausted: false, source: 'supabase-table' });
-        }
-      } catch {
-        // Table not present or failed, fallback smoothly to serverStore
-      }
-    } catch (err: any) {
-      // Supabase unavailable, fallback to serverStore
-    }
+  if (!creditCheck.success) {
+    return res.json({ success: false, balance: -1, isExhausted: true, error: 'Crédits épuisés (-1)', source: 'server-proxy' });
   }
 
-  // 2. Server Store fallback (for testing/local execution)
-  if (serverStore.userCredits[effectiveUserId] === undefined) {
-    // If user has active subscription, initialize with plan energy
-    const sub = serverStore.subscriptions[effectiveUserId];
-    if (sub && sub.status === 'active') {
-      const plan = PLAN_DEFINITIONS[sub.planId] || PLAN_DEFINITIONS.basic;
-      serverStore.userCredits[effectiveUserId] = plan.energy || 100;
-    } else {
-      serverStore.userCredits[effectiveUserId] = 30;
-    }
-  }
-
-  // If user has active subscription, ensure credits are never exhausted
-  const sub = serverStore.subscriptions[effectiveUserId];
-  if (sub && sub.status === 'active') {
-    if (serverStore.userCredits[effectiveUserId] <= 0) {
-      serverStore.userCredits[effectiveUserId] = 100;
-    }
-  }
-
-  if (serverStore.userCredits[effectiveUserId] <= 0) {
-    return res.json({ success: false, balance: -1, isExhausted: true, error: 'Crédits épuisés (-1)' });
-  }
-
-  serverStore.userCredits[effectiveUserId] -= 1;
-  serverStore.credits = serverStore.userCredits[effectiveUserId];
-  return res.json({ success: true, balance: serverStore.userCredits[effectiveUserId], isExhausted: false });
+  return res.json({ success: true, balance: creditCheck.remainingCredits, credits: creditCheck.remainingCredits, isExhausted: false, source: 'server-proxy' });
 });
 
 app.get('/api/supabase/credits', async (req: Request, res: Response) => {
-  const { userId } = req.query || {};
-  const effectiveUserId = (userId && String(userId).trim()) || 'user_default';
+  const userId = (req.query?.userId as string) || req.body?.userId || req.body?.userProfile?.id || req.body?.userProfile?.email || 'anon_user';
+  const client = supabaseAdmin || serverSupabase;
 
   // Check active subscription first
-  const sub = serverStore.subscriptions[effectiveUserId];
+  const sub = serverStore.subscriptions[userId];
 
-  if (serverSupabase) {
+  if (client) {
     try {
       // Check user_subscriptions table first
-      const { data: subRow } = await serverSupabase
+      const { data: subRow } = await client
         .from('user_subscriptions')
         .select('*')
-        .eq('user_id', effectiveUserId)
+        .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -416,16 +532,16 @@ app.get('/api/supabase/credits', async (req: Request, res: Response) => {
         return res.json({ balance: targetEnergy });
       }
 
-      const { data, error } = await serverSupabase.rpc('get_credits', { user_id: effectiveUserId });
+      const { data, error } = await client.rpc('get_credits', { user_id: userId });
       if (!error && typeof data === 'number') {
         const effective = (sub && sub.status === 'active' && data < 100) ? 100 : data;
         return res.json({ balance: effective });
       }
       // Table check
-      const { data: row } = await serverSupabase
+      const { data: row } = await client
         .from('user_credits')
         .select('credits')
-        .eq('user_id', effectiveUserId)
+        .eq('user_id', userId)
         .maybeSingle();
 
       if (row && typeof row.credits === 'number') {
@@ -438,25 +554,25 @@ app.get('/api/supabase/credits', async (req: Request, res: Response) => {
   if (sub && sub.status === 'active') {
     const plan = PLAN_DEFINITIONS[sub.planId] || PLAN_DEFINITIONS.basic;
     const targetEnergy = plan.energy || 100;
-    serverStore.userCredits[effectiveUserId] = Math.max(serverStore.userCredits[effectiveUserId] || 0, targetEnergy);
-    return res.json({ balance: serverStore.userCredits[effectiveUserId] });
+    serverStore.userCredits[userId] = Math.max(serverStore.userCredits[userId] || 0, targetEnergy);
+    return res.json({ balance: serverStore.userCredits[userId] });
   }
 
-  if (serverStore.userCredits[effectiveUserId] === undefined) {
-    serverStore.userCredits[effectiveUserId] = 100;
+  if (serverStore.userCredits[userId] === undefined) {
+    serverStore.userCredits[userId] = 100;
   }
-  return res.json({ balance: serverStore.userCredits[effectiveUserId] });
+  return res.json({ balance: serverStore.userCredits[userId] });
 });
 
 app.post('/api/supabase/set-credits', async (req: Request, res: Response) => {
   const credits = Number(req.body?.credits) >= 0 ? Number(req.body.credits) : 100;
-  const { userId } = req.body || {};
-  const effectiveUserId = (userId && String(userId).trim()) || 'user_default';
+  const userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
+  const client = supabaseAdmin || serverSupabase;
 
-  if (serverSupabase) {
+  if (client) {
     try {
-      await serverSupabase.from('user_credits').upsert(
-        { user_id: effectiveUserId, credits },
+      await client.from('user_credits').upsert(
+        { user_id: userId, credits, updated_at: new Date().toISOString() },
         { onConflict: 'user_id' }
       );
     } catch (e) {
@@ -464,7 +580,7 @@ app.post('/api/supabase/set-credits', async (req: Request, res: Response) => {
     }
   }
 
-  serverStore.userCredits[effectiveUserId] = credits;
+  serverStore.userCredits[userId] = credits;
   serverStore.credits = credits;
 
   return res.json({ success: true, balance: credits });
@@ -472,16 +588,25 @@ app.post('/api/supabase/set-credits', async (req: Request, res: Response) => {
 
 app.post('/api/supabase/recharge', (req: Request, res: Response) => {
   const amount = Number(req.body.amount) || 50;
-  const { userId } = req.body || {};
-  const effectiveUserId = (userId && String(userId).trim()) || 'user_default';
+  const userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
+  const client = supabaseAdmin || serverSupabase;
 
-  if (serverStore.userCredits[effectiveUserId] === undefined) {
-    serverStore.userCredits[effectiveUserId] = 30;
+  if (serverStore.userCredits[userId] === undefined) {
+    serverStore.userCredits[userId] = 30;
   }
-  serverStore.userCredits[effectiveUserId] += amount;
-  serverStore.credits = serverStore.userCredits[effectiveUserId];
+  serverStore.userCredits[userId] += amount;
+  serverStore.credits = serverStore.userCredits[userId];
 
-  res.json({ success: true, balance: serverStore.userCredits[effectiveUserId] });
+  if (client) {
+    try {
+      client.from('user_credits').upsert(
+        { user_id: userId, credits: serverStore.userCredits[userId], updated_at: new Date().toISOString() },
+        { onConflict: 'user_id' }
+      );
+    } catch {}
+  }
+
+  res.json({ success: true, balance: serverStore.userCredits[userId] });
 });
 
 // ==========================================
@@ -509,14 +634,13 @@ async function authenticateSupabaseUser(req: Request): Promise<{ userId: string;
     }
   }
 
-  // Fallback to body/query provided identity
-  const bodyUserId = req.body?.userId || req.query?.userId;
-  const bodyEmail = req.body?.userEmail || req.query?.userEmail;
-  const effectiveUserId = (bodyUserId && String(bodyUserId).trim()) || 'user_default';
-  const effectiveEmail = (bodyEmail && String(bodyEmail).trim()) || `${effectiveUserId}@majoria.app`;
+  // Fallback to dynamic user identity extraction
+  const userId = req.body?.userId || req.body?.userProfile?.id || req.body?.userProfile?.email || (req.query?.userId as string) || 'anon_user';
+  const bodyEmail = req.body?.userEmail || req.query?.userEmail || req.body?.userProfile?.email;
+  const effectiveEmail = (bodyEmail && String(bodyEmail).trim()) || `${userId}@majoria.app`;
 
   return {
-    userId: effectiveUserId,
+    userId,
     userEmail: effectiveEmail,
     isSupabaseAuth: false,
   };
@@ -827,27 +951,6 @@ app.get('/api/stripe/subscription', async (req: Request, res: Response) => {
 });
 
 /**
- * Route : POST /api/supabase/use-credit
- * Déduit 1 crédit et crée l'utilisateur dans user_credits si nécessaire 
- */
-app.post('/api/supabase/use-credit' , async (req: Request, res: Response) => {
-  const { userId } = req.body;
-
-  if (!serverSupabase) {
-    return res.status(500).json({ Error: 'Supabase client non initialisé' });
-  }
-
-  const { data, error } = await serverSupabase.rpc('use_credit', { user_id: userId || 'JulDev2' });
-
-  if (error) {
-    console.error('Erreur RPC use_credit:', error);
-    return res.status(500).json({ error: error.message });
-  }
-
-  return res.json({ credits: data });
-});
-
-/**
  * Route 5: POST /api/stripe/webhook
  * Traitement sécurisé des webhooks Stripe (checkout.session.completed, subscription updates)
  */
@@ -1028,19 +1131,14 @@ app.post('/api/chat', async (req: Request, res: Response) => {
     const { message, image, history, userProfile, stream = true } = req.body;
 
     // Vérification et déduction du crédit de manière sécurisée
-    if (serverSupabase) {
-      const userId = req.body.userId || req.body.userProfile?.id;
+    const userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
 
-      if (!userId) {
-        return res.status(401).json({ error: 'Utilisateur non identifié.' });
-      }
-      const { data: creditsRemaining, error: creditErr } = await serverSupabase.rpc('use_credit', {
-        user_id: userId
-      });
+    const client = supabaseAdmin || serverSupabase;
+    if (client) {
+      // Vérification et création/déduction automatique dans user_credits
+      const creditCheck = await deductUserCredit(userId);
 
-      if (creditErr) {
-        console.error('Erreur RPC use_credit :', creditErr);
-      } else if (creditsRemaining === -1) {
+      if (!creditCheck.success) {
         return res.status(403).json({ error: 'Crédits épuisés. Veuillez recharger votre forfait.' });
       }
     }
