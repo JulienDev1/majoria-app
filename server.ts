@@ -827,6 +827,27 @@ app.get('/api/stripe/subscription', async (req: Request, res: Response) => {
 });
 
 /**
+ * Route : POST /api/supabase/use-credit
+ * Déduit 1 crédit et crée l'utilisateur dans user_credits si nécessaire 
+ */
+app.post('/api/supabase/use-credit' , async (req: Request, res: Response) => {
+  const { userId } = req.body;
+
+  if (!serverSupabase) {
+    return res.status(500).json({ Error: 'Supabase client non initialisé' });
+  }
+
+  const { data, error } = await serverSupabase.rpc('use_credit', { user_id: userId || 'JulDev2' });
+
+  if (error) {
+    console.error('Erreur RPC use_credit:', error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  return res.json({ credits: data });
+});
+
+/**
  * Route 5: POST /api/stripe/webhook
  * Traitement sécurisé des webhooks Stripe (checkout.session.completed, subscription updates)
  */
