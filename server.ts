@@ -53,34 +53,45 @@ async function deductUserCredit(userId?: string): Promise<{ success: boolean; re
   const effectiveId = (userId && String(userId).trim()) || 'anon_user';
   const client = supabaseAdmin || serverSupabase;
 
+  if (serverStore.userCredits[effectiveId] === undefined) {
+    serverStore.userCredits[effectiveId] = 30;
+  }
+
   if (!client) {
-    return { success: true, remainingCredits: 30 };
+    const current = serverStore.userCredits[effectiveId];
+    if (current <= 0) return { success: false, remainingCredits: 0 };
+    serverStore.userCredits[effectiveId] = current - 1;
+    serverStore.credits = serverStore.userCredits[effectiveId];
+    return { success: true, remainingCredits: serverStore.userCredits[effectiveId] };
   }
 
   try {
     // Récupération du solde
     const { data: userRow } = await client
       .from('user_credits')
-      .select('credits')
+      .select('credits, credits_used')
       .eq('user_id', effectiveId)
       .maybeSingle();
 
-    let currentCredits = userRow ? userRow.credits : 30;
+    let currentCredits = userRow && typeof userRow.credits === 'number' ? userRow.credits : (serverStore.userCredits[effectiveId] ?? 30);
 
     if (currentCredits <= 0) {
+      serverStore.userCredits[effectiveId] = 0;
+      serverStore.credits = 0;
       return { success: false, remainingCredits: 0 };
     }
 
     const newCredits = currentCredits - 1;
+    const creditsUsed = typeof userRow?.credits_used === 'number' ? userRow.credits_used + 1 : (30 - newCredits);
 
-    // Upsert automatique (crée la ligne si elle n'existe pas)
+    // Upsert automatique (crée la ligne si elle n'existe pas) avec supabaseAdmin
     const { error: upsertError } = await client
       .from('user_credits')
       .upsert(
         { 
           user_id: effectiveId, 
           credits: newCredits,
-          credits_used: (30 - newCredits),
+          credits_used: creditsUsed,
           plan: 'free',
           updated_at: new Date().toISOString()
         },
@@ -88,13 +99,17 @@ async function deductUserCredit(userId?: string): Promise<{ success: boolean; re
       );
 
     if (upsertError) {
-      console.error('Erreur Supabase :', upsertError);
+      console.error('Erreur Supabase deductUserCredit:', upsertError);
     }
+
+    serverStore.userCredits[effectiveId] = newCredits;
+    serverStore.credits = newCredits;
 
     return { success: true, remainingCredits: newCredits };
   } catch (err) {
     console.error('Erreur deductUserCredit:', err);
-    return { success: true, remainingCredits: 30 };
+    serverStore.userCredits[effectiveId] = Math.max(0, (serverStore.userCredits[effectiveId] || 30) - 1);
+    return { success: true, remainingCredits: serverStore.userCredits[effectiveId] };
   }
 }
 
@@ -463,6 +478,56 @@ app.delete('/api/taches/:id', async (req: Request, res: Response) => {
     } catch {}
   }
   serverStore.taches = serverStore.taches.filter(t => t.id !== id);
+  res.json({ success: true });
+});
+
+// CONVERSATIONS ENDPOINTS
+app.get('/api/conversations', async (req: Request, res: Response) => {
+  const userId = req.body?.userId || req.body?.userProfile?.id || req.body?.userProfile?.email || (req.query?.userId as string) || 'anon_user';
+  const client = supabaseAdmin || serverSupabase;
+  if (client) {
+    try {
+      const { data, error } = await client
+        .from('conversations')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+      if (!error && Array.isArray(data)) {
+        return res.json(data);
+      }
+    } catch {}
+  }
+  res.json([]);
+});
+
+app.post('/api/conversations', async (req: Request, res: Response) => {
+  const userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
+  const item = {
+    ...req.body,
+    user_id: userId,
+    created_at: req.body.created_at || new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  const client = supabaseAdmin || serverSupabase;
+  if (client) {
+    try {
+      const { data, error } = await client.from('conversations').insert([item]).select().maybeSingle();
+      if (!error && data) {
+        return res.status(201).json(data);
+      }
+    } catch {}
+  }
+  res.status(201).json(item);
+});
+
+app.delete('/api/conversations/:id', async (req: Request, res: Response) => {
+  const id = req.params.id;
+  const client = supabaseAdmin || serverSupabase;
+  if (client) {
+    try {
+      await client.from('conversations').delete().eq('id', id);
+    } catch {}
+  }
   res.json({ success: true });
 });
 
@@ -1130,16 +1195,23 @@ app.post('/api/chat', async (req: Request, res: Response) => {
   try {
     const { message, image, history, userProfile, stream = true } = req.body;
 
-    // Vérification et déduction du crédit de manière sécurisée
+    // Vérification préliminaire du solde
     const userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
 
     const client = supabaseAdmin || serverSupabase;
     if (client) {
-      // Vérification et création/déduction automatique dans user_credits
-      const creditCheck = await deductUserCredit(userId);
+      try {
+        const { data: userRow } = await client
+          .from('user_credits')
+          .select('credits')
+          .eq('user_id', userId)
+          .maybeSingle();
 
-      if (!creditCheck.success) {
-        return res.status(403).json({ error: 'Crédits épuisés. Veuillez recharger votre forfait.' });
+        if (userRow && typeof userRow.credits === 'number' && userRow.credits <= 0) {
+          return res.status(403).json({ error: 'Crédits épuisés. Veuillez recharger votre forfait.' });
+        }
+      } catch (checkErr) {
+        console.warn('Vérification préliminaire des crédits:', checkErr);
       }
     }
 
@@ -1478,12 +1550,69 @@ DIRECTIVES DE RÉPONSE :
       }
     }
 
+    // Exécution obligatoire demandée après réception de la réponse Gemini :
+    // 1. Déduire le crédit via user_credits (avec supabaseAdmin)
+    // 2. Insérer l'échange dans la table conversations (avec supabaseAdmin)
+    // Tout exécuté avec await avant de renvoyer la réponse au client
+    let updatedBalance: number | undefined = undefined;
+
+    if (client) {
+      try {
+        // 1. Déduire le crédit via user_credits (avec supabaseAdmin)
+        const creditResult = await deductUserCredit(userId);
+        if (creditResult && typeof creditResult.remainingCredits === 'number') {
+          updatedBalance = creditResult.remainingCredits;
+          console.log(`[Supabase] Crédit déduit pour ${userId}. Solde restant: ${updatedBalance}`);
+        }
+
+        // 2. Insérer l'échange dans la table conversations (avec supabaseAdmin)
+        const conversationRecord = {
+          user_id: userId,
+          titre: message ? (message.length > 60 ? message.substring(0, 57) + '...' : message) : 'Discussion Major2I.A',
+          messages: [
+            {
+              role: 'user',
+              contenu: message || (image ? '[Image fournie]' : ''),
+              image: image || undefined,
+              date: new Date().toISOString()
+            },
+            {
+              role: 'neo',
+              contenu: reply || 'Transmission reçue.',
+              sources: uniqueSources,
+              searchQueries: Array.from(new Set(searchQueries)),
+              date: new Date().toISOString()
+            }
+          ],
+          tags: ['ia', 'chat'],
+          favori: false,
+          categorie: 'general',
+          date: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        const { error: convInsertError } = await client
+          .from('conversations')
+          .insert([conversationRecord]);
+
+        if (convInsertError) {
+          console.warn('[Supabase] Note/Erreur insertion conversations:', convInsertError.message || convInsertError);
+        } else {
+          console.log(`[Supabase] Échange conversation inséré avec succès pour ${userId}`);
+        }
+      } catch (supabaseOpsErr) {
+        console.error('[Supabase] Erreur lors des opérations post-réponse:', supabaseOpsErr);
+      }
+    }
+
     res.write(`data: ${JSON.stringify({
       type: 'done',
       reply: reply || "Transmission reçue.",
       actions,
       sources: uniqueSources,
       searchQueries: Array.from(new Set(searchQueries)),
+      credits: updatedBalance,
       shouldSpeak: false,
       timestamp: new Date().toISOString(),
     })}\n\n`);
