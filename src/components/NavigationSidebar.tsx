@@ -434,7 +434,7 @@ export const NavigationSidebar: React.FC<NavigationSidebarProps> = ({
                       <BatteryCharging className="w-4 h-4" />
                     </div>
                     <div>
-                      <div className="text-[10px] uppercase font-bold text-[var(--fb-text-secondary)] tracking-wider">Batterie IA restante</div>
+                      <div className="text-[10px] uppercase font-bold text-[var(--fb-text-secondary)] tracking-wider">IA restante</div>
                       <div className="text-xs font-bold text-[var(--fb-text-primary)] flex items-center gap-1.5">
                         <span className="font-mono">{credits} / {maxCredits}</span>
                         <span className="text-[10px] font-semibold text-[var(--fb-text-secondary)]">({batteryPercentage}%)</span>

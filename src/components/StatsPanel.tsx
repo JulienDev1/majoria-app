@@ -69,7 +69,7 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({
       color: 'text-amber-300',
     },
     { 
-      label: 'Autonomie Batterie IA', 
+      label: 'Autonomie IA', 
       val: `${batteryPercentage}%`, 
       sub: `${credits} / ${maxCredits} crédits restants`, 
       icon: BatteryCharging, 
@@ -91,7 +91,7 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({
             </h1>
           </div>
           <p className="text-xs sm:text-sm text-[#65676b] mt-1 font-medium">
-            Aperçu global de votre activité, de l'état de votre batterie IA et de vos données.
+            Aperçu global de votre activité, de l'état de votre IA et de vos données.
           </p>
         </div>
       </div>

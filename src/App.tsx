@@ -371,7 +371,7 @@ export default function App() {
     // Déterminer la nouvelle valeur d'énergie selon le forfait
     const newEnergy = energyValue || (sub.planId === 'pro' ? 500 : sub.planId === 'premium' ? 250 : 100);
     
-    // 1. Mise à jour synchrone et immédiate de l'état React de la batterie (widgets sidebar & header)
+    // 1. Mise à jour synchrone et immédiate de l'état React de l' IA (widgets sidebar & header)
     setEnergyPercent(newEnergy);
     localStorage.setItem('neo-battery-energy', newEnergy.toString());
     localStorage.setItem('neo-local-credits', newEnergy.toString());
@@ -383,7 +383,7 @@ export default function App() {
     const subKey = `${sub.planId}_${sub.status}_${sub.interval || 'month'}`;
     if (subscriptionNotifiedRef.current !== subKey) {
       subscriptionNotifiedRef.current = subKey;
-      showToast(`✨ Forfait ${sub.planName || sub.planId.toUpperCase()} activé ! Batterie synchronisée à ${newEnergy}%.`, 'success');
+      showToast(`✨ Forfait ${sub.planName || sub.planId.toUpperCase()} activé ! IA synchronisée à ${newEnergy}%.`, 'success');
     }
 
     // 3. Rafraîchissement global du statut utilisateur et synchronisation Supabase en arrière-plan
@@ -624,7 +624,7 @@ export default function App() {
         }
       }
     } catch (err) {
-      console.warn('Erreur chargement batterie IA:', err);
+      console.warn('Erreur chargement IA:', err);
     }
   };
 
@@ -936,7 +936,7 @@ export default function App() {
         if (typeof data.balance === 'number') {
           setEnergyPercent(data.balance);
           localStorage.setItem('neo-battery-energy', data.balance.toString());
-          showToast(`🔋 +${amount}% Batterie ajoutés ! (Niveau actuel : ${data.balance}%)`, 'success');
+          showToast(`🔋 +${amount}% IA ajoutés ! (Niveau actuel : ${data.balance}%)`, 'success');
           return;
         }
       }
@@ -946,7 +946,7 @@ export default function App() {
     const next = Math.min(200, cur + amount);
     setEnergyPercent(next);
     localStorage.setItem('neo-battery-energy', next.toString());
-    showToast(`🔋 +${amount}% Batterie ajoutés ! (Niveau actuel : ${next}%)`, 'success');
+    showToast(`🔋 +${amount}% IA ajoutés ! (Niveau actuel : ${next}%)`, 'success');
   };
 
   // Send Message to Gemini Major2I.A with dynamic credit control
@@ -956,19 +956,19 @@ export default function App() {
     // 1. Décrémentation d'énergie et vérification du solde
     const creditResult = await callUseCredit(effectiveUserId);
 
-    // 2. Si la batterie est déchargée (0% ou moins), bloquer l'envoi
+    // 2. Si l'IA est déchargée (0% ou moins), bloquer l'envoi
     if (creditResult.isExhausted || creditResult.balance === -1 || (energyPercent !== null && energyPercent <= 0)) {
       playCyberSound('alert');
       setEnergyPercent(0);
       localStorage.setItem('neo-battery-energy', '0');
       localStorage.setItem('neo-local-credits', '0');
       localStorage.setItem(`neo-user-credits-${effectiveUserId}`, '0');
-      showToast("⛔ Batterie IA déchargée (0% restant). Veuillez souscrire à un forfait ou recharger pour continuer.", 'danger');
+      showToast("⛔ IA déchargée (0% restant). Veuillez souscrire à un forfait ou recharger pour continuer.", 'danger');
       setIsForfaitsOpen(true);
       return;
     }
 
-    // 3. Mise à jour optimiste du solde de batterie
+    // 3. Mise à jour optimiste du solde d'IA
     if (creditResult.balance !== null && creditResult.balance >= 0) {
       setEnergyPercent(creditResult.balance);
       localStorage.setItem('neo-battery-energy', creditResult.balance.toString());

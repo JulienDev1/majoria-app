@@ -188,9 +188,9 @@ export const LegalDisclaimerModal: React.FC<LegalDisclaimerModalProps> = ({
               </h3>
               <ul className="space-y-1.5 text-slate-300">
                 <li><strong>Nom de l'application :</strong> Major2I.A (Assistant Personnel & Plateforme IA)</li>
-                <li><strong>Responsable de publication :</strong> Julien (Contact : <span className="font-mono text-sky-300">julien26730@gmail.com</span>)</li>
+                <li><strong>Responsable de publication :</strong> Major2IA (Contact : <span className="font-mono text-sky-300">majoria.int.art@gmail.com</span>)</li>
                 <li><strong>Statut :</strong> Édition de service numérique & applicatif web interactif</li>
-                <li><strong>Contact Support :</strong> <span className="font-mono text-sky-300">julien26730@gmail.com</span></li>
+                <li><strong>Contact Support :</strong> <span className="font-mono text-sky-300">majoria.int.art@gmail.com</span></li>
               </ul>
             </div>
 
@@ -265,7 +265,7 @@ export const LegalDisclaimerModal: React.FC<LegalDisclaimerModalProps> = ({
               <ul className="space-y-1 text-slate-300 list-disc list-inside">
                 <li>L'utilisateur dispose d'un droit d'accès, de rectification, de portabilité et de suppression de l'ensemble de ses données (mémoires, tâches, rappels, discussions).</li>
                 <li>L'application met à disposition un outil d'export complet en format JSON ainsi qu'un bouton de suppression définitive en 1 clic dans les Paramètres.</li>
-                <li>Pour toute demande relative aux données personnelles : contactez <span className="font-mono text-sky-300">julien26730@gmail.com</span>.</li>
+                <li>Pour toute demande relative aux données personnelles : contactez <span className="font-mono text-sky-300">majoria.int.art@gmail.com</span>.</li>
               </ul>
             </div>
 
