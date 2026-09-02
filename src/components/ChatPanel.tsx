@@ -39,6 +39,7 @@ import { cleanSpokenTranscript, mergeSpeechSegments, removeRepeatedWordsAndPhras
 import { exportItemToPDF } from '../utils/pdfExport';
 import { CameraVideoModal } from './CameraVideoModal';
 import { FormattedMarkdown } from './FormattedMarkdown';
+import { NewsHeadlineFeed } from './NewsHeadlineFeed';
 import { useLanguage } from '../context/LanguageContext';
 
 interface ChatPanelProps {
@@ -703,36 +704,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               </div>
             </div>
 
-            {/* Quick Suggestion Cards */}
-            <div className="bg-[var(--fb-card-translucent)] backdrop-blur-xs rounded-2xl p-4 sm:p-5 border border-[var(--fb-card-border)] shadow-sm space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-[var(--fb-text-primary)] text-sm">Suggestions de requêtes rapides</span>
-                <span className="text-xs text-[var(--fb-blue)] font-bold">Fil d'actualité IA</span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                {[
-                  "Rappelle-moi d'appeler le médecin à 15h",
-                  "Quelles sont les dernières actualités mondiales ?",
-                  "Crée une tâche urgente pour finaliser le rapport",
-                  "Mémorise le code d'accès de l'immeuble",
-                ].map((promptText, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => {
-                      setInputText(promptText);
-                      playCyberSound('beep');
-                    }}
-                    className="p-3 rounded-xl bg-[var(--fb-surface)]/60 hover:bg-[var(--fb-surface)]/90 hover:text-[var(--fb-blue)] border border-[var(--fb-border-light)] hover:border-[var(--fb-blue)]/50 text-left text-xs font-bold text-[var(--fb-text-primary)] transition-all cursor-pointer flex items-center gap-2.5 shadow-2xs"
-                  >
-                    <div className="w-7 h-7 rounded-full bg-[var(--fb-blue-light)] flex items-center justify-center shrink-0 shadow-xs text-[var(--fb-blue)]">
-                      <Sparkles className="w-3.5 h-3.5" />
-                    </div>
-                    <span className="line-clamp-2">{promptText}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+            {/* Dynamic News Feed "À la une" (France Info, 20 Minutes, BFMTV) */}
+            <NewsHeadlineFeed onSelectPrompt={(prompt) => setInputText(prompt)} />
           </div>
         ) : (
           conversation.messages.map((msg, idx) => {

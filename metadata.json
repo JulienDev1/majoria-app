@@ -1,6 +1,6 @@
 {
-  "name": "Major2I.A - AI Assistant",
-  "description": "Assistant IA, Major2I.A avec Chat, Mémoire , Favoris, Rappels intelligents, Calendrier, etc.",
+  "name": "Major2I.A // Assistant Personnel Intelligent",
+  "description": "Assistant IA multimodal Major2I.A avec Chat, Mémoire, Favoris, Rappels intelligents, Calendrier et Productivité.",
   "requestFramePermissions": ["microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

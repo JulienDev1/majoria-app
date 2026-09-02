@@ -725,7 +725,7 @@ export const translations: Record<Language, TranslationsSchema> = {
       alertDesc: 'Rappels & Événements',
       testSound: 'Cliquer pour tester',
       energyTitle: 'Système de Consommation & Report Mensuel Automatique',
-      energyLevel: 'Niveau de IA',
+      energyLevel: "Niveau d'IA",
       energyAvailable: 'disponible',
       rolloverTitle: 'Report automatique garanti',
       rolloverCarried: 'reporté du mois précédent',
