@@ -50,7 +50,10 @@ if (supabaseUrl && supabaseKey) {
 }
 
 async function deductUserCredit(userId?: string): Promise<{ success: boolean; remainingCredits: number }> {
-  const effectiveId = (userId && String(userId).trim()) || 'anon_user';
+  const effectiveId = (userId && String(userId).trim()) || '';
+  if (!effectiveId) {
+    return { success: false, remainingCredits: 0 };
+  }
   
   // BYPASS JULDEV2
   if (effectiveId === 'JulDev2' || effectiveId === 'juldev2') {
@@ -175,7 +178,10 @@ app.get('/api/health', (req: Request, res: Response) => {
 
 // FAVORIS ENDPOINTS
 app.get('/api/favoris', async (req: Request, res: Response) => {
-  const userId = req.body?.userId || req.body?.userProfile?.id || req.body?.userProfile?.email || (req.query?.userId as string) || 'anon_user';
+  const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
+  if (!isSupabaseAuth || !userId) {
+   return res.status(401).json({ error: 'Connexion requise pour accéder aux favoris.' });
+  }
   const client = supabaseAdmin || serverSupabase;
   if (client) {
     try {
@@ -194,7 +200,10 @@ app.get('/api/favoris', async (req: Request, res: Response) => {
 });
 
 app.post('/api/favoris', async (req: Request, res: Response) => {
-  const userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
+  const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
+  if (!isSupabaseAuth || !userId) {
+   return res.status(401).json({ error: 'Connexion requise pour enregistrer un favori.' });
+  }
   const item = { id: Date.now(), ...req.body, userId, user_id: userId, date: req.body.date || new Date().toISOString() };
   const client = supabaseAdmin || serverSupabase;
   if (client) {
@@ -207,7 +216,10 @@ app.post('/api/favoris', async (req: Request, res: Response) => {
 });
 
 app.put('/api/favoris/:id', async (req: Request, res: Response) => {
-  const userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
+  const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
+  if (!isSupabaseAuth || !userId) {
+   return res.status(401).json({ error: 'Connexion requise.' });
+  }
   const id = Number(req.params.id);
   const client = supabaseAdmin || serverSupabase;
   if (client) {
@@ -225,7 +237,10 @@ app.put('/api/favoris/:id', async (req: Request, res: Response) => {
 });
 
 app.patch('/api/favoris/:id', async (req: Request, res: Response) => {
-  const userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
+ const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
+ if (!isSupabaseAuth || !userId) {
+  return res.status(401).json({ error: 'Connexion requise.' });
+ }
   const id = Number(req.params.id);
   const client = supabaseAdmin || serverSupabase;
   if (client) {
@@ -256,7 +271,10 @@ app.delete('/api/favoris/:id', async (req: Request, res: Response) => {
 
 // MEMOIRE ENDPOINTS
 app.get('/api/memoire', async (req: Request, res: Response) => {
-  const userId = req.body?.userId || req.body?.userProfile?.id || req.body?.userProfile?.email || (req.query?.userId as string) || 'anon_user';
+  const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
+  if (!isSupabaseAuth || !userId) {
+   return res.status(401).json({ error: 'Connexion requise pour lire la mémoire.' });
+  }
   const client = supabaseAdmin || serverSupabase;
   if (client) {
     try {
@@ -275,7 +293,10 @@ app.get('/api/memoire', async (req: Request, res: Response) => {
 });
 
 app.post('/api/memoire', async (req: Request, res: Response) => {
-  const userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
+  const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
+  if (!isSupabaseAuth || !userId) {
+   return res.status(401).json({ error: 'Connexion requise pour enregistrer en mémoire.' });
+  }
   const item = { id: Date.now(), importance: 3, tags: [], ...req.body, userId, user_id: userId, date: req.body.date || new Date().toISOString() };
   const client = supabaseAdmin || serverSupabase;
   if (client) {
@@ -288,7 +309,10 @@ app.post('/api/memoire', async (req: Request, res: Response) => {
 });
 
 app.put('/api/memoire/:id', async (req: Request, res: Response) => {
-  const userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
+  const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
+  if (!isSupabaseAuth || !userId) {
+   return res.status(401).json({ error: 'Connexion requise.' });
+  }
   const id = Number(req.params.id);
   const client = supabaseAdmin || serverSupabase;
   if (client) {
@@ -306,7 +330,10 @@ app.put('/api/memoire/:id', async (req: Request, res: Response) => {
 });
 
 app.patch('/api/memoire/:id', async (req: Request, res: Response) => {
-  const userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
+  const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
+  if (!isSupabaseAuth || !userId) {
+   return res.status(401).json({ error: 'Connexion requise.' });
+  }
   const id = Number(req.params.id);
   const client = supabaseAdmin || serverSupabase;
   if (client) {
@@ -323,8 +350,11 @@ app.patch('/api/memoire/:id', async (req: Request, res: Response) => {
   }
 });
 
-app.get('/api/memoire/recherche/:q', (req: Request, res: Response) => {
-  const userId = req.body?.userId || req.body?.userProfile?.id || req.body?.userProfile?.email || (req.query?.userId as string) || 'anon_user';
+app.get('/api/memoire/recherche/:q', async (req: Request, res: Response) => {
+  const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
+  if (!isSupabaseAuth || !userId) {
+   return res.status(401).json({ error: 'Connexion requise pour rechercher dans la mémoire.' });
+  }
   const q = (req.params.q || '').toLowerCase();
   const results = serverStore.memoire
     .filter(m => !m.userId || m.userId === userId)
@@ -349,7 +379,10 @@ app.delete('/api/memoire/:id', async (req: Request, res: Response) => {
 
 // RAPPELS ENDPOINTS
 app.get('/api/rappels', async (req: Request, res: Response) => {
-  const userId = req.body?.userId || req.body?.userProfile?.id || req.body?.userProfile?.email || (req.query?.userId as string) || 'anon_user';
+  const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
+  if (!isSupabaseAuth || !userId) {
+   return res.status(401).json({ error: 'Connexion requise pour lire les rappels.' });
+  }
   const client = supabaseAdmin || serverSupabase;
   if (client) {
     try {
@@ -368,7 +401,10 @@ app.get('/api/rappels', async (req: Request, res: Response) => {
 });
 
 app.post('/api/rappels', async (req: Request, res: Response) => {
-  const userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
+  const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
+  if (!isSupabaseAuth || !userId) {
+   return res.status(401).json({ error: 'Connexion requise pour créer un rappel.' });
+  }
   const item = { 
     id: Date.now(), 
     statut: 'actif',
@@ -389,7 +425,10 @@ app.post('/api/rappels', async (req: Request, res: Response) => {
 });
 
 app.put('/api/rappels/:id', async (req: Request, res: Response) => {
-  const userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
+  const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
+  if (!isSupabaseAuth || !userId) {
+   return res.status(401).json({ error: 'Connexion requise.' });
+  }
   const id = Number(req.params.id);
   const client = supabaseAdmin || serverSupabase;
   if (client) {
@@ -420,7 +459,10 @@ app.delete('/api/rappels/:id', async (req: Request, res: Response) => {
 
 // TACHES ENDPOINTS
 app.get('/api/taches', async (req: Request, res: Response) => {
-  const userId = req.body?.userId || req.body?.userProfile?.id || req.body?.userProfile?.email || (req.query?.userId as string) || 'anon_user';
+  const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
+  if (!isSupabaseAuth || !userId) {
+   return res.status(401).json({ error: 'Connexion requise pour lire les tâches.' });
+  }
   const client = supabaseAdmin || serverSupabase;
   if (client) {
     try {
@@ -439,7 +481,10 @@ app.get('/api/taches', async (req: Request, res: Response) => {
 });
 
 app.post('/api/taches', async (req: Request, res: Response) => {
-  const userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
+  const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
+  if (!isSupabaseAuth || !userId) {
+   return res.status(401).json({ error: 'Connexion requise pour créer une tâche.' });
+  };
   const item = { 
     id: Date.now(), 
     status: 'attente',
@@ -460,7 +505,10 @@ app.post('/api/taches', async (req: Request, res: Response) => {
 });
 
 app.put('/api/taches/:id', async (req: Request, res: Response) => {
-  const userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
+  const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
+  if (!isSupabaseAuth || !userId) {
+   return res.status(401).json({ error: 'Connexion requise pour modifier une tâche.' });
+  }
   const id = Number(req.params.id);
   const client = supabaseAdmin || serverSupabase;
   if (client) {
@@ -491,7 +539,10 @@ app.delete('/api/taches/:id', async (req: Request, res: Response) => {
 
 // CONVERSATIONS ENDPOINTS
 app.get('/api/conversations', async (req: Request, res: Response) => {
-  const userId = req.body?.userId || req.body?.userProfile?.id || req.body?.userProfile?.email || (req.query?.userId as string) || 'anon_user';
+  const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
+  if (!isSupabaseAuth || !userId) {
+   return res.status(401).json({ error: 'Connexion requise pour lire les conversations.' });
+  }
   const client = supabaseAdmin || serverSupabase;
   if (client) {
     try {
@@ -509,7 +560,10 @@ app.get('/api/conversations', async (req: Request, res: Response) => {
 });
 
 app.post('/api/conversations', async (req: Request, res: Response) => {
-  const userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
+  const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
+  if (!isSupabaseAuth || !userId) {
+   return res.status(401).json({ error: 'Connexion requise pour sauvegarder une conversation.' });
+  }
   const item = {
     ...req.body,
     user_id: userId,
@@ -541,16 +595,19 @@ app.delete('/api/conversations/:id', async (req: Request, res: Response) => {
 
 // SUPABASE RPC & CREDITS ENDPOINTS
 app.post('/api/supabase/ensure-user', async (req: Request, res: Response) => {
-  let userId = 'anon_user';
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.split(' ')[1];
-    const { data: { user } } = await (supabaseAdmin || serverSupabase).auth.getUser(token);
-    if (user) userId = user.id;
-  }
-  if (userId === 'anon_user') {
-    userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
-  }
+  // Identification via Token JWT Supabase uniquement
+    let userId: string | null = null;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      const { data: { user } } = await (supabaseAdmin || serverSupabase).auth.getUser(token);
+      if (user) userId = user.id;
+    }
+
+    // Rejet si l'utilisateur n'est pas authentifié
+    if (!userId) {
+      return res.status(401).json({ error: 'Connexion requise.' });
+    }
 
   const defaultCredits = Number(req.body.defaultCredits) || 30;
   const client = supabaseAdmin || serverSupabase;
@@ -581,15 +638,9 @@ app.post('/api/supabase/ensure-user', async (req: Request, res: Response) => {
 });
 
 app.post('/api/supabase/use-credit', async (req: Request, res: Response) => {
-  let userId = 'anon_user';
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.split(' ')[1];
-    const { data: { user } } = await (supabaseAdmin || serverSupabase).auth.getUser(token);
-    if (user) userId = user.id;
-  }
-  if (userId === 'anon_user') {
-    userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
+  const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
+  if (!isSupabaseAuth || !userId) {
+   return res.status(401).json({ success: false, error: 'Connexion requise pour utiliser un crédit.' });
   }
 
   const creditCheck = await deductUserCredit(userId);
@@ -602,7 +653,10 @@ app.post('/api/supabase/use-credit', async (req: Request, res: Response) => {
 });
 
 const handleGetCredits = async (req: Request, res: Response) => {
-  const userId = (req.query?.user_id as string) || (req.query?.userId as string) || req.body?.user_id || req.body?.userId || req.body?.userProfile?.id || req.body?.userProfile?.email || 'anon_user';
+  const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
+  if (!isSupabaseAuth || !userId) {
+   return res.status(401).json({ error: 'Connexion requise pour consulter les crédits.' });
+  }
   const client = supabaseAdmin || serverSupabase;
 
   // Check active subscription first
@@ -678,7 +732,10 @@ app.get('/api/credits', handleGetCredits);
 
 app.post('/api/supabase/set-credits', async (req: Request, res: Response) => {
   const credits = Number(req.body?.credits) >= 0 ? Number(req.body.credits) : 100;
-  const userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
+  const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
+  if (!isSupabaseAuth || !userId) {
+   return res.status(401).json({ error: 'Connexion requise.' });
+  }
   const client = supabaseAdmin || serverSupabase;
 
   if (client) {
@@ -698,9 +755,12 @@ app.post('/api/supabase/set-credits', async (req: Request, res: Response) => {
   return res.json({ success: true, balance: credits });
 });
 
-app.post('/api/supabase/recharge', (req: Request, res: Response) => {
+app.post('/api/supabase/recharge', async (req: Request, res: Response) => {
   const amount = Number(req.body.amount) || 50;
-  const userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
+  const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
+  if (!isSupabaseAuth || !userId) {
+   return res.status(401).json({ error: 'Connexion requise.' });
+  }
   const client = supabaseAdmin || serverSupabase;
 
   if (serverStore.userCredits[userId] === undefined) {
@@ -746,14 +806,9 @@ async function authenticateSupabaseUser(req: Request): Promise<{ userId: string;
     }
   }
 
-  // Fallback to dynamic user identity extraction
-  const userId = req.body?.userId || req.body?.userProfile?.id || req.body?.userProfile?.email || (req.query?.userId as string) || 'anon_user';
-  const bodyEmail = req.body?.userEmail || req.query?.userEmail || req.body?.userProfile?.email;
-  const effectiveEmail = (bodyEmail && String(bodyEmail).trim()) || `${userId}@majoria.app`;
-
   return {
-    userId,
-    userEmail: effectiveEmail,
+    userId: '',
+    userEmail: '',
     isSupabaseAuth: false,
   };
 }
@@ -1242,16 +1297,19 @@ app.post('/api/chat', async (req: Request, res: Response) => {
   try {
     const { message, image, history, userProfile, stream = true } = req.body;
 
-    // Vérification préalable du solde et identification
-    let userId = 'anon_user';
+    // Identification stricte via Token JWT Supabase
+    let userId: string | null = null;
     const authHeader = req.headers.authorization;
+
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
       const { data: { user } } = await (supabaseAdmin || serverSupabase).auth.getUser(token);
       if (user) userId = user.id;
     }
-    if (userId === 'anon_user') {
-      userId = req.body.user_id || req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
+
+    // Blocage immédiat si l'utilisateur n'est pas connecté
+    if (!userId) {
+      return res.status(401).json({ error: 'Connexion requise pour utiliser le chat.' });
     }
 
     const client = supabaseAdmin || serverSupabase;
