@@ -55,8 +55,8 @@ async function deductUserCredit(userId?: string): Promise<{ success: boolean; re
     return { success: false, remainingCredits: 0 };
   }
   
-  // BYPASS JULDEV2
-  if (effectiveId === 'JulDev2' || effectiveId === 'juldev2') {
+  // BYPASS JFE26@LIVE.FR
+  if (effectiveId === 'jfe26@live.fr' || effectiveId === 'jfe26@live.fr') {
     return { success: true, remainingCredits: 999999 };
   }
   

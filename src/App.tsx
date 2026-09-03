@@ -27,6 +27,7 @@ import {
   sanitizeConfidentialText,
 } from './utils/security';
 import { callUseCredit, getCreditBalance, syncCreditsToSupabase } from './utils/supabase';
+import { supabase, getAuthHeader } from './utils/supabaseAuth';
 import { getOrCreateUserId, setStoredUserId } from './utils/userId';
 import { fetchUserSubscription } from './utils/stripe';
 import { MilkyWayGalaxy, GalaxyColorScheme } from './components/MilkyWayGalaxy';
@@ -56,6 +57,29 @@ const API = '/api';
 
 export default function App() {
   const isOnline = useNetworkStatus();
+  const [session, setSession] = useState<any>(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session?.user?.email) {
+        setUser({ nom: session.user.email.split('@')[0] });
+      }
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session?.user?.email) {
+        setUser({ nom: session.user.email.split('@')[0] });
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
   // Navigation State with URL routing support
   const [activePanel, setActivePanel] = useState<PanelId>(() => {
     if (typeof window !== 'undefined') {
@@ -552,7 +576,7 @@ export default function App() {
 
     // Load Favoris
     try {
-      const res = await fetch(`${API}/favoris`);
+      const res = await fetch(`${API}/favoris`, { headers: await getAuthHeader() });
       if (res.ok) {
         const data = await res.json();
         setFavoris(data);
@@ -565,7 +589,7 @@ export default function App() {
 
     // Load Memoire
     try {
-      const res = await fetch(`${API}/memoire`);
+      const res = await fetch(`${API}/memoire`, { headers: await getAuthHeader() });
       if (res.ok) {
         const data = await res.json();
         setMemoire(data);
@@ -578,7 +602,7 @@ export default function App() {
 
     // Load Rappels
     try {
-      const res = await fetch(`${API}/rappels`);
+      const res = await fetch(`${API}/rappels`, { headers: await getAuthHeader() });
       if (res.ok) {
         const data = await res.json();
         setRappels(data);
@@ -591,7 +615,7 @@ export default function App() {
 
     // Load Taches
     try {
-      const res = await fetch(`${API}/taches`);
+      const res = await fetch(`${API}/taches`, { headers: await getAuthHeader() });
       if (res.ok) {
         const data = await res.json();
         setTaches(data);
@@ -822,11 +846,13 @@ export default function App() {
 
           // 2. Sync with backend if available
           try {
-            fetch(`${API}/memoire`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(item),
-            }).catch(() => {});
+            getAuthHeader().then(authHeaders => {
+              fetch(`${API}/memoire`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...authHeaders },
+                body: JSON.stringify(item),
+              }).catch(() => ({}));
+            });
           } catch {}
 
           showToast('🧠 Nouvelle note mémorisée', 'success');
@@ -853,11 +879,13 @@ export default function App() {
 
           // 2. Sync with backend if available
           try {
-            fetch(`${API}/rappels`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(item),
-            }).catch(() => {});
+            getAuthHeader().then(authHeaders => {
+              fetch(`${API}/rappels`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...authHeaders },
+                body: JSON.stringify(item),
+              }).catch(() => ({}));
+            });
           } catch {}
 
           playAlertSound(alertSound);
@@ -882,11 +910,13 @@ export default function App() {
 
           // 2. Sync with backend if available
           try {
-            fetch(`${API}/taches`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(item),
-            }).catch(() => {});
+            getAuthHeader().then(authHeaders => {
+              fetch(`${API}/taches`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...authHeaders },
+                body: JSON.stringify(item),
+              }).catch(() => ({}));
+            });
           } catch {}
 
           showToast(`✅ Tâche ajoutée : ${item.titre}`, 'success');
@@ -908,11 +938,13 @@ export default function App() {
 
           // 2. Sync with backend if available
           try {
-            fetch(`${API}/favoris`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(item),
-            }).catch(() => {});
+            getAuthHeader().then(authHeaders => {
+              fetch(`${API}/favoris`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...authHeaders },
+                body: JSON.stringify(item),
+              }).catch(() => ({}));
+            });
           } catch {}
 
           showToast(`⭐ Favori enregistré : ${item.titre}`, 'success');
@@ -928,7 +960,7 @@ export default function App() {
     try {
       const res = await fetch(`${API}/supabase/recharge`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
         body: JSON.stringify({ amount }),
       });
       if (res.ok) {
@@ -1077,6 +1109,7 @@ export default function App() {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'text/event-stream, application/json',
+          ...(await getAuthHeader()),
         },
         body: JSON.stringify({
           user_id: effectiveUserId,
@@ -1393,7 +1426,7 @@ export default function App() {
     try {
       await fetch(`${API}/favoris`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
         body: JSON.stringify(item),
       });
     } catch {}
@@ -1409,7 +1442,7 @@ export default function App() {
     try {
       await fetch(`${API}/favoris/${fav.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
         body: JSON.stringify(fav),
       });
     } catch {}
@@ -1423,7 +1456,10 @@ export default function App() {
 
   const handleDeleteFavori = async (id: number) => {
     try {
-      await fetch(`${API}/favoris/${id}`, { method: 'DELETE' });
+      await fetch(`${API}/favoris/${id}`, { 
+        method: 'DELETE',
+        headers: await getAuthHeader()
+      });
     } catch {}
     setFavoris((prev) => {
       const next = prev.filter((f) => f.id !== id);
@@ -1445,7 +1481,7 @@ export default function App() {
     try {
       await fetch(`${API}/memoire`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
         body: JSON.stringify(item),
       });
     } catch {}
@@ -1461,7 +1497,7 @@ export default function App() {
     try {
       await fetch(`${API}/memoire/${mem.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
         body: JSON.stringify(mem),
       });
     } catch {}
@@ -1475,7 +1511,10 @@ export default function App() {
 
   const handleDeleteMemoire = async (id: number) => {
     try {
-      await fetch(`${API}/memoire/${id}`, { method: 'DELETE' });
+      await fetch(`${API}/memoire/${id}`, { 
+        method: 'DELETE',
+        headers: await getAuthHeader()
+      });
     } catch {}
     setMemoire((prev) => {
       const next = prev.filter((m) => m.id !== id);
@@ -1496,7 +1535,7 @@ export default function App() {
     try {
       await fetch(`${API}/rappels`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
         body: JSON.stringify(item),
       });
     } catch {}
@@ -1513,7 +1552,7 @@ export default function App() {
     try {
       await fetch(`${API}/rappels/${rappel.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
         body: JSON.stringify(rappel),
       });
     } catch {}
@@ -1532,7 +1571,7 @@ export default function App() {
     try {
       await fetch(`${API}/rappels/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
         body: JSON.stringify({ statut: newStatus }),
       });
     } catch {}
@@ -1545,7 +1584,10 @@ export default function App() {
 
   const handleDeleteRappel = async (id: number) => {
     try {
-      await fetch(`${API}/rappels/${id}`, { method: 'DELETE' });
+      await fetch(`${API}/rappels/${id}`, { 
+       method: 'DELETE',
+       headers: await getAuthHeader()
+      });
     } catch {}
     setRappels((prev) => {
       const next = prev.filter((r) => r.id !== id);
@@ -1566,7 +1608,7 @@ export default function App() {
     try {
       await fetch(`${API}/taches`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
         body: JSON.stringify(item),
       });
     } catch {}
@@ -1582,7 +1624,7 @@ export default function App() {
     try {
       await fetch(`${API}/taches/${tache.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
         body: JSON.stringify(tache),
       });
     } catch {}
@@ -1598,7 +1640,7 @@ export default function App() {
     try {
       await fetch(`${API}/taches/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
         body: JSON.stringify({ status }),
       });
     } catch {}
@@ -1611,7 +1653,10 @@ export default function App() {
 
   const handleDeleteTache = async (id: number) => {
     try {
-      await fetch(`${API}/taches/${id}`, { method: 'DELETE' });
+      await fetch(`${API}/taches/${id}`, { 
+        method: 'DELETE',
+        headers: await getAuthHeader()
+      });
     } catch {}
     setTaches((prev) => {
       const next = prev.filter((t) => t.id !== id);
@@ -1709,6 +1754,101 @@ export default function App() {
   };
 
   const isCustomBackground = Boolean(bgColor && (bgColor.startsWith('url(') || bgColor.startsWith('data:') || bgColor.startsWith('blob:')));
+
+  if (!session) {
+    return (
+      <div className="relative w-screen h-screen overflow-hidden flex flex-col items-center justify-center bg-slate-950 text-slate-100 p-4">
+        {/* Cyber Glow Background */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(14,165,233,0.15),rgba(255,255,255,0))] pointer-events-none" />
+
+        <div className="relative z-10 w-full max-w-sm p-6 rounded-2xl bg-slate-900/90 border border-cyan-500/30 shadow-2xl backdrop-blur-xl flex flex-col gap-4">
+          <div className="text-center">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 mb-2 font-mono font-bold text-xl tracking-wider">
+              M2
+            </div>
+            <h2 className="text-xl font-bold text-white tracking-wide">
+              {isSignUp ? 'Créer un compte' : 'Connexion à Major2I.A'}
+            </h2>
+            <p className="text-xs text-slate-400 mt-1">
+              {isSignUp ? 'Enregistrez-vous pour accéder à votre assistant' : 'Accédez à votre espace sécurisé'}
+            </p>
+          </div>
+
+          {authError && (
+            <div className="text-xs text-rose-400 bg-rose-950/40 border border-rose-800/50 rounded-lg p-2.5 text-center">
+              {authError}
+            </div>
+          )}
+
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!email || !password) return;
+              setAuthLoading(true);
+              setAuthError(null);
+              try {
+                if (isSignUp) {
+                  const { error } = await supabase.auth.signUp({ email, password });
+                  if (error) throw error;
+                  showToast('Compte créé ! Vérifiez votre email si nécessaire.', 'success');
+                } else {
+                  const { error } = await supabase.auth.signInWithPassword({ email, password });
+                  if (error) throw error;
+                  showToast('Connexion réussie', 'success');
+                }
+              } catch (err: any) {
+                setAuthError(err?.message || 'Erreur lors de l\'authentification');
+              } finally {
+                setAuthLoading(false);
+              }
+            }}
+            className="flex flex-col gap-3"
+          >
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Adresse Email</label>
+              <input
+                type="email"
+                placeholder="votre.email@exemple.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="w-full px-3 py-2 text-sm rounded-lg bg-slate-800/80 border border-slate-700 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Mot de passe</label>
+              <input
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="w-full px-3 py-2 text-sm rounded-lg bg-slate-800/80 border border-slate-700 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={authLoading}
+              className="w-full mt-2 py-2 px-4 rounded-lg bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-500 hover:to-sky-500 text-white font-medium text-sm transition-all shadow-md disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+            >
+              {authLoading ? 'Chargement...' : (isSignUp ? "S'inscrire" : 'Se connecter')}
+            </button>
+          </form>
+
+          <button
+            type="button"
+            onClick={() => {
+              setIsSignUp(!isSignUp);
+              setAuthError(null);
+            }}
+            className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors text-center cursor-pointer pt-1"
+          >
+            {isSignUp ? 'Déjà un compte ? Se connecter' : "Pas de compte ? S'inscrire"}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative w-screen h-screen overflow-hidden flex flex-col font-sans select-none text-[var(--text-color)]">
