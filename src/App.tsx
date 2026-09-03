@@ -27,7 +27,7 @@ import {
   sanitizeConfidentialText,
 } from './utils/security';
 import { callUseCredit, getCreditBalance, syncCreditsToSupabase } from './utils/supabase';
-import { supabase, getAuthHeader } from './utils/supabaseAuth';
+import { supabase, getAuthHeader, getAuthRedirectUrl } from './utils/supabaseAuth';
 import { getOrCreateUserId, setStoredUserId } from './utils/userId';
 import { fetchUserSubscription } from './utils/stripe';
 import { MilkyWayGalaxy, GalaxyColorScheme } from './components/MilkyWayGalaxy';
@@ -576,7 +576,7 @@ export default function App() {
 
     // Load Favoris
     try {
-      const res = await fetch(`${API}/favoris`, { headers: await getAuthHeader() });
+      const res = await fetch('/api/favoris', { headers: await getAuthHeader() });
       if (res.ok) {
         const data = await res.json();
         setFavoris(data);
@@ -589,7 +589,7 @@ export default function App() {
 
     // Load Memoire
     try {
-      const res = await fetch(`${API}/memoire`, { headers: await getAuthHeader() });
+      const res = await fetch('/api/memoire', { headers: await getAuthHeader() });
       if (res.ok) {
         const data = await res.json();
         setMemoire(data);
@@ -602,7 +602,7 @@ export default function App() {
 
     // Load Rappels
     try {
-      const res = await fetch(`${API}/rappels`, { headers: await getAuthHeader() });
+      const res = await fetch('/api/rappels', { headers: await getAuthHeader() });
       if (res.ok) {
         const data = await res.json();
         setRappels(data);
@@ -615,7 +615,7 @@ export default function App() {
 
     // Load Taches
     try {
-      const res = await fetch(`${API}/taches`, { headers: await getAuthHeader() });
+      const res = await fetch('/api/taches', { headers: await getAuthHeader() });
       if (res.ok) {
         const data = await res.json();
         setTaches(data);
@@ -818,7 +818,7 @@ export default function App() {
     showToast(`🏷️ Tag #${cleanTag} ajouté`, 'success');
   };
 
-  // Process AI Automated Actions (Tâches, Rappels, Mémoire, Favoris)
+  // Process AI Automated Actions (Tâches, Projets, Rappels, Mémoire, Favoris)
   const processAiActions = async (actions: any[]) => {
     if (!Array.isArray(actions) || actions.length === 0) return;
 
@@ -844,10 +844,10 @@ export default function App() {
             return next;
           });
 
-          // 2. Sync with backend if available
+          // 2. Sync with backend API
           try {
             getAuthHeader().then(authHeaders => {
-              fetch(`${API}/memoire`, {
+              fetch('/api/memoire', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', ...authHeaders },
                 body: JSON.stringify(item),
@@ -877,10 +877,10 @@ export default function App() {
             return next;
           });
 
-          // 2. Sync with backend if available
+          // 2. Sync with backend API
           try {
             getAuthHeader().then(authHeaders => {
-              fetch(`${API}/rappels`, {
+              fetch('/api/rappels', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', ...authHeaders },
                 body: JSON.stringify(item),
@@ -890,11 +890,12 @@ export default function App() {
 
           playAlertSound(alertSound);
           showToast(`🔔 Rappel créé : ${item.titre}`, 'success');
-        } else if (actType === 'task' || actType === 'tache') {
+        } else if (actType === 'task' || actType === 'tache' || actType === 'project' || actType === 'projet') {
+          const isProj = actType.includes('projet') || actType.includes('project');
           const item: Tache = {
             id: itemData.id || Date.now() + Math.floor(Math.random() * 1000),
-            titre: itemData.titre || itemData.nom || 'Tâche Major2I.A',
-            description: itemData.description || '',
+            titre: itemData.titre || itemData.nom || (isProj ? 'Projet Major2I.A' : 'Tâche Major2I.A'),
+            description: itemData.description || (isProj ? 'Projet planifié par Major2I.A' : 'Tâche planifiée par Major2I.A'),
             priorite: (itemData.priorite as Priority) || 'normale',
             status: itemData.status || 'attente',
             echeance: itemData.echeance || itemData.dateRappel || '',
@@ -908,10 +909,10 @@ export default function App() {
             return next;
           });
 
-          // 2. Sync with backend if available
+          // 2. Sync with backend API
           try {
             getAuthHeader().then(authHeaders => {
-              fetch(`${API}/taches`, {
+              fetch('/api/taches', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', ...authHeaders },
                 body: JSON.stringify(item),
@@ -919,7 +920,7 @@ export default function App() {
             });
           } catch {}
 
-          showToast(`✅ Tâche ajoutée : ${item.titre}`, 'success');
+          showToast(isProj ? `📁 Projet ajouté : ${item.titre}` : `✅ Tâche ajoutée : ${item.titre}`, 'success');
         } else if (actType === 'favorite' || actType === 'favori') {
           const item: Favori = {
             id: itemData.id || Date.now() + Math.floor(Math.random() * 1000),
@@ -936,10 +937,10 @@ export default function App() {
             return next;
           });
 
-          // 2. Sync with backend if available
+          // 2. Sync with backend API
           try {
             getAuthHeader().then(authHeaders => {
-              fetch(`${API}/favoris`, {
+              fetch('/api/favoris', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', ...authHeaders },
                 body: JSON.stringify(item),
@@ -958,7 +959,7 @@ export default function App() {
   // Recharging energy / battery helper
   const handleRechargeEnergy = async (amount: number) => {
     try {
-      const res = await fetch(`${API}/supabase/recharge`, {
+      const res = await fetch('/api/supabase/recharge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
         body: JSON.stringify({ amount }),
@@ -1424,7 +1425,7 @@ export default function App() {
       date: new Date().toISOString(),
     };
     try {
-      await fetch(`${API}/favoris`, {
+      await fetch('/api/favoris', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
         body: JSON.stringify(item),
@@ -1440,7 +1441,7 @@ export default function App() {
 
   const handleUpdateFavori = async (fav: Favori) => {
     try {
-      await fetch(`${API}/favoris/${fav.id}`, {
+      await fetch(`/api/favoris/${fav.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
         body: JSON.stringify(fav),
@@ -1456,7 +1457,7 @@ export default function App() {
 
   const handleDeleteFavori = async (id: number) => {
     try {
-      await fetch(`${API}/favoris/${id}`, { 
+      await fetch(`/api/favoris/${id}`, { 
         method: 'DELETE',
         headers: await getAuthHeader()
       });
@@ -1479,7 +1480,7 @@ export default function App() {
       date: new Date().toISOString(),
     };
     try {
-      await fetch(`${API}/memoire`, {
+      await fetch('/api/memoire', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
         body: JSON.stringify(item),
@@ -1495,7 +1496,7 @@ export default function App() {
 
   const handleUpdateMemoire = async (mem: Memoire) => {
     try {
-      await fetch(`${API}/memoire/${mem.id}`, {
+      await fetch(`/api/memoire/${mem.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
         body: JSON.stringify(mem),
@@ -1511,7 +1512,7 @@ export default function App() {
 
   const handleDeleteMemoire = async (id: number) => {
     try {
-      await fetch(`${API}/memoire/${id}`, { 
+      await fetch(`/api/memoire/${id}`, { 
         method: 'DELETE',
         headers: await getAuthHeader()
       });
@@ -1533,7 +1534,7 @@ export default function App() {
       dateCreation: new Date().toISOString(),
     };
     try {
-      await fetch(`${API}/rappels`, {
+      await fetch('/api/rappels', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
         body: JSON.stringify(item),
@@ -1550,7 +1551,7 @@ export default function App() {
 
   const handleUpdateRappel = async (rappel: Rappel) => {
     try {
-      await fetch(`${API}/rappels/${rappel.id}`, {
+      await fetch(`/api/rappels/${rappel.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
         body: JSON.stringify(rappel),
@@ -1569,7 +1570,7 @@ export default function App() {
     if (!r) return;
     const newStatus = r.statut === 'actif' ? 'termine' : 'actif';
     try {
-      await fetch(`${API}/rappels/${id}`, {
+      await fetch(`/api/rappels/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
         body: JSON.stringify({ statut: newStatus }),
@@ -1584,9 +1585,9 @@ export default function App() {
 
   const handleDeleteRappel = async (id: number) => {
     try {
-      await fetch(`${API}/rappels/${id}`, { 
-       method: 'DELETE',
-       headers: await getAuthHeader()
+      await fetch(`/api/rappels/${id}`, { 
+        method: 'DELETE',
+        headers: await getAuthHeader()
       });
     } catch {}
     setRappels((prev) => {
@@ -1606,7 +1607,7 @@ export default function App() {
       dateCreation: new Date().toISOString(),
     };
     try {
-      await fetch(`${API}/taches`, {
+      await fetch('/api/taches', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
         body: JSON.stringify(item),
@@ -1622,7 +1623,7 @@ export default function App() {
 
   const handleUpdateTache = async (tache: Tache) => {
     try {
-      await fetch(`${API}/taches/${tache.id}`, {
+      await fetch(`/api/taches/${tache.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
         body: JSON.stringify(tache),
@@ -1638,7 +1639,7 @@ export default function App() {
 
   const handleUpdateTacheStatus = async (id: number, status: TaskStatus) => {
     try {
-      await fetch(`${API}/taches/${id}`, {
+      await fetch(`/api/taches/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
         body: JSON.stringify({ status }),
@@ -1653,7 +1654,7 @@ export default function App() {
 
   const handleDeleteTache = async (id: number) => {
     try {
-      await fetch(`${API}/taches/${id}`, { 
+      await fetch(`/api/taches/${id}`, { 
         method: 'DELETE',
         headers: await getAuthHeader()
       });
@@ -1788,7 +1789,13 @@ export default function App() {
               setAuthError(null);
               try {
                 if (isSignUp) {
-                  const { error } = await supabase.auth.signUp({ email, password });
+                  const { error } = await supabase.auth.signUp({
+                    email,
+                    password,
+                    options: {
+                      emailRedirectTo: getAuthRedirectUrl(),
+                    },
+                  });
                   if (error) throw error;
                   showToast('Compte créé ! Vérifiez votre email si nécessaire.', 'success');
                 } else {

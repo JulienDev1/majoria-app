@@ -49,14 +49,21 @@ if (supabaseUrl && supabaseKey) {
   }
 }
 
-async function deductUserCredit(userId?: string): Promise<{ success: boolean; remainingCredits: number }> {
+async function deductUserCredit(userId?: string, userEmail?: string): Promise<{ success: boolean; remainingCredits: number }> {
   const effectiveId = (userId && String(userId).trim()) || '';
   if (!effectiveId) {
     return { success: false, remainingCredits: 0 };
   }
   
-  // BYPASS JFE26@LIVE.FR
-  if (effectiveId === 'jfe26@live.fr' || effectiveId === 'jfe26@live.fr') {
+  // BYPASS JFE26@LIVE.FR & JULDEV2
+  const normalizedId = effectiveId.toLowerCase();
+  const normalizedEmail = (userEmail || '').toLowerCase().trim();
+  if (
+    normalizedId === 'jfe26@live.fr' ||
+    normalizedEmail === 'jfe26@live.fr' ||
+    effectiveId === 'JulDev2' ||
+    normalizedId === 'juldev2'
+  ) {
     return { success: true, remainingCredits: 999999 };
   }
   
@@ -170,6 +177,18 @@ function getGenAI(): GoogleGenAI {
   }
   return new GoogleGenAI({});
 }
+
+// Legacy rewrite fallback: if requested without /api, rewrite internally to /api
+app.use((req, res, next) => {
+  const legacyPrefixes = ['/taches', '/rappels', '/favoris', '/memoire', '/subscription', '/chat', '/credits'];
+  for (const prefix of legacyPrefixes) {
+    if (req.url === prefix || req.url.startsWith(prefix + '/') || req.url.startsWith(prefix + '?')) {
+      req.url = '/api' + req.url;
+      break;
+    }
+  }
+  next();
+});
 
 // API Routes
 app.get('/api/health', (req: Request, res: Response) => {
@@ -513,8 +532,33 @@ app.put('/api/taches/:id', async (req: Request, res: Response) => {
   const client = supabaseAdmin || serverSupabase;
   if (client) {
     try {
-      await client.from('taches').update({ ...req.body, user_id: userId }).eq('id', id);
-    } catch {}
+      await client.from('taches').update({ ...req.body, user_id: userId }).eq('id', id).eq('user_id', userId);
+    } catch (err) {
+      console.error('Erreur Supabase :', err);
+    }
+  }
+  const idx = serverStore.taches.findIndex(t => t.id === id);
+  if (idx !== -1) {
+    serverStore.taches[idx] = { ...serverStore.taches[idx], ...req.body, userId };
+    res.json(serverStore.taches[idx]);
+  } else {
+    res.status(404).json({ error: 'Tâche introuvable' });
+  }
+});
+
+app.patch('/api/taches/:id', async (req: Request, res: Response) => {
+  const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
+  if (!isSupabaseAuth || !userId) {
+   return res.status(401).json({ error: 'Connexion requise pour modifier une tâche.' });
+  }
+  const id = Number(req.params.id);
+  const client = supabaseAdmin || serverSupabase;
+  if (client) {
+    try {
+      await client.from('taches').update({ ...req.body, user_id: userId }).eq('id', id).eq('user_id', userId);
+    } catch (err) {
+      console.error('Erreur Supabase :', err);
+    }
   }
   const idx = serverStore.taches.findIndex(t => t.id === id);
   if (idx !== -1) {
@@ -526,14 +570,20 @@ app.put('/api/taches/:id', async (req: Request, res: Response) => {
 });
 
 app.delete('/api/taches/:id', async (req: Request, res: Response) => {
+  const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
+  if (!isSupabaseAuth || !userId) {
+    return res.status(401).json({ error: 'Connexion requise pour supprimer une tâche.' });
+  }
   const id = Number(req.params.id);
   const client = supabaseAdmin || serverSupabase;
   if (client) {
     try {
-      await client.from('taches').delete().eq('id', id);
-    } catch {}
+      await client.from('taches').delete().eq('id', id).eq('user_id', userId);
+    } catch (err) {
+      console.error('Erreur Supabase :', err);
+    }
   }
-  serverStore.taches = serverStore.taches.filter(t => t.id !== id);
+  serverStore.taches = serverStore.taches.filter(t => !(t.id === id && (!t.userId || t.userId === userId)));
   res.json({ success: true });
 });
 
@@ -638,12 +688,12 @@ app.post('/api/supabase/ensure-user', async (req: Request, res: Response) => {
 });
 
 app.post('/api/supabase/use-credit', async (req: Request, res: Response) => {
-  const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
+  const { userId, userEmail, isSupabaseAuth } = await authenticateSupabaseUser(req);
   if (!isSupabaseAuth || !userId) {
    return res.status(401).json({ success: false, error: 'Connexion requise pour utiliser un crédit.' });
   }
 
-  const creditCheck = await deductUserCredit(userId);
+  const creditCheck = await deductUserCredit(userId, userEmail);
 
   if (!creditCheck.success) {
     return res.json({ success: false, balance: -1, isExhausted: true, error: 'Crédits épuisés (-1)', source: 'server-proxy' });
@@ -653,10 +703,23 @@ app.post('/api/supabase/use-credit', async (req: Request, res: Response) => {
 });
 
 const handleGetCredits = async (req: Request, res: Response) => {
-  const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
+  const { userId, userEmail, isSupabaseAuth } = await authenticateSupabaseUser(req);
   if (!isSupabaseAuth || !userId) {
    return res.status(401).json({ error: 'Connexion requise pour consulter les crédits.' });
   }
+
+  // Bypass for jfe26@live.fr & JulDev2
+  const normalizedId = userId.toLowerCase();
+  const normalizedEmail = (userEmail || '').toLowerCase().trim();
+  if (
+    normalizedId === 'jfe26@live.fr' ||
+    normalizedEmail === 'jfe26@live.fr' ||
+    userId === 'JulDev2' ||
+    normalizedId === 'juldev2'
+  ) {
+    return res.json({ success: true, balance: 999999, credits: 999999, maxCredits: 999999, percentage: 100, credits_used: 0 });
+  }
+
   const client = supabaseAdmin || serverSupabase;
 
   // Check active subscription first
@@ -831,7 +894,7 @@ async function handleCreateCheckoutSession(req: Request, res: Response) {
     }
 
     const planInfo = PLAN_DEFINITIONS[planId] || PLAN_DEFINITIONS.premium;
-    const hostOrigin = req.headers.origin || `http://${req.headers.host || 'localhost:3000'}`;
+    const hostOrigin = req.headers.origin || (req.headers.host && !req.headers.host.includes('localhost:3000') && !req.headers.host.includes('127.0.0.1') ? `http://${req.headers.host}` : 'https://majoria-app.vercel.app');
 
     const effectiveSuccessUrl = successUrl 
       ? successUrl.replace('{CHECKOUT_SESSION_ID}', '{CHECKOUT_SESSION_ID}')
@@ -924,7 +987,7 @@ app.post('/api/stripe/create-portal-session', async (req: Request, res: Response
   try {
     const { returnUrl } = req.body;
     const { userId, userEmail } = await authenticateSupabaseUser(req);
-    const hostOrigin = req.headers.origin || `http://${req.headers.host || 'localhost:3000'}`;
+    const hostOrigin = req.headers.origin || (req.headers.host && !req.headers.host.includes('localhost:3000') && !req.headers.host.includes('127.0.0.1') ? `http://${req.headers.host}` : 'https://majoria-app.vercel.app');
     const effectiveReturnUrl = returnUrl || `${hostOrigin}/pricing`;
 
     if (stripe) {
@@ -1117,6 +1180,46 @@ app.get('/api/stripe/subscription', async (req: Request, res: Response) => {
   return res.json({ subscription: null });
 });
 
+app.get('/api/subscription', async (req: Request, res: Response) => {
+  const { userId } = await authenticateSupabaseUser(req);
+
+  // 1. Check in Supabase first
+  if (serverSupabase) {
+    try {
+      const { data, error } = await serverSupabase
+        .from('user_subscriptions')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (data && !error) {
+        return res.json({
+          subscription: {
+            userId: data.user_id,
+            planId: data.plan_id,
+            planName: data.plan_name,
+            status: data.status,
+            interval: data.interval,
+            currentPeriodEnd: data.current_period_end,
+            stripeCustomerId: data.stripe_customer_id,
+            stripeSubscriptionId: data.stripe_subscription_id,
+          },
+        });
+      }
+    } catch {}
+  }
+
+  // 2. Check in memory store
+  const sub = serverStore.subscriptions[userId];
+  if (sub) {
+    return res.json({ subscription: sub });
+  }
+
+  return res.json({ subscription: null });
+});
+
 /**
  * Route 5: POST /api/stripe/webhook
  * Traitement sécurisé des webhooks Stripe (checkout.session.completed, subscription updates)
@@ -1299,12 +1402,16 @@ app.post('/api/chat', async (req: Request, res: Response) => {
 
     // Identification stricte via Token JWT Supabase
     let userId: string | null = null;
+    let userEmail: string | null = null;
     const authHeader = req.headers.authorization;
 
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
       const { data: { user } } = await (supabaseAdmin || serverSupabase).auth.getUser(token);
-      if (user) userId = user.id;
+      if (user) {
+        userId = user.id;
+        userEmail = user.email || null;
+      }
     }
 
     // Blocage immédiat si l'utilisateur n'est pas connecté
@@ -1321,7 +1428,13 @@ app.post('/api/chat', async (req: Request, res: Response) => {
           .eq('user_id', userId)
           .maybeSingle();
 
-        if (userId !== 'JulDev2' && userRow && typeof userRow.credits === 'number' && userRow.credits <= 0) {
+        const isBypassUser = 
+          userId === 'JulDev2' || 
+          userId.toLowerCase() === 'juldev2' ||
+          userId.toLowerCase() === 'jfe26@live.fr' || 
+          (userEmail && userEmail.toLowerCase() === 'jfe26@live.fr');
+
+        if (!isBypassUser && userRow && typeof userRow.credits === 'number' && userRow.credits <= 0) {
           return res.status(403).json({ error: 'Crédits épuisés. Veuillez recharger votre forfait.' });
         }
       } catch (checkErr) {
@@ -1576,28 +1689,36 @@ DIRECTIVES DE RÉPONSE :
           priorite: norm.includes('urgent') || norm.includes('important') ? 'haute' : 'normale',
         });
       }
-      // Task detection
+      // Task & Project detection
       else if (
         norm.startsWith('tache') ||
         norm.startsWith('todo') ||
+        norm.startsWith('projet') ||
+        norm.includes('ajoute un projet') ||
+        norm.includes('cree un projet') ||
+        norm.includes('creer un projet') ||
+        norm.includes('nouveau projet') ||
+        norm.includes('dans mes projets') ||
         norm.includes('ajoute une tache') ||
         norm.includes('cree une tache') ||
+        norm.includes('creer une tache') ||
         norm.includes('nouvelle tache') ||
         norm.includes('ajoute dans mes taches') ||
         norm.includes('ajoute dans les taches') ||
         norm.includes('ajoute a faire')
       ) {
+        const isProject = norm.includes('projet');
         let taskTitle = cleanPrompt
-          .replace(/^(bonjour|salut|peux-tu|peux tu|pourrais-tu|pourrais tu|s il te plait|svp)?\s*(tâche|tache|todo|ajoute une tâche|ajouter une tâche|crée une tâche|créer une tâche|nouvelle tâche|rajoute une tâche|ajoute dans les tâches|ajoute dans mes tâches|ajoute à faire)\s*:?\s*/i, '')
-          .replace(/^(de|pour|qui consiste à|dans le menu|dans mes tâches)\s+/i, '')
+          .replace(/^(bonjour|salut|peux-tu|peux tu|pourrais-tu|pourrais tu|s il te plait|svp)?\s*(projet|tâche|tache|todo|ajoute un projet|crée un projet|créer un projet|nouveau projet|ajoute une tâche|ajouter une tâche|crée une tâche|créer une tâche|nouvelle tâche|rajoute une tâche|ajoute dans les tâches|ajoute dans mes tâches|ajoute dans mes projets|ajoute à faire)\s*:?\s*/i, '')
+          .replace(/^(de|pour|qui consiste à|dans le menu|dans mes tâches|dans mes projets)\s+/i, '')
           .trim();
 
-        if (!taskTitle) taskTitle = 'Nouvelle tâche';
+        if (!taskTitle) taskTitle = isProject ? 'Nouveau projet' : 'Nouvelle tâche';
 
         actions.push({
-          type: 'task',
+          type: isProject ? 'project' : 'task',
           titre: taskTitle,
-          description: `Tâche créée par Major2I.A`,
+          description: isProject ? 'Projet créé par Major2I.A' : 'Tâche créée par Major2I.A',
           priorite: norm.includes('urgent') || norm.includes('important') ? 'haute' : 'normale',
         });
       }
@@ -1673,7 +1794,7 @@ DIRECTIVES DE RÉPONSE :
     if (client) {
       try {
         // 1. Déduire le crédit via user_credits (avec supabaseAdmin)
-        const creditResult = await deductUserCredit(userId);
+        const creditResult = await deductUserCredit(userId, userEmail || undefined);
         if (creditResult && typeof creditResult.remainingCredits === 'number') {
           updatedBalance = creditResult.remainingCredits;
           console.log(`[Supabase] Crédit déduit pour ${userId}. Solde restant: ${updatedBalance}`);
@@ -1714,6 +1835,70 @@ DIRECTIVES DE RÉPONSE :
             console.warn('[Supabase] Note/Erreur insertion conversations:', convInsertError.message || convInsertError);
           } else {
             console.log(`[Supabase] Échange conversation inséré avec succès pour ${userId}`);
+          }
+        }
+
+        // 3. Insérer automatiquement les tâches, projets, rappels, mémoire et favoris créés dans Supabase
+        if (Array.isArray(actions) && actions.length > 0) {
+          const dbClient = supabaseAdmin || serverSupabase;
+          if (dbClient) {
+            for (const act of actions) {
+              try {
+                const actType = (act.type || '').toLowerCase();
+                if (actType === 'task' || actType === 'tache' || actType === 'project' || actType === 'projet') {
+                  const tacheItem = {
+                    id: act.id || Date.now() + Math.floor(Math.random() * 1000),
+                    titre: act.titre || act.nom || 'Nouvelle tâche',
+                    description: act.description || (actType.includes('projet') ? 'Projet créé par Major2I.A' : 'Tâche créée par Major2I.A'),
+                    priorite: act.priorite || 'normale',
+                    status: act.status || 'attente',
+                    echeance: act.echeance || act.dateRappel || null,
+                    user_id: userId,
+                    date_creation: new Date().toISOString()
+                  };
+                  await dbClient.from('taches').upsert(tacheItem, { onConflict: 'id' });
+                  console.log(`[Supabase] Tâche/Projet inséré automatiquement pour ${userId}:`, tacheItem.titre);
+                } else if (actType === 'reminder' || actType === 'rappel') {
+                  const rappelItem = {
+                    id: act.id || Date.now() + Math.floor(Math.random() * 1000),
+                    titre: act.titre || act.nom || 'Rappel programmé',
+                    description: act.description || 'Rappel créé par Major2I.A',
+                    date_rappel: act.dateRappel || new Date().toISOString().split('T')[0],
+                    heure: act.heure || '12:00',
+                    priorite: act.priorite || 'normale',
+                    statut: act.statut || 'actif',
+                    user_id: userId,
+                    date_creation: new Date().toISOString()
+                  };
+                  await dbClient.from('rappels').upsert(rappelItem, { onConflict: 'id' });
+                  console.log(`[Supabase] Rappel inséré automatiquement pour ${userId}:`, rappelItem.titre);
+                } else if (actType === 'memory' || actType === 'memoire') {
+                  const memoItem = {
+                    id: act.id || Date.now() + Math.floor(Math.random() * 1000),
+                    contenu: act.contenu || act.titre || 'Note mémorisée',
+                    tags: Array.isArray(act.tags) ? act.tags : ['ia-auto'],
+                    importance: typeof act.importance === 'number' ? act.importance : 3,
+                    user_id: userId,
+                    date: new Date().toISOString()
+                  };
+                  await dbClient.from('memoire').upsert(memoItem, { onConflict: 'id' });
+                  console.log(`[Supabase] Mémoire insérée automatiquement pour ${userId}`);
+                } else if (actType === 'favorite' || actType === 'favori') {
+                  const favItem = {
+                    id: act.id || Date.now() + Math.floor(Math.random() * 1000),
+                    titre: act.titre || act.nom || 'Favori',
+                    contenu: act.contenu || act.description || '',
+                    categorie: act.categorie || 'général',
+                    user_id: userId,
+                    date_creation: new Date().toISOString()
+                  };
+                  await dbClient.from('favoris').upsert(favItem, { onConflict: 'id' });
+                  console.log(`[Supabase] Favori inséré automatiquement pour ${userId}`);
+                }
+              } catch (actDbErr) {
+                console.warn('[Supabase] Erreur insertion automatique action:', actDbErr);
+              }
+            }
           }
         }
       } catch (supabaseOpsErr) {

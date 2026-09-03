@@ -51,5 +51,20 @@
         }
       ]
     }
+  ],
+  "rewrites": [
+    { "source": "/taches", "destination": "/api/taches" },
+    { "source": "/taches/:match*", "destination": "/api/taches" },
+    { "source": "/rappels", "destination": "/api/rappels" },
+    { "source": "/rappels/:match*", "destination": "/api/rappels" },
+    { "source": "/favoris", "destination": "/api/favoris" },
+    { "source": "/favoris/:match*", "destination": "/api/favoris" },
+    { "source": "/memoire", "destination": "/api/memoire" },
+    { "source": "/memoire/:match*", "destination": "/api/memoire" },
+    { "source": "/subscription", "destination": "/api/subscription" },
+    { "source": "/api/stripe/subscription", "destination": "/api/subscription" },
+    { "source": "/chat", "destination": "/api/chat" },
+    { "source": "/credits", "destination": "/api/credits" },
+    { "source": "/((?!api/|.*\\..*).*)", "destination": "/index.html" }
   ]
 }

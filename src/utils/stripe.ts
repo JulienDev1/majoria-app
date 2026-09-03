@@ -1,5 +1,6 @@
 import { loadStripe, Stripe } from '@stripe/stripe-js';
 import { getSupabaseClient } from './supabase';
+import { getAuthRedirectUrl } from './supabaseAuth';
 import { SubscriptionPlan, BillingInterval, UserSubscription } from '../types';
 
 // Stripe Publishable Key from Vite environment (reads VITE_STRIPE_PUBLIC_KEY)
@@ -161,8 +162,9 @@ export async function createCheckoutSession(params: {
 }): Promise<{ url: string; sessionId?: string; isSimulated?: boolean }> {
   const { token, userId, userEmail } = await getAuthHeader();
 
-  const successUrl = params.successUrl || `${window.location.origin}/success?session_id={CHECKOUT_SESSION_ID}&plan=${params.planId}`;
-  const cancelUrl = params.cancelUrl || `${window.location.origin}/pricing`;
+  const baseOrigin = getAuthRedirectUrl();
+  const successUrl = params.successUrl || `${baseOrigin}/success?session_id={CHECKOUT_SESSION_ID}&plan=${params.planId}`;
+  const cancelUrl = params.cancelUrl || `${baseOrigin}/pricing`;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -222,7 +224,7 @@ export async function createCheckoutSession(params: {
  */
 export async function createCustomerPortalSession(params?: { returnUrl?: string }): Promise<{ url: string }> {
   const { token, userId, userEmail } = await getAuthHeader();
-  const returnUrl = params?.returnUrl || `${window.location.origin}/pricing`;
+  const returnUrl = params?.returnUrl || `${getAuthRedirectUrl()}/pricing`;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',

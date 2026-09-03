@@ -376,6 +376,64 @@ DIRECTIVES DE RÉPONSE :
     }
     reply = reply.replace(/(?:\r?\n)*(?:Rappel|Tâche|Mémoire|Favori)\s*:\s*$/i, '').trim();
 
+    // Fallback NLP intent detection if ACTION_JSON wasn't emitted by model
+    if (!actions || actions.length === 0) {
+      const cleanPrompt = (message || '').trim();
+      const norm = cleanPrompt.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+      
+      if (
+        norm.startsWith('rappel') ||
+        norm.includes('rappelle moi') ||
+        norm.includes('rappelle-moi') ||
+        norm.includes('rappeler de') ||
+        norm.includes('me rappeler de') ||
+        norm.includes('ajoute un rappel') ||
+        norm.includes('cree un rappel')
+      ) {
+        let reminderTitle = cleanPrompt
+          .replace(/^(bonjour|salut|peux-tu|peux tu|pourrais-tu|pourrais tu|s il te plait|svp)?\s*(rappel|rappelle-moi de|rappelle-moi|rappelle moi de|rappelle moi|rappeler de|me rappeler de|ajoute un rappel pour|ajoute un rappel|cree un rappel|programme un rappel)\s*:?\s*/i, '')
+          .replace(/^(de|pour|que)\s+/i, '')
+          .trim();
+        if (!reminderTitle) reminderTitle = 'Rappel programmé';
+        actions.push({
+          type: 'reminder',
+          titre: reminderTitle,
+          description: 'Rappel créé par Major2I.A',
+          dateRappel: new Date().toISOString().split('T')[0],
+          heure: '12:00',
+          priorite: norm.includes('urgent') || norm.includes('important') ? 'haute' : 'normale',
+        });
+      } else if (
+        norm.startsWith('tache') ||
+        norm.startsWith('todo') ||
+        norm.startsWith('projet') ||
+        norm.includes('ajoute un projet') ||
+        norm.includes('cree un projet') ||
+        norm.includes('creer un projet') ||
+        norm.includes('nouveau projet') ||
+        norm.includes('dans mes projets') ||
+        norm.includes('ajoute une tache') ||
+        norm.includes('cree une tache') ||
+        norm.includes('creer une tache') ||
+        norm.includes('nouvelle tache') ||
+        norm.includes('ajoute dans mes taches') ||
+        norm.includes('ajoute a faire')
+      ) {
+        const isProject = norm.includes('projet');
+        let taskTitle = cleanPrompt
+          .replace(/^(bonjour|salut|peux-tu|peux tu|pourrais-tu|pourrais tu|s il te plait|svp)?\s*(projet|tâche|tache|todo|ajoute un projet|crée un projet|créer un projet|nouveau projet|ajoute une tâche|crée une tâche|nouvelle tâche|ajoute dans les tâches|ajoute dans mes tâches|ajoute à faire)\s*:?\s*/i, '')
+          .replace(/^(de|pour|qui consiste à|dans le menu|dans mes tâches|dans mes projets)\s+/i, '')
+          .trim();
+        if (!taskTitle) taskTitle = isProject ? 'Nouveau projet' : 'Nouvelle tâche';
+        actions.push({
+          type: isProject ? 'project' : 'task',
+          titre: taskTitle,
+          description: isProject ? 'Projet créé par Major2I.A' : 'Tâche créée par Major2I.A',
+          priorite: norm.includes('urgent') || norm.includes('important') ? 'haute' : 'normale',
+        });
+      }
+    }
+
     // Deduplicate sources
     const uniqueSources: { title: string; uri: string }[] = [];
     const seenUris = new Set<string>();
@@ -386,7 +444,7 @@ DIRECTIVES DE RÉPONSE :
       }
     }
 
-    // Exécution post-génération : déduire 1 crédit et enregistrer dans la table conversations
+    // Exécution post-génération : déduire 1 crédit, enregistrer conversation et actions
     let updatedBalance: number | undefined = undefined;
     try {
       const remaining = await deductCredit(userId);
@@ -396,23 +454,69 @@ DIRECTIVES DE RÉPONSE :
 
       const userMessage = message || (image ? '[Image fournie]' : '');
       const aiResponse = reply || 'Transmission reçue.';
+      const dbClient = supabaseAdmin || serverSupabase;
 
-      if (supabaseAdmin) {
-        await supabaseAdmin.from('conversations').insert([
+      if (dbClient) {
+        await dbClient.from('conversations').insert([
           {
             user_id: userId,
             message: userMessage,
             response: aiResponse,
           },
         ]);
-      } else if (serverSupabase) {
-        await serverSupabase.from('conversations').insert([
-          {
-            user_id: userId,
-            message: userMessage,
-            response: aiResponse,
-          },
-        ]);
+
+        // Sauvegarde automatique des actions créées dans Supabase
+        if (Array.isArray(actions) && actions.length > 0) {
+          for (const act of actions) {
+            try {
+              const actType = (act.type || '').toLowerCase();
+              if (actType === 'task' || actType === 'tache' || actType === 'project' || actType === 'projet') {
+                await dbClient.from('taches').upsert({
+                  id: act.id || Date.now() + Math.floor(Math.random() * 1000),
+                  titre: act.titre || act.nom || 'Nouvelle tâche',
+                  description: act.description || (actType.includes('projet') ? 'Projet créé par Major2I.A' : 'Tâche créée par Major2I.A'),
+                  priorite: act.priorite || 'normale',
+                  status: act.status || 'attente',
+                  echeance: act.echeance || act.dateRappel || null,
+                  user_id: userId,
+                  date_creation: new Date().toISOString()
+                }, { onConflict: 'id' });
+              } else if (actType === 'reminder' || actType === 'rappel') {
+                await dbClient.from('rappels').upsert({
+                  id: act.id || Date.now() + Math.floor(Math.random() * 1000),
+                  titre: act.titre || act.nom || 'Rappel programmé',
+                  description: act.description || 'Rappel créé par Major2I.A',
+                  date_rappel: act.dateRappel || new Date().toISOString().split('T')[0],
+                  heure: act.heure || '12:00',
+                  priorite: act.priorite || 'normale',
+                  statut: act.statut || 'actif',
+                  user_id: userId,
+                  date_creation: new Date().toISOString()
+                }, { onConflict: 'id' });
+              } else if (actType === 'memory' || actType === 'memoire') {
+                await dbClient.from('memoire').upsert({
+                  id: act.id || Date.now() + Math.floor(Math.random() * 1000),
+                  contenu: act.contenu || act.titre || 'Note mémorisée',
+                  tags: Array.isArray(act.tags) ? act.tags : ['ia-auto'],
+                  importance: typeof act.importance === 'number' ? act.importance : 3,
+                  user_id: userId,
+                  date: new Date().toISOString()
+                }, { onConflict: 'id' });
+              } else if (actType === 'favorite' || actType === 'favori') {
+                await dbClient.from('favoris').upsert({
+                  id: act.id || Date.now() + Math.floor(Math.random() * 1000),
+                  titre: act.titre || act.nom || 'Favori',
+                  contenu: act.contenu || act.description || '',
+                  categorie: act.categorie || 'général',
+                  user_id: userId,
+                  date_creation: new Date().toISOString()
+                }, { onConflict: 'id' });
+              }
+            } catch (actDbErr) {
+              console.warn('[Supabase Serverless] Erreur action:', actDbErr);
+            }
+          }
+        }
       }
     } catch (dbErr) {
       console.warn('Erreur post-traitement Supabase serverless:', dbErr);

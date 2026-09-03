@@ -19,6 +19,22 @@ export const isSupabaseConfigured = rawUrl.trim().startsWith('http') && Boolean(
 
 export const supabase: SupabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+export const VERCEL_PROD_URL = 'https://majoria-app.vercel.app';
+
+/**
+ * Retourne l'URL de redirection sécurisée pour l'authentification et Stripe.
+ * Ne retourne JAMAIS http://localhost:3000 en dur.
+ */
+export function getAuthRedirectUrl(): string {
+  if (typeof window !== 'undefined' && window.location.origin) {
+    const origin = window.location.origin;
+    if (!origin.includes('localhost:3000') && !origin.includes('127.0.0.1')) {
+      return origin;
+    }
+  }
+  return VERCEL_PROD_URL;
+}
+
 // Récupère le JWT valide pour chaque appel HTTP
 export async function getAuthHeader(): Promise<Record<string, string>> {
   try {

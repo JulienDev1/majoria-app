@@ -5,7 +5,7 @@
  */
 
 export interface ExtractedAction {
-  type: 'reminder' | 'rappel' | 'task' | 'tache' | 'memory' | 'memoire' | 'favorite' | 'favori';
+  type: 'reminder' | 'rappel' | 'task' | 'tache' | 'project' | 'projet' | 'memory' | 'memoire' | 'favorite' | 'favori';
   action?: 'add' | 'update' | 'delete';
   item?: any;
   titre?: string;
@@ -160,11 +160,19 @@ export function extractActionsFromText(userPrompt: string, aiReply?: string): Ex
   }
 
   // -------------------------------------------------------------
-  // INTENT B: Task / Tâche
+  // INTENT B: Task / Tâche / Projet
   // -------------------------------------------------------------
   const isTask = (
     norm.startsWith('tache') ||
     norm.startsWith('todo') ||
+    norm.startsWith('projet') ||
+    norm.includes('ajoute un projet') ||
+    norm.includes('ajouter un projet') ||
+    norm.includes('cree un projet') ||
+    norm.includes('creer un projet') ||
+    norm.includes('nouveau projet') ||
+    norm.includes('rajoute un projet') ||
+    norm.includes('dans mes projets') ||
     norm.includes('ajoute une tache') ||
     norm.includes('ajouter une tache') ||
     norm.includes('cree une tache') ||
@@ -180,19 +188,20 @@ export function extractActionsFromText(userPrompt: string, aiReply?: string): Ex
   );
 
   if (isTask) {
+    const isProject = norm.includes('projet');
     let taskTitle = cleanPrompt
-      .replace(/^(bonjour|salut|peux-tu|peux tu|pourrais-tu|pourrais tu|s il te plait|svp)?\s*(tâche|tache|todo|ajoute une tâche|ajouter une tâche|crée une tâche|créer une tâche|nouvelle tâche|rajoute une tâche|ajoute dans les tâches|ajoute dans mes tâches|ajoute à faire|mettre dans mes tâches|ajoute)\s*:?\s*/i, '')
-      .replace(/^(de|pour|qui consiste à|dans le menu|dans les tâches|dans mes tâches)\s+/i, '')
+      .replace(/^(bonjour|salut|peux-tu|peux tu|pourrais-tu|pourrais tu|s il te plait|svp)?\s*(projet|tâche|tache|todo|ajoute un projet|ajouter un projet|crée un projet|créer un projet|nouveau projet|rajoute un projet|ajoute une tâche|ajouter une tâche|crée une tâche|créer une tâche|nouvelle tâche|rajoute une tâche|ajoute dans les tâches|ajoute dans mes tâches|ajoute dans mes projets|ajoute à faire|mettre dans mes tâches|ajoute)\s*:?\s*/i, '')
+      .replace(/^(de|pour|qui consiste à|dans le menu|dans les tâches|dans mes tâches|dans mes projets)\s+/i, '')
       .trim();
 
-    if (!taskTitle) taskTitle = 'Nouvelle tâche planifiée';
+    if (!taskTitle) taskTitle = isProject ? 'Nouveau projet planifié' : 'Nouvelle tâche planifiée';
 
     const isUrgent = norm.includes('urgent') || norm.includes('important') || norm.includes('prioritaire');
 
     actions.push({
-      type: 'task',
+      type: isProject ? 'project' : 'task',
       titre: taskTitle,
-      description: `Tâche enregistrée par Major2I.A`,
+      description: isProject ? 'Projet enregistré par Major2I.A' : 'Tâche enregistrée par Major2I.A',
       priorite: isUrgent ? 'haute' : 'normale',
     });
 

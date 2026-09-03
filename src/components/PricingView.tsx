@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { SUBSCRIPTION_PLANS, createCheckoutSession, createCustomerPortalSession, fetchUserSubscription } from '../utils/stripe';
+import { getAuthRedirectUrl } from '../utils/supabaseAuth';
 import { SubscriptionPlan, BillingInterval, UserSubscription, UserProfile, RolloverEnergyInfo } from '../types';
 import { playCyberSound } from '../utils/security';
 import { LegalDisclaimerModal } from './LegalDisclaimerModal';
@@ -127,8 +128,9 @@ export const PricingView: React.FC<PricingViewProps> = ({
       setLoadingPlanId(plan.id);
       playCyberSound('matrix');
 
-      const successUrl = `${window.location.origin}/success?session_id={CHECKOUT_SESSION_ID}&plan=${plan.id}`;
-      const cancelUrl = `${window.location.origin}/pricing`;
+      const baseOrigin = getAuthRedirectUrl();
+      const successUrl = `${baseOrigin}/success?session_id={CHECKOUT_SESSION_ID}&plan=${plan.id}`;
+      const cancelUrl = `${baseOrigin}/pricing`;
 
       const sessionResult = await createCheckoutSession({
         planId: plan.id,
@@ -163,7 +165,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
       playCyberSound('click');
 
       const data = await createCustomerPortalSession({
-        returnUrl: `${window.location.origin}/pricing`,
+        returnUrl: `${getAuthRedirectUrl()}/pricing`,
       }).catch(() => null);
 
       if (data?.url && typeof window !== 'undefined') {
