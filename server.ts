@@ -51,6 +51,12 @@ if (supabaseUrl && supabaseKey) {
 
 async function deductUserCredit(userId?: string): Promise<{ success: boolean; remainingCredits: number }> {
   const effectiveId = (userId && String(userId).trim()) || 'anon_user';
+  
+  // BYPASS JULDEV2
+  if (effectiveId === 'JulDev2' || effectiveId === 'juldev2') {
+    return { success: true, remainingCredits: 999999 };
+  }
+  
   const client = supabaseAdmin || serverSupabase;
 
   if (serverStore.userCredits[effectiveId] === undefined) {
@@ -66,37 +72,39 @@ async function deductUserCredit(userId?: string): Promise<{ success: boolean; re
   }
 
   try {
-    // Récupération du solde
     const { data: userRow } = await client
       .from('user_credits')
-      .select('credits, credits_used')
+      .select('credits, credits_used, updated_at')
       .eq('user_id', effectiveId)
       .maybeSingle();
 
-    let currentCredits = userRow && typeof userRow.credits === 'number' ? userRow.credits : (serverStore.userCredits[effectiveId] ?? 30);
+    const now = new Date();
+    const lastUpdate = userRow?.updated_at ? new Date(userRow.updated_at) : now;
+    const daysDiff = (now.getTime() - lastUpdate.getTime()) / (1000 * 3600 * 24);
+
+    // Réinitialisation si plus de 30 jours se sont écoulés
+    let currentCredits = userRow?.credits ?? 30;
+    if (daysDiff >= 30) {
+      currentCredits = 30;
+    }
 
     if (currentCredits <= 0) {
-      serverStore.userCredits[effectiveId] = 0;
-      serverStore.credits = 0;
       return { success: false, remainingCredits: 0 };
     }
 
     const newCredits = currentCredits - 1;
-    const creditsUsed = typeof userRow?.credits_used === 'number' ? userRow.credits_used + 1 : (30 - newCredits);
+    const newCreditsUsed = (userRow?.credits_used || 0) + 1;
 
     // Upsert automatique (crée la ligne si elle n'existe pas) avec supabaseAdmin
     const { error: upsertError } = await client
       .from('user_credits')
-      .upsert(
-        { 
-          user_id: effectiveId, 
-          credits: newCredits,
-          credits_used: creditsUsed,
-          plan: 'free',
-          updated_at: new Date().toISOString()
-        },
-        { onConflict: 'user_id' }
-      );
+      .upsert({
+        user_id: effectiveId,
+        credits: newCredits,
+        credits_used: newCreditsUsed,
+        plan: 'free',
+        updated_at: daysDiff >= 30 ? now.toISOString() : (userRow?.updated_at || now.toISOString())
+      }, { onConflict: 'user_id' });
 
     if (upsertError) {
       console.error('Erreur Supabase deductUserCredit:', upsertError);
@@ -533,7 +541,17 @@ app.delete('/api/conversations/:id', async (req: Request, res: Response) => {
 
 // SUPABASE RPC & CREDITS ENDPOINTS
 app.post('/api/supabase/ensure-user', async (req: Request, res: Response) => {
-  const userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
+  let userId = 'anon_user';
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
+    const { data: { user } } = await (supabaseAdmin || serverSupabase).auth.getUser(token);
+    if (user) userId = user.id;
+  }
+  if (userId === 'anon_user') {
+    userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
+  }
+
   const defaultCredits = Number(req.body.defaultCredits) || 30;
   const client = supabaseAdmin || serverSupabase;
 
@@ -563,7 +581,17 @@ app.post('/api/supabase/ensure-user', async (req: Request, res: Response) => {
 });
 
 app.post('/api/supabase/use-credit', async (req: Request, res: Response) => {
-  const userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
+  let userId = 'anon_user';
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
+    const { data: { user } } = await (supabaseAdmin || serverSupabase).auth.getUser(token);
+    if (user) userId = user.id;
+  }
+  if (userId === 'anon_user') {
+    userId = req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
+  }
+
   const creditCheck = await deductUserCredit(userId);
 
   if (!creditCheck.success) {
@@ -1214,8 +1242,17 @@ app.post('/api/chat', async (req: Request, res: Response) => {
   try {
     const { message, image, history, userProfile, stream = true } = req.body;
 
-    // Vérification préliminaire du solde
-    const userId = req.body.user_id || req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
+    // Vérification préalable du solde et identification
+    let userId = 'anon_user';
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      const { data: { user } } = await (supabaseAdmin || serverSupabase).auth.getUser(token);
+      if (user) userId = user.id;
+    }
+    if (userId === 'anon_user') {
+      userId = req.body.user_id || req.body.userId || req.body.userProfile?.id || req.body.userProfile?.email || 'anon_user';
+    }
 
     const client = supabaseAdmin || serverSupabase;
     if (client) {
@@ -1226,7 +1263,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
           .eq('user_id', userId)
           .maybeSingle();
 
-        if (userRow && typeof userRow.credits === 'number' && userRow.credits <= 0) {
+        if (userId !== 'JulDev2' && userRow && typeof userRow.credits === 'number' && userRow.credits <= 0) {
           return res.status(403).json({ error: 'Crédits épuisés. Veuillez recharger votre forfait.' });
         }
       } catch (checkErr) {
