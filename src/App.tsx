@@ -824,14 +824,14 @@ export default function App() {
 
     for (const rawAction of actions) {
       try {
-        // Normalize action structure (handles both flat { type: 'task', titre: '...' } and nested { type: 'tache', action: 'add', item: { ... } })
+        // Normalize action structure (handles flat, nested, and [ACTION_JSON] types)
         const actType = (rawAction.type || '').toLowerCase();
-        const itemData = rawAction.item || rawAction;
+        const itemData = rawAction.data || rawAction.item || rawAction;
 
-        if (actType === 'memory' || actType === 'memoire') {
+        if (actType === 'memory' || actType === 'memoire' || actType === 'create_memory') {
           const item: Memoire = {
             id: itemData.id || Date.now() + Math.floor(Math.random() * 1000),
-            contenu: itemData.contenu || itemData.titre || itemData.description || 'Note mémorisée',
+            contenu: itemData.title || itemData.contenu || itemData.titre || itemData.description || 'Note mémorisée',
             tags: Array.isArray(itemData.tags) && itemData.tags.length > 0 ? itemData.tags : ['ia-auto'],
             importance: typeof itemData.importance === 'number' ? itemData.importance : 3,
             date: itemData.date || new Date().toISOString(),
@@ -856,16 +856,16 @@ export default function App() {
           } catch {}
 
           showToast('🧠 Nouvelle note mémorisée', 'success');
-        } else if (actType === 'reminder' || actType === 'rappel') {
+        } else if (actType === 'reminder' || actType === 'rappel' || actType === 'create_reminder') {
           const item: Rappel = {
             id: itemData.id || Date.now() + Math.floor(Math.random() * 1000),
-            titre: itemData.titre || itemData.nom || 'Rappel Major2I.A',
+            titre: itemData.title || itemData.titre || itemData.nom || 'Rappel Major2I.A',
             description: itemData.description || '',
-            dateRappel: itemData.dateRappel || new Date().toISOString().split('T')[0],
-            heure: itemData.heure || '12:00',
+            dateRappel: itemData.date || itemData.dateRappel || new Date().toISOString().split('T')[0],
+            heure: itemData.time || itemData.heure || '12:00',
             dateFinRappel: itemData.dateFinRappel || undefined,
             heureFin: itemData.heureFin || undefined,
-            priorite: (itemData.priorite as Priority) || 'normale',
+            priorite: (itemData.priority || itemData.priorite as Priority) || 'normale',
             statut: itemData.statut || 'actif',
             dateCreation: itemData.dateCreation || new Date().toISOString(),
           };
@@ -890,15 +890,15 @@ export default function App() {
 
           playAlertSound(alertSound);
           showToast(`🔔 Rappel créé : ${item.titre}`, 'success');
-        } else if (actType === 'task' || actType === 'tache' || actType === 'project' || actType === 'projet') {
+        } else if (actType === 'task' || actType === 'tache' || actType === 'project' || actType === 'projet' || actType === 'create_task') {
           const isProj = actType.includes('projet') || actType.includes('project');
           const item: Tache = {
             id: itemData.id || Date.now() + Math.floor(Math.random() * 1000),
-            titre: itemData.titre || itemData.nom || (isProj ? 'Projet Major2I.A' : 'Tâche Major2I.A'),
+            titre: itemData.title || itemData.titre || itemData.nom || (isProj ? 'Projet Major2I.A' : 'Tâche Major2I.A'),
             description: itemData.description || (isProj ? 'Projet planifié par Major2I.A' : 'Tâche planifiée par Major2I.A'),
-            priorite: (itemData.priorite as Priority) || 'normale',
+            priorite: (itemData.priority || itemData.priorite as Priority) || 'normale',
             status: itemData.status || 'attente',
-            echeance: itemData.echeance || itemData.dateRappel || '',
+            echeance: itemData.date || itemData.echeance || itemData.dateRappel || '',
             dateCreation: itemData.dateCreation || new Date().toISOString(),
           };
 
@@ -921,12 +921,12 @@ export default function App() {
           } catch {}
 
           showToast(isProj ? `📁 Projet ajouté : ${item.titre}` : `✅ Tâche ajoutée : ${item.titre}`, 'success');
-        } else if (actType === 'favorite' || actType === 'favori') {
+        } else if (actType === 'favorite' || actType === 'favori' || actType === 'create_favorite') {
           const item: Favori = {
             id: itemData.id || Date.now() + Math.floor(Math.random() * 1000),
-            titre: itemData.titre || itemData.nom || 'Favori',
-            contenu: itemData.contenu || itemData.description || '',
-            categorie: itemData.categorie || 'général',
+            titre: itemData.title || itemData.titre || itemData.nom || 'Favori',
+            contenu: itemData.description || itemData.content || itemData.contenu || '',
+            categorie: itemData.category || itemData.categorie || 'général',
             date: itemData.date || new Date().toISOString(),
           };
 
@@ -949,10 +949,396 @@ export default function App() {
           } catch {}
 
           showToast(`⭐ Favori enregistré : ${item.titre}`, 'success');
+        } else if (actType === 'event' || actType === 'agenda' || actType === 'evenement' || actType === 'create_event' || actType === 'create_agenda') {
+          const item: Rappel = {
+            id: itemData.id || Date.now() + Math.floor(Math.random() * 1000),
+            titre: itemData.title || itemData.titre || itemData.nom || 'Événement Agenda',
+            description: itemData.description || '',
+            dateRappel: itemData.date || itemData.dateRappel || new Date().toISOString().split('T')[0],
+            heure: itemData.time || itemData.heure || '09:00',
+            dateFinRappel: itemData.endDate || itemData.dateFinRappel || undefined,
+            heureFin: itemData.endTime || itemData.heureFin || undefined,
+            priorite: (itemData.priority || itemData.priorite as Priority) || 'normale',
+            statut: itemData.statut || 'actif',
+            dateCreation: itemData.dateCreation || new Date().toISOString(),
+          };
+
+          // 1. Update React state immediately
+          setRappels((prev) => {
+            const next = [item, ...prev.filter((r) => r.id !== item.id)];
+            safeSave('neo-rappels', next);
+            return next;
+          });
+
+          // 2. Sync with backend API
+          try {
+            getAuthHeader().then(authHeaders => {
+              fetch('/api/rappels', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...authHeaders },
+                body: JSON.stringify(item),
+              }).catch(() => ({}));
+            });
+          } catch {}
+
+          playAlertSound(alertSound);
+          showToast(`📅 Événement planifié sur l'agenda : ${item.titre}`, 'success');
         }
       } catch (err) {
         console.error('Erreur traitement action IA:', err);
       }
+    }
+  };
+
+  // Intercepte les blocs [ACTION_JSON], exécute les requêtes API (POST/PUT), et rafraîchit l'affichage
+  const interceptAndExecuteActionJson = async (rawReplyText: string): Promise<boolean> => {
+    if (!rawReplyText || !rawReplyText.includes('[ACTION_JSON]')) {
+      return false;
+    }
+
+    const match = rawReplyText.match(/\[ACTION_JSON\]\s*([\s\S]*?)(?:\[\/ACTION_JSON\]|$)/i);
+    if (!match || !match[1]) return false;
+
+    try {
+      let jsonStr = match[1].trim();
+      jsonStr = jsonStr.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
+      const parsed = JSON.parse(jsonStr);
+
+      const itemsToProcess = Array.isArray(parsed)
+        ? parsed
+        : Array.isArray(parsed.actions)
+          ? parsed.actions
+          : [parsed];
+
+      const authHeaders = await getAuthHeader();
+
+      for (const item of itemsToProcess) {
+        if (!item) continue;
+        const actType = String(item.type || '').toUpperCase();
+        const d = item.data || item;
+
+        if (actType === 'CREATE_TASK' || actType === 'TASK' || actType === 'TACHE' || actType === 'PROJECT' || actType === 'PROJET') {
+          const isProj = actType.includes('PROJ');
+          const taskPayload = {
+            id: d.id || Date.now() + Math.floor(Math.random() * 1000),
+            titre: d.title || d.titre || (isProj ? 'Projet Major2I.A' : 'Tâche Major2I.A'),
+            description: d.description || (isProj ? 'Projet créé par Major2I.A' : 'Tâche créée par Major2I.A'),
+            priorite: (d.priority || d.priorite || 'normale') as Priority,
+            status: (d.status || 'attente') as TaskStatus,
+            echeance: d.date || d.echeance || '',
+            dateCreation: new Date().toISOString()
+          };
+
+          try {
+            const res = await fetch('/api/taches', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...authHeaders },
+              body: JSON.stringify(taskPayload)
+            });
+            if (res.ok) {
+              const created = await res.json();
+              setTaches(prev => [created, ...prev.filter(t => t.id !== created.id)]);
+            } else {
+              setTaches(prev => [taskPayload, ...prev.filter(t => t.id !== taskPayload.id)]);
+            }
+          } catch {
+            setTaches(prev => [taskPayload, ...prev.filter(t => t.id !== taskPayload.id)]);
+          }
+          showToast(isProj ? `📁 Projet créé : ${taskPayload.titre}` : `✅ Tâche créée : ${taskPayload.titre}`, 'success');
+
+        } else if (actType === 'UPDATE_TASK') {
+          const taskId = d.id || d.taskId;
+          if (taskId) {
+            const updatePayload = {
+              titre: d.title || d.titre,
+              description: d.description,
+              echeance: d.date || d.echeance,
+              priorite: d.priority || d.priorite,
+              status: d.status
+            };
+            try {
+              const res = await fetch(`/api/taches/${taskId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', ...authHeaders },
+                body: JSON.stringify(updatePayload)
+              });
+              if (res.ok) {
+                const updated = await res.json();
+                setTaches(prev => prev.map(t => t.id === taskId ? { ...t, ...updated } : t));
+              }
+            } catch {}
+            showToast('✏️ Tâche mise à jour', 'success');
+          }
+
+        } else if (actType === 'CREATE_REMINDER' || actType === 'REMINDER' || actType === 'RAPPEL') {
+          const reminderPayload = {
+            id: d.id || Date.now() + Math.floor(Math.random() * 1000),
+            titre: d.title || d.titre || 'Rappel Major2I.A',
+            description: d.description || '',
+            dateRappel: d.date || d.dateRappel || new Date().toISOString().split('T')[0],
+            heure: d.time || d.heure || '09:00',
+            priorite: (d.priority || d.priorite || 'normale') as Priority,
+            statut: 'actif' as const,
+            dateCreation: new Date().toISOString()
+          };
+
+          try {
+            const res = await fetch('/api/rappels', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...authHeaders },
+              body: JSON.stringify(reminderPayload)
+            });
+            if (res.ok) {
+              const created = await res.json();
+              setRappels(prev => [created, ...prev.filter(r => r.id !== created.id)]);
+            } else {
+              setRappels(prev => [reminderPayload, ...prev.filter(r => r.id !== reminderPayload.id)]);
+            }
+          } catch {
+            setRappels(prev => [reminderPayload, ...prev.filter(r => r.id !== reminderPayload.id)]);
+          }
+          playAlertSound(alertSound);
+          showToast(`🔔 Rappel créé : ${reminderPayload.titre}`, 'success');
+
+        } else if (actType === 'CREATE_FAVORITE' || actType === 'FAVORITE' || actType === 'FAVORI') {
+          const favPayload = {
+            id: d.id || Date.now() + Math.floor(Math.random() * 1000),
+            titre: d.title || d.titre || 'Favori Major2I.A',
+            contenu: d.description || d.content || d.contenu || '',
+            categorie: d.category || d.categorie || 'Général',
+            date: new Date().toISOString()
+          };
+
+          try {
+            const res = await fetch('/api/favoris', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...authHeaders },
+              body: JSON.stringify(favPayload)
+            });
+            if (res.ok) {
+              const created = await res.json();
+              setFavoris(prev => [created, ...prev.filter(f => f.id !== created.id)]);
+            } else {
+              setFavoris(prev => [favPayload, ...prev.filter(f => f.id !== favPayload.id)]);
+            }
+          } catch {
+            setFavoris(prev => [favPayload, ...prev.filter(f => f.id !== favPayload.id)]);
+          }
+          showToast(`⭐ Favori enregistré : ${favPayload.titre}`, 'success');
+
+        } else if (actType === 'CREATE_MEMORY' || actType === 'MEMORY' || actType === 'MEMOIRE' || actType === 'CREATE_NOTE' || actType === 'NOTE') {
+          const memoPayload = {
+            id: d.id || Date.now() + Math.floor(Math.random() * 1000),
+            contenu: d.description || d.content || d.contenu || d.title || d.titre || 'Note mémorisée',
+            tags: Array.isArray(d.tags) && d.tags.length > 0 ? d.tags : ['mémoire', 'notes', 'ia-auto'],
+            importance: typeof d.importance === 'number' ? d.importance : 3,
+            date: d.date || new Date().toISOString()
+          };
+
+          try {
+            const res = await fetch('/api/memoire', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...authHeaders },
+              body: JSON.stringify(memoPayload)
+            });
+            if (res.ok) {
+              const created = await res.json();
+              setMemoire(prev => [created, ...prev.filter(m => m.id !== created.id)]);
+            } else {
+              setMemoire(prev => [memoPayload, ...prev.filter(m => m.id !== memoPayload.id)]);
+            }
+          } catch {
+            setMemoire(prev => [memoPayload, ...prev.filter(m => m.id !== memoPayload.id)]);
+          }
+          showToast(`🧠 Mémoire & notes enregistrées`, 'success');
+
+        } else if (actType === 'CREATE_EVENT' || actType === 'EVENT' || actType === 'AGENDA' || actType === 'EVENEMENT' || actType === 'CREATE_AGENDA') {
+          const eventPayload = {
+            id: d.id || Date.now() + Math.floor(Math.random() * 1000),
+            titre: d.title || d.titre || 'Événement Agenda',
+            description: d.description || '',
+            dateRappel: d.date || d.dateRappel || new Date().toISOString().split('T')[0],
+            heure: d.time || d.heure || '09:00',
+            dateFinRappel: d.endDate || d.dateFinRappel || undefined,
+            heureFin: d.endTime || d.heureFin || undefined,
+            priorite: (d.priority || d.priorite || 'normale') as Priority,
+            statut: 'actif' as const,
+            dateCreation: new Date().toISOString()
+          };
+
+          try {
+            const res = await fetch('/api/rappels', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...authHeaders },
+              body: JSON.stringify(eventPayload)
+            });
+            if (res.ok) {
+              const created = await res.json();
+              setRappels(prev => [created, ...prev.filter(r => r.id !== created.id)]);
+            } else {
+              setRappels(prev => [eventPayload, ...prev.filter(r => r.id !== eventPayload.id)]);
+            }
+          } catch {
+            setRappels(prev => [eventPayload, ...prev.filter(r => r.id !== eventPayload.id)]);
+          }
+          playAlertSound(alertSound);
+          showToast(`📅 Événement planifié sur l'agenda : ${eventPayload.titre}`, 'success');
+
+        } else if (actType === 'UPDATE_REMINDER') {
+          const reminderId = d.id || d.reminderId;
+          if (reminderId) {
+            const updatePayload = {
+              titre: d.title || d.titre,
+              description: d.description,
+              dateRappel: d.date || d.dateRappel,
+              heure: d.time || d.heure,
+              priorite: d.priority || d.priorite,
+              statut: d.status || d.statut
+            };
+            try {
+              const res = await fetch(`/api/rappels/${reminderId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', ...authHeaders },
+                body: JSON.stringify(updatePayload)
+              });
+              if (res.ok) {
+                const updated = await res.json();
+                setRappels(prev => prev.map(r => r.id === reminderId ? { ...r, ...updated } : r));
+              }
+            } catch {}
+            showToast('✏️ Rappel mis à jour', 'success');
+          }
+
+        } else if (actType === 'UPDATE_FAVORITE') {
+          const favId = d.id || d.favoriteId;
+          if (favId) {
+            const updatePayload = {
+              titre: d.title || d.titre,
+              contenu: d.description || d.content || d.contenu,
+              categorie: d.category || d.categorie
+            };
+            try {
+              const res = await fetch(`/api/favoris/${favId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', ...authHeaders },
+                body: JSON.stringify(updatePayload)
+              });
+              if (res.ok) {
+                const updated = await res.json();
+                setFavoris(prev => prev.map(f => f.id === favId ? { ...f, ...updated } : f));
+              }
+            } catch {}
+            showToast('✏️ Favori mis à jour', 'success');
+          }
+
+        } else if (actType === 'UPDATE_MEMORY') {
+          const memId = d.id || d.memoryId;
+          if (memId) {
+            const updatePayload = {
+              contenu: d.description || d.content || d.contenu || d.title || d.titre,
+              tags: d.tags,
+              importance: d.importance
+            };
+            try {
+              const res = await fetch(`/api/memoire/${memId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', ...authHeaders },
+                body: JSON.stringify(updatePayload)
+              });
+              if (res.ok) {
+                const updated = await res.json();
+                setMemoire(prev => prev.map(m => m.id === memId ? { ...m, ...updated } : m));
+              }
+            } catch {}
+            showToast('✏️ Mémoire mise à jour', 'success');
+          }
+
+        } else if (actType === 'DELETE_TASK' || actType === 'SUPPRIMER_TACHE') {
+          const taskId = d.id || d.taskId;
+          if (taskId) {
+            try {
+              await fetch(`/api/taches/${taskId}`, {
+                method: 'DELETE',
+                headers: authHeaders
+              });
+              setTaches(prev => prev.filter(t => t.id !== taskId));
+            } catch {}
+            showToast('🗑️ Tâche supprimée', 'info');
+          }
+
+        } else if (actType === 'DELETE_REMINDER' || actType === 'SUPPRIMER_RAPPEL') {
+          const reminderId = d.id || d.reminderId;
+          if (reminderId) {
+            try {
+              await fetch(`/api/rappels/${reminderId}`, {
+                method: 'DELETE',
+                headers: authHeaders
+              });
+              setRappels(prev => prev.filter(r => r.id !== reminderId));
+            } catch {}
+            showToast('🗑️ Rappel supprimé', 'info');
+          }
+
+        } else if (actType === 'DELETE_FAVORITE' || actType === 'SUPPRIMER_FAVORI') {
+          const favId = d.id || d.favoriteId;
+          if (favId) {
+            try {
+              await fetch(`/api/favoris/${favId}`, {
+                method: 'DELETE',
+                headers: authHeaders
+              });
+              setFavoris(prev => prev.filter(f => f.id !== favId));
+            } catch {}
+            showToast('🗑️ Favori supprimé', 'info');
+          }
+
+        } else if (actType === 'DELETE_MEMORY' || actType === 'SUPPRIMER_MEMOIRE') {
+          const memId = d.id || d.memoryId;
+          if (memId) {
+            try {
+              await fetch(`/api/memoire/${memId}`, {
+                method: 'DELETE',
+                headers: authHeaders
+              });
+              setMemoire(prev => prev.filter(m => m.id !== memId));
+            } catch {}
+            showToast('🗑️ Note/mémoire supprimée', 'info');
+          }
+        }
+      }
+
+      // Rafraîchissement de l'affichage du composant depuis l'API
+      try {
+        const [tRes, rRes, fRes, mRes] = await Promise.all([
+          fetch('/api/taches', { headers: authHeaders }).catch(() => null),
+          fetch('/api/rappels', { headers: authHeaders }).catch(() => null),
+          fetch('/api/favoris', { headers: authHeaders }).catch(() => null),
+          fetch('/api/memoire', { headers: authHeaders }).catch(() => null),
+        ]);
+        if (tRes && tRes.ok) {
+          const fresh = await tRes.json();
+          if (Array.isArray(fresh)) setTaches(fresh);
+        }
+        if (rRes && rRes.ok) {
+          const fresh = await rRes.json();
+          if (Array.isArray(fresh)) setRappels(fresh);
+        }
+        if (fRes && fRes.ok) {
+          const fresh = await fRes.json();
+          if (Array.isArray(fresh)) setFavoris(fresh);
+        }
+        if (mRes && mRes.ok) {
+          const fresh = await mRes.json();
+          if (Array.isArray(fresh)) setMemoire(fresh);
+        }
+      } catch (refreshErr) {
+        console.warn('Erreur rafraîchissement API:', refreshErr);
+      }
+
+      return true;
+    } catch (e) {
+      console.error('Erreur interceptAndExecuteActionJson:', e);
+      return false;
     }
   };
 
@@ -1180,8 +1566,9 @@ export default function App() {
               if (parsed.type === 'chunk' && parsed.text) {
                 accumulatedRawText += parsed.text;
 
-                // Temporarily hide pending ACTION_JSON block in progress so raw JSON doesn't flicker on screen
+                // Temporarily hide pending [ACTION_JSON] block in progress so raw JSON doesn't flicker on screen
                 const cleanStreamingText = accumulatedRawText
+                  .replace(/\[ACTION_JSON\][\s\S]*/gi, '')
                   .replace(/(?:Rappel|Tâche|Mémoire|Favori)?\s*:?\s*ACTION_JSON\s*:[\s\S]*/gi, '')
                   .trimEnd();
 
@@ -1226,8 +1613,13 @@ export default function App() {
           }
         }
 
+        // Intercepte [ACTION_JSON] depuis le flux brut reçu
+        const rawResponseText = accumulatedRawText || finalReply;
+        const actionIntercepted = await interceptAndExecuteActionJson(rawResponseText);
+
         // Clean final reply text and persist state
         const cleanedReply = (finalReply || accumulatedRawText)
+          .replace(/\[ACTION_JSON\][\s\S]*?(?:\[\/ACTION_JSON\]|$)/gi, '')
           .replace(/ACTION_JSON\s*:\s*```(?:json)?[\s\S]*?```/gi, '')
           .replace(/(?:Rappel|Tâche|Mémoire|Favori)?\s*:?\s*ACTION_JSON\s*:?\s*\{[\s\S]*?\}/gi, '')
           .replace(/(?:Rappel|Tâche|Mémoire|Favori)?\s*:?\s*ACTION_JSON\s*:[\s\S]*/gi, '')
@@ -1255,14 +1647,16 @@ export default function App() {
           currentConvs.map((c) => (c.id === finalizedConv.id ? finalizedConv : c))
         );
 
-        // Extract actions from server or fallback NLP extractor
-        let effectiveActions = finalActions;
-        if (!effectiveActions || effectiveActions.length === 0) {
-          effectiveActions = extractActionsFromText(safeMessageText, finalizedContent);
-        }
+        // Si [ACTION_JSON] n'a pas été intercepté directement, extraction de secours
+        if (!actionIntercepted) {
+          let effectiveActions = finalActions;
+          if (!effectiveActions || effectiveActions.length === 0) {
+            effectiveActions = extractActionsFromText(safeMessageText, finalizedContent);
+          }
 
-        if (effectiveActions && effectiveActions.length > 0) {
-          await processAiActions(effectiveActions);
+          if (effectiveActions && effectiveActions.length > 0) {
+            await processAiActions(effectiveActions);
+          }
         }
 
         if (voiceAutoSpeak) {
@@ -1280,9 +1674,20 @@ export default function App() {
           localStorage.setItem(`neo-user-credits-${effectiveUserId}`, data.credits.toString());
         }
 
+        const rawNonStream = data.rawReply || data.reply || '';
+        const actionIntercepted = await interceptAndExecuteActionJson(rawNonStream);
+
+        const cleanedNonStream = (data.reply || '')
+          .replace(/\[ACTION_JSON\][\s\S]*?(?:\[\/ACTION_JSON\]|$)/gi, '')
+          .replace(/ACTION_JSON\s*:\s*```(?:json)?[\s\S]*?```/gi, '')
+          .replace(/(?:Rappel|Tâche|Mémoire|Favori)?\s*:?\s*ACTION_JSON\s*:?\s*\{[\s\S]*?\}/gi, '')
+          .replace(/(?:Rappel|Tâche|Mémoire|Favori)?\s*:?\s*ACTION_JSON\s*:[\s\S]*/gi, '')
+          .replace(/(?:\r?\n)*(?:Rappel|Tâche|Mémoire|Favori)\s*:\s*$/i, '')
+          .trim();
+
         const replyContent = confidentialMode
-          ? sanitizeConfidentialText(data.reply)
-          : data.reply || "Transmission reçue.";
+          ? sanitizeConfidentialText(cleanedNonStream)
+          : cleanedNonStream || "Transmission reçue.";
 
         const neoMessage = {
           role: 'neo' as const,
@@ -1302,13 +1707,15 @@ export default function App() {
         );
         updateConversationsState(finalConvs);
 
-        let effectiveActions = data.actions;
-        if (!effectiveActions || effectiveActions.length === 0) {
-          effectiveActions = extractActionsFromText(safeMessageText, replyContent);
-        }
+        if (!actionIntercepted) {
+          let effectiveActions = data.actions;
+          if (!effectiveActions || effectiveActions.length === 0) {
+            effectiveActions = extractActionsFromText(safeMessageText, replyContent);
+          }
 
-        if (effectiveActions && effectiveActions.length > 0) {
-          await processAiActions(effectiveActions);
+          if (effectiveActions && effectiveActions.length > 0) {
+            await processAiActions(effectiveActions);
+          }
         }
 
         if (voiceAutoSpeak) {
@@ -1667,6 +2074,63 @@ export default function App() {
     showToast('🗑️ Tâche supprimée', 'info');
   };
 
+  // Enregistrement universel d'une demande/message du chatbot selon le choix de l'utilisateur
+  const handleSaveToDestination = async (
+    destination: 'favoris' | 'memoire' | 'rappels' | 'taches' | 'agenda',
+    text: string,
+    options?: { title?: string; date?: string; time?: string; priority?: Priority }
+  ) => {
+    const cleanText = (text || '').trim();
+    if (!cleanText) return;
+
+    // Détermination d'un titre concis si non fourni
+    const firstLine = cleanText.split('\n')[0].replace(/^[*#\-_•\s]+/, '').trim();
+    const cleanTitle = (options?.title || firstLine).slice(0, 70) || 'Élément enregistré';
+    const today = new Date().toISOString().split('T')[0];
+
+    if (destination === 'favoris') {
+      await handleAddFavori({
+        titre: cleanTitle,
+        contenu: cleanText,
+        categorie: 'Chatbot',
+      });
+      playCyberSound('beep');
+    } else if (destination === 'memoire') {
+      await handleAddMemoire(
+        cleanText,
+        ['chatbot', 'notes'],
+        3
+      );
+      playCyberSound('beep');
+    } else if (destination === 'rappels') {
+      await handleAddRappel({
+        titre: cleanTitle,
+        description: cleanText,
+        dateRappel: options?.date || today,
+        heure: options?.time || '12:00',
+        priorite: options?.priority || 'normale',
+      });
+    } else if (destination === 'taches') {
+      await handleAddTache({
+        titre: cleanTitle,
+        description: cleanText,
+        echeance: options?.date || today,
+        priorite: options?.priority || 'normale',
+      });
+      playCyberSound('beep');
+    } else if (destination === 'agenda') {
+      await handleAddRappel({
+        titre: cleanTitle,
+        description: cleanText,
+        dateRappel: options?.date || today,
+        heure: options?.time || '09:00',
+        priorite: options?.priority || 'normale',
+      });
+      playAlertSound(alertSound);
+      showToast(`📅 Événement planifié sur l'agenda : ${cleanTitle}`, 'success');
+    }
+  };
+
   // Export Data JSON
   const handleExportData = () => {
     const backup = {
@@ -2015,6 +2479,7 @@ export default function App() {
               onToggleSidebar={handleToggleSidebar}
               onUnfoldAllBars={handleUnfoldAllBars}
               onCollapseAllBars={handleCollapseAllBars}
+              onSaveToDestination={handleSaveToDestination}
             />
           )}
 
@@ -2097,6 +2562,8 @@ export default function App() {
             <CalendarPanel 
               rappels={rappels} 
               taches={taches} 
+              onAddRappel={handleAddRappel}
+              onAddTache={handleAddTache}
               onUpdateRappel={handleUpdateRappel}
               onUpdateTache={handleUpdateTache}
               onDeleteRappel={handleDeleteRappel}

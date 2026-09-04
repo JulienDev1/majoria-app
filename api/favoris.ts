@@ -23,39 +23,44 @@ if (supabaseUrl && supabaseKey) {
   }
 }
 
-async function getUserIdFromRequest(req: any): Promise<string> {
+async function authenticateSupabaseUser(req: any): Promise<{ userId: string; userEmail: string; isSupabaseAuth: boolean }> {
   const authHeader = req.headers?.authorization || req.headers?.Authorization;
-  if (authHeader && typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+  const client = supabaseAdmin || serverSupabase;
+  if (authHeader && typeof authHeader === 'string' && authHeader.startsWith('Bearer ') && client) {
     const token = authHeader.replace('Bearer ', '').trim();
-    if (token) {
-      const client = supabaseAdmin || serverSupabase;
-      if (client) {
-        try {
-          const { data, error } = await client.auth.getUser(token);
-          if (!error && data?.user?.id) {
-            return data.user.id;
-          }
-        } catch {}
+    try {
+      const { data, error } = await client.auth.getUser(token);
+      if (!error && data?.user) {
+        return {
+          userId: data.user.id,
+          userEmail: data.user.email || `${data.user.id}@majoria.app`,
+          isSupabaseAuth: true,
+        };
       }
+    } catch (err) {
+      console.warn('Erreur vérification JWT Supabase:', err);
     }
   }
-  return req.query?.user_id || req.query?.userId || req.body?.user_id || req.body?.userId || 'anon_user';
+  return { userId: '', userEmail: '', isSupabaseAuth: false };
 }
 
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
-  const userId = await getUserIdFromRequest(req);
-  const client = supabaseAdmin || serverSupabase;
+  const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
+  if (!isSupabaseAuth || !userId) {
+    return res.status(401).json({ error: 'Non authentifié. Connexion requise.' });
+  }
 
+  const client = supabaseAdmin || serverSupabase;
   if (!client) {
-    return res.status(200).json([]);
+    return res.status(500).json({ error: 'Base de données non configurée' });
   }
 
   const itemId = req.query?.id || req.body?.id;
@@ -95,7 +100,7 @@ export default async function handler(req: any, res: any) {
       return res.status(201).json(data || item);
     }
 
-    if (req.method === 'PUT') {
+    if (req.method === 'PUT' || req.method === 'PATCH') {
       const idToUpdate = Number(itemId || req.query?.match?.[0]);
       const updateData = {
         ...req.body,

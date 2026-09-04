@@ -31,15 +31,17 @@ import {
   ChevronUp,
   PanelLeftOpen,
   PanelLeftClose,
-  Maximize2
+  Maximize2,
+  BookmarkPlus
 } from 'lucide-react';
-import { Conversation, UserProfile, VoiceGender } from '../types';
+import { Conversation, Priority, UserProfile, VoiceGender } from '../types';
 import { playCyberSound, cleanTextForSpeech, speakCyberResponse } from '../utils/security';
 import { cleanSpokenTranscript, mergeSpeechSegments, removeRepeatedWordsAndPhrases } from '../utils/speechCleaner';
 import { exportItemToPDF } from '../utils/pdfExport';
 import { CameraVideoModal } from './CameraVideoModal';
 import { FormattedMarkdown } from './FormattedMarkdown';
 import { NewsHeadlineFeed } from './NewsHeadlineFeed';
+import { SaveToDestinationModal, DestinationType } from './SaveToDestinationModal';
 import { useLanguage } from '../context/LanguageContext';
 
 interface ChatPanelProps {
@@ -64,6 +66,11 @@ interface ChatPanelProps {
   onToggleSidebar?: () => void;
   onUnfoldAllBars?: () => void;
   onCollapseAllBars?: () => void;
+  onSaveToDestination?: (
+    destination: DestinationType,
+    text: string,
+    options?: { title?: string; date?: string; time?: string; priority?: Priority }
+  ) => Promise<void>;
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
@@ -85,12 +92,15 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   onToggleSidebar,
   onUnfoldAllBars,
   onCollapseAllBars,
+  onSaveToDestination,
 }) => {
   const { t } = useLanguage();
   const [inputText, setInputText] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedImageName, setSelectedImageName] = useState<string | null>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [saveModalOpen, setSaveModalOpen] = useState(false);
+  const [saveModalText, setSaveModalText] = useState('');
   const [speakingIndex, setSpeakingIndex] = useState<number | null>(null);
   const [isDictating, setIsDictating] = useState(false);
   const [isTranscribingAudio, setIsTranscribingAudio] = useState(false);
@@ -902,13 +912,46 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                         <FileText className="w-4 h-4" />
                         <span className="hidden sm:inline">PDF</span>
                       </button>
+
+                      {onSaveToDestination && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            playCyberSound('click');
+                            setSaveModalText(msg.contenu);
+                            setSaveModalOpen(true);
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-[var(--fb-surface)]/50 text-[var(--fb-blue)] hover:text-[var(--fb-blue)] transition-colors cursor-pointer font-bold"
+                          title="Enregistrer cette demande/réponse dans le module de votre choix (Favoris, Mémoire, Rappels, Tâches, Agenda)"
+                        >
+                          <BookmarkPlus className="w-4 h-4" />
+                          <span>Enregistrer</span>
+                        </button>
+                      )}
                     </div>
                   )}
 
                   {/* Timestamp for user bubbles */}
                   {isUser && (
-                    <div className="mt-1 text-[10px] text-white/90 text-right font-medium">
-                      {new Date(msg.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                    <div className="mt-1 flex items-center justify-between text-[10px] text-white/90 font-medium">
+                      {onSaveToDestination && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            playCyberSound('click');
+                            setSaveModalText(msg.contenu);
+                            setSaveModalOpen(true);
+                          }}
+                          className="flex items-center gap-1 opacity-80 hover:opacity-100 hover:underline cursor-pointer"
+                          title="Enregistrer cette demande dans le module de votre choix"
+                        >
+                          <BookmarkPlus className="w-3 h-3" />
+                          <span>Enregistrer</span>
+                        </button>
+                      )}
+                      <span>
+                        {new Date(msg.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -1143,6 +1186,16 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           setSelectedImageName(name);
         }}
       />
+
+      {/* Save to Chosen Destination Modal */}
+      {onSaveToDestination && (
+        <SaveToDestinationModal
+          isOpen={saveModalOpen}
+          onClose={() => setSaveModalOpen(false)}
+          messageText={saveModalText}
+          onSave={onSaveToDestination}
+        />
+      )}
     </div>
   );
 };

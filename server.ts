@@ -60,9 +60,7 @@ async function deductUserCredit(userId?: string, userEmail?: string): Promise<{ 
   const normalizedEmail = (userEmail || '').toLowerCase().trim();
   if (
     normalizedId === 'jfe26@live.fr' ||
-    normalizedEmail === 'jfe26@live.fr' ||
-    effectiveId === 'JulDev2' ||
-    normalizedId === 'juldev2'
+    normalizedEmail === 'jfe26@live.fr'
   ) {
     return { success: true, remainingCredits: 999999 };
   }
@@ -199,7 +197,7 @@ app.get('/api/health', (req: Request, res: Response) => {
 app.get('/api/favoris', async (req: Request, res: Response) => {
   const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
   if (!isSupabaseAuth || !userId) {
-   return res.status(401).json({ error: 'Connexion requise pour accéder aux favoris.' });
+    return res.status(401).json({ error: 'Non authentifié. Connexion requise.' });
   }
   const client = supabaseAdmin || serverSupabase;
   if (client) {
@@ -212,23 +210,33 @@ app.get('/api/favoris', async (req: Request, res: Response) => {
       if (!error && Array.isArray(data)) {
         return res.json(data);
       }
-    } catch {}
+    } catch (err) {
+      console.error('Erreur Supabase favoris GET:', err);
+    }
   }
-  const userFavoris = serverStore.favoris.filter(f => !f.userId || f.userId === userId);
+  const userFavoris = serverStore.favoris.filter(f => (f.userId === userId || f.user_id === userId));
   res.json(userFavoris);
 });
 
 app.post('/api/favoris', async (req: Request, res: Response) => {
   const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
   if (!isSupabaseAuth || !userId) {
-   return res.status(401).json({ error: 'Connexion requise pour enregistrer un favori.' });
+    return res.status(401).json({ error: 'Non authentifié. Connexion requise.' });
   }
-  const item = { id: Date.now(), ...req.body, userId, user_id: userId, date: req.body.date || new Date().toISOString() };
+  const item = { 
+    id: Date.now(), 
+    ...req.body, 
+    userId, 
+    user_id: userId, 
+    date: req.body.date || new Date().toISOString() 
+  };
   const client = supabaseAdmin || serverSupabase;
   if (client) {
     try {
       await client.from('favoris').upsert(item, { onConflict: 'id' });
-    } catch {}
+    } catch (err) {
+      console.error('Erreur Supabase favoris POST:', err);
+    }
   }
   serverStore.favoris.unshift(item);
   res.status(201).json(item);
@@ -237,18 +245,20 @@ app.post('/api/favoris', async (req: Request, res: Response) => {
 app.put('/api/favoris/:id', async (req: Request, res: Response) => {
   const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
   if (!isSupabaseAuth || !userId) {
-   return res.status(401).json({ error: 'Connexion requise.' });
+    return res.status(401).json({ error: 'Non authentifié. Connexion requise.' });
   }
   const id = Number(req.params.id);
   const client = supabaseAdmin || serverSupabase;
   if (client) {
     try {
-      await client.from('favoris').update({ ...req.body, user_id: userId }).eq('id', id);
-    } catch {}
+      await client.from('favoris').update({ ...req.body, user_id: userId }).eq('id', id).eq('user_id', userId);
+    } catch (err) {
+      console.error('Erreur Supabase favoris PUT:', err);
+    }
   }
-  const idx = serverStore.favoris.findIndex(f => f.id === id);
+  const idx = serverStore.favoris.findIndex(f => f.id === id && (f.userId === userId || f.user_id === userId));
   if (idx !== -1) {
-    serverStore.favoris[idx] = { ...serverStore.favoris[idx], ...req.body, userId };
+    serverStore.favoris[idx] = { ...serverStore.favoris[idx], ...req.body, userId, user_id: userId };
     res.json(serverStore.favoris[idx]);
   } else {
     res.status(404).json({ error: 'Favori introuvable' });
@@ -256,20 +266,22 @@ app.put('/api/favoris/:id', async (req: Request, res: Response) => {
 });
 
 app.patch('/api/favoris/:id', async (req: Request, res: Response) => {
- const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
- if (!isSupabaseAuth || !userId) {
-  return res.status(401).json({ error: 'Connexion requise.' });
- }
+  const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
+  if (!isSupabaseAuth || !userId) {
+    return res.status(401).json({ error: 'Non authentifié. Connexion requise.' });
+  }
   const id = Number(req.params.id);
   const client = supabaseAdmin || serverSupabase;
   if (client) {
     try {
-      await client.from('favoris').update({ ...req.body, user_id: userId }).eq('id', id);
-    } catch {}
+      await client.from('favoris').update({ ...req.body, user_id: userId }).eq('id', id).eq('user_id', userId);
+    } catch (err) {
+      console.error('Erreur Supabase favoris PATCH:', err);
+    }
   }
-  const idx = serverStore.favoris.findIndex(f => f.id === id);
+  const idx = serverStore.favoris.findIndex(f => f.id === id && (f.userId === userId || f.user_id === userId));
   if (idx !== -1) {
-    serverStore.favoris[idx] = { ...serverStore.favoris[idx], ...req.body, userId };
+    serverStore.favoris[idx] = { ...serverStore.favoris[idx], ...req.body, userId, user_id: userId };
     res.json(serverStore.favoris[idx]);
   } else {
     res.status(404).json({ error: 'Favori introuvable' });
@@ -277,14 +289,20 @@ app.patch('/api/favoris/:id', async (req: Request, res: Response) => {
 });
 
 app.delete('/api/favoris/:id', async (req: Request, res: Response) => {
+  const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
+  if (!isSupabaseAuth || !userId) {
+    return res.status(401).json({ error: 'Non authentifié. Connexion requise.' });
+  }
   const id = Number(req.params.id);
   const client = supabaseAdmin || serverSupabase;
   if (client) {
     try {
-      await client.from('favoris').delete().eq('id', id);
-    } catch {}
+      await client.from('favoris').delete().eq('id', id).eq('user_id', userId);
+    } catch (err) {
+      console.error('Erreur Supabase favoris DELETE:', err);
+    }
   }
-  serverStore.favoris = serverStore.favoris.filter(f => f.id !== id);
+  serverStore.favoris = serverStore.favoris.filter(f => !(f.id === id && (f.userId === userId || f.user_id === userId)));
   res.json({ success: true });
 });
 
@@ -292,7 +310,7 @@ app.delete('/api/favoris/:id', async (req: Request, res: Response) => {
 app.get('/api/memoire', async (req: Request, res: Response) => {
   const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
   if (!isSupabaseAuth || !userId) {
-   return res.status(401).json({ error: 'Connexion requise pour lire la mémoire.' });
+    return res.status(401).json({ error: 'Non authentifié. Connexion requise.' });
   }
   const client = supabaseAdmin || serverSupabase;
   if (client) {
@@ -305,23 +323,35 @@ app.get('/api/memoire', async (req: Request, res: Response) => {
       if (!error && Array.isArray(data)) {
         return res.json(data);
       }
-    } catch {}
+    } catch (err) {
+      console.error('Erreur Supabase memoire GET:', err);
+    }
   }
-  const userMemoire = serverStore.memoire.filter(m => !m.userId || m.userId === userId);
+  const userMemoire = serverStore.memoire.filter(m => (m.userId === userId || m.user_id === userId));
   res.json(userMemoire);
 });
 
 app.post('/api/memoire', async (req: Request, res: Response) => {
   const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
   if (!isSupabaseAuth || !userId) {
-   return res.status(401).json({ error: 'Connexion requise pour enregistrer en mémoire.' });
+    return res.status(401).json({ error: 'Non authentifié. Connexion requise.' });
   }
-  const item = { id: Date.now(), importance: 3, tags: [], ...req.body, userId, user_id: userId, date: req.body.date || new Date().toISOString() };
+  const item = { 
+    id: Date.now(), 
+    importance: 3, 
+    tags: [], 
+    ...req.body, 
+    userId, 
+    user_id: userId, 
+    date: req.body.date || new Date().toISOString() 
+  };
   const client = supabaseAdmin || serverSupabase;
   if (client) {
     try {
       await client.from('memoire').upsert(item, { onConflict: 'id' });
-    } catch {}
+    } catch (err) {
+      console.error('Erreur Supabase memoire POST:', err);
+    }
   }
   serverStore.memoire.unshift(item);
   res.status(201).json(item);
@@ -330,18 +360,20 @@ app.post('/api/memoire', async (req: Request, res: Response) => {
 app.put('/api/memoire/:id', async (req: Request, res: Response) => {
   const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
   if (!isSupabaseAuth || !userId) {
-   return res.status(401).json({ error: 'Connexion requise.' });
+    return res.status(401).json({ error: 'Non authentifié. Connexion requise.' });
   }
   const id = Number(req.params.id);
   const client = supabaseAdmin || serverSupabase;
   if (client) {
     try {
-      await client.from('memoire').update({ ...req.body, user_id: userId }).eq('id', id);
-    } catch {}
+      await client.from('memoire').update({ ...req.body, user_id: userId }).eq('id', id).eq('user_id', userId);
+    } catch (err) {
+      console.error('Erreur Supabase memoire PUT:', err);
+    }
   }
-  const idx = serverStore.memoire.findIndex(m => m.id === id);
+  const idx = serverStore.memoire.findIndex(m => m.id === id && (m.userId === userId || m.user_id === userId));
   if (idx !== -1) {
-    serverStore.memoire[idx] = { ...serverStore.memoire[idx], ...req.body, userId };
+    serverStore.memoire[idx] = { ...serverStore.memoire[idx], ...req.body, userId, user_id: userId };
     res.json(serverStore.memoire[idx]);
   } else {
     res.status(404).json({ error: 'Mémoire introuvable' });
@@ -351,18 +383,20 @@ app.put('/api/memoire/:id', async (req: Request, res: Response) => {
 app.patch('/api/memoire/:id', async (req: Request, res: Response) => {
   const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
   if (!isSupabaseAuth || !userId) {
-   return res.status(401).json({ error: 'Connexion requise.' });
+    return res.status(401).json({ error: 'Non authentifié. Connexion requise.' });
   }
   const id = Number(req.params.id);
   const client = supabaseAdmin || serverSupabase;
   if (client) {
     try {
-      await client.from('memoire').update({ ...req.body, user_id: userId }).eq('id', id);
-    } catch {}
+      await client.from('memoire').update({ ...req.body, user_id: userId }).eq('id', id).eq('user_id', userId);
+    } catch (err) {
+      console.error('Erreur Supabase memoire PATCH:', err);
+    }
   }
-  const idx = serverStore.memoire.findIndex(m => m.id === id);
+  const idx = serverStore.memoire.findIndex(m => m.id === id && (m.userId === userId || m.user_id === userId));
   if (idx !== -1) {
-    serverStore.memoire[idx] = { ...serverStore.memoire[idx], ...req.body, userId };
+    serverStore.memoire[idx] = { ...serverStore.memoire[idx], ...req.body, userId, user_id: userId };
     res.json(serverStore.memoire[idx]);
   } else {
     res.status(404).json({ error: 'Mémoire introuvable' });
@@ -372,11 +406,26 @@ app.patch('/api/memoire/:id', async (req: Request, res: Response) => {
 app.get('/api/memoire/recherche/:q', async (req: Request, res: Response) => {
   const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
   if (!isSupabaseAuth || !userId) {
-   return res.status(401).json({ error: 'Connexion requise pour rechercher dans la mémoire.' });
+    return res.status(401).json({ error: 'Non authentifié. Connexion requise.' });
   }
   const q = (req.params.q || '').toLowerCase();
+  const client = supabaseAdmin || serverSupabase;
+  if (client) {
+    try {
+      const { data, error } = await client
+        .from('memoire')
+        .select('*')
+        .eq('user_id', userId)
+        .ilike('contenu', `%${q}%`);
+      if (!error && Array.isArray(data)) {
+        return res.json(data);
+      }
+    } catch (err) {
+      console.error('Erreur Supabase memoire recherche:', err);
+    }
+  }
   const results = serverStore.memoire
-    .filter(m => !m.userId || m.userId === userId)
+    .filter(m => (m.userId === userId || m.user_id === userId))
     .filter(m => 
       (m.contenu || '').toLowerCase().includes(q) ||
       (m.tags || []).some((t: string) => t.toLowerCase().includes(q))
@@ -385,14 +434,20 @@ app.get('/api/memoire/recherche/:q', async (req: Request, res: Response) => {
 });
 
 app.delete('/api/memoire/:id', async (req: Request, res: Response) => {
+  const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
+  if (!isSupabaseAuth || !userId) {
+    return res.status(401).json({ error: 'Non authentifié. Connexion requise.' });
+  }
   const id = Number(req.params.id);
   const client = supabaseAdmin || serverSupabase;
   if (client) {
     try {
-      await client.from('memoire').delete().eq('id', id);
-    } catch {}
+      await client.from('memoire').delete().eq('id', id).eq('user_id', userId);
+    } catch (err) {
+      console.error('Erreur Supabase memoire DELETE:', err);
+    }
   }
-  serverStore.memoire = serverStore.memoire.filter(m => m.id !== id);
+  serverStore.memoire = serverStore.memoire.filter(m => !(m.id === id && (m.userId === userId || m.user_id === userId)));
   res.json({ success: true });
 });
 
@@ -400,7 +455,7 @@ app.delete('/api/memoire/:id', async (req: Request, res: Response) => {
 app.get('/api/rappels', async (req: Request, res: Response) => {
   const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
   if (!isSupabaseAuth || !userId) {
-   return res.status(401).json({ error: 'Connexion requise pour lire les rappels.' });
+    return res.status(401).json({ error: 'Non authentifié. Connexion requise.' });
   }
   const client = supabaseAdmin || serverSupabase;
   if (client) {
@@ -413,16 +468,18 @@ app.get('/api/rappels', async (req: Request, res: Response) => {
       if (!error && Array.isArray(data)) {
         return res.json(data);
       }
-    } catch {}
+    } catch (err) {
+      console.error('Erreur Supabase rappels GET:', err);
+    }
   }
-  const userRappels = serverStore.rappels.filter(r => !r.userId || r.userId === userId);
+  const userRappels = serverStore.rappels.filter(r => (r.userId === userId || r.user_id === userId));
   res.json(userRappels);
 });
 
 app.post('/api/rappels', async (req: Request, res: Response) => {
   const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
   if (!isSupabaseAuth || !userId) {
-   return res.status(401).json({ error: 'Connexion requise pour créer un rappel.' });
+    return res.status(401).json({ error: 'Non authentifié. Connexion requise.' });
   }
   const item = { 
     id: Date.now(), 
@@ -437,7 +494,9 @@ app.post('/api/rappels', async (req: Request, res: Response) => {
   if (client) {
     try {
       await client.from('rappels').upsert(item, { onConflict: 'id' });
-    } catch {}
+    } catch (err) {
+      console.error('Erreur Supabase rappels POST:', err);
+    }
   }
   serverStore.rappels.unshift(item);
   res.status(201).json(item);
@@ -446,18 +505,43 @@ app.post('/api/rappels', async (req: Request, res: Response) => {
 app.put('/api/rappels/:id', async (req: Request, res: Response) => {
   const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
   if (!isSupabaseAuth || !userId) {
-   return res.status(401).json({ error: 'Connexion requise.' });
+    return res.status(401).json({ error: 'Non authentifié. Connexion requise.' });
   }
   const id = Number(req.params.id);
   const client = supabaseAdmin || serverSupabase;
   if (client) {
     try {
-      await client.from('rappels').update({ ...req.body, user_id: userId }).eq('id', id);
-    } catch {}
+      await client.from('rappels').update({ ...req.body, user_id: userId }).eq('id', id).eq('user_id', userId);
+    } catch (err) {
+      console.error('Erreur Supabase rappels PUT:', err);
+    }
   }
-  const idx = serverStore.rappels.findIndex(r => r.id === id);
+  const idx = serverStore.rappels.findIndex(r => r.id === id && (r.userId === userId || r.user_id === userId));
   if (idx !== -1) {
-    serverStore.rappels[idx] = { ...serverStore.rappels[idx], ...req.body, userId };
+    serverStore.rappels[idx] = { ...serverStore.rappels[idx], ...req.body, userId, user_id: userId };
+    res.json(serverStore.rappels[idx]);
+  } else {
+    res.status(404).json({ error: 'Rappel introuvable' });
+  }
+});
+
+app.patch('/api/rappels/:id', async (req: Request, res: Response) => {
+  const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
+  if (!isSupabaseAuth || !userId) {
+    return res.status(401).json({ error: 'Non authentifié. Connexion requise.' });
+  }
+  const id = Number(req.params.id);
+  const client = supabaseAdmin || serverSupabase;
+  if (client) {
+    try {
+      await client.from('rappels').update({ ...req.body, user_id: userId }).eq('id', id).eq('user_id', userId);
+    } catch (err) {
+      console.error('Erreur Supabase rappels PATCH:', err);
+    }
+  }
+  const idx = serverStore.rappels.findIndex(r => r.id === id && (r.userId === userId || r.user_id === userId));
+  if (idx !== -1) {
+    serverStore.rappels[idx] = { ...serverStore.rappels[idx], ...req.body, userId, user_id: userId };
     res.json(serverStore.rappels[idx]);
   } else {
     res.status(404).json({ error: 'Rappel introuvable' });
@@ -465,14 +549,20 @@ app.put('/api/rappels/:id', async (req: Request, res: Response) => {
 });
 
 app.delete('/api/rappels/:id', async (req: Request, res: Response) => {
+  const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
+  if (!isSupabaseAuth || !userId) {
+    return res.status(401).json({ error: 'Non authentifié. Connexion requise.' });
+  }
   const id = Number(req.params.id);
   const client = supabaseAdmin || serverSupabase;
   if (client) {
     try {
-      await client.from('rappels').delete().eq('id', id);
-    } catch {}
+      await client.from('rappels').delete().eq('id', id).eq('user_id', userId);
+    } catch (err) {
+      console.error('Erreur Supabase rappels DELETE:', err);
+    }
   }
-  serverStore.rappels = serverStore.rappels.filter(r => r.id !== id);
+  serverStore.rappels = serverStore.rappels.filter(r => !(r.id === id && (r.userId === userId || r.user_id === userId)));
   res.json({ success: true });
 });
 
@@ -480,7 +570,7 @@ app.delete('/api/rappels/:id', async (req: Request, res: Response) => {
 app.get('/api/taches', async (req: Request, res: Response) => {
   const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
   if (!isSupabaseAuth || !userId) {
-   return res.status(401).json({ error: 'Connexion requise pour lire les tâches.' });
+    return res.status(401).json({ error: 'Non authentifié. Connexion requise.' });
   }
   const client = supabaseAdmin || serverSupabase;
   if (client) {
@@ -493,17 +583,19 @@ app.get('/api/taches', async (req: Request, res: Response) => {
       if (!error && Array.isArray(data)) {
         return res.json(data);
       }
-    } catch {}
+    } catch (err) {
+      console.error('Erreur Supabase taches GET:', err);
+    }
   }
-  const userTaches = serverStore.taches.filter(t => !t.userId || t.userId === userId);
+  const userTaches = serverStore.taches.filter(t => (t.userId === userId || t.user_id === userId));
   res.json(userTaches);
 });
 
 app.post('/api/taches', async (req: Request, res: Response) => {
   const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
   if (!isSupabaseAuth || !userId) {
-   return res.status(401).json({ error: 'Connexion requise pour créer une tâche.' });
-  };
+    return res.status(401).json({ error: 'Non authentifié. Connexion requise.' });
+  }
   const item = { 
     id: Date.now(), 
     status: 'attente',
@@ -517,7 +609,9 @@ app.post('/api/taches', async (req: Request, res: Response) => {
   if (client) {
     try {
       await client.from('taches').upsert(item, { onConflict: 'id' });
-    } catch {}
+    } catch (err) {
+      console.error('Erreur Supabase taches POST:', err);
+    }
   }
   serverStore.taches.unshift(item);
   res.status(201).json(item);
@@ -526,7 +620,7 @@ app.post('/api/taches', async (req: Request, res: Response) => {
 app.put('/api/taches/:id', async (req: Request, res: Response) => {
   const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
   if (!isSupabaseAuth || !userId) {
-   return res.status(401).json({ error: 'Connexion requise pour modifier une tâche.' });
+    return res.status(401).json({ error: 'Non authentifié. Connexion requise.' });
   }
   const id = Number(req.params.id);
   const client = supabaseAdmin || serverSupabase;
@@ -534,12 +628,12 @@ app.put('/api/taches/:id', async (req: Request, res: Response) => {
     try {
       await client.from('taches').update({ ...req.body, user_id: userId }).eq('id', id).eq('user_id', userId);
     } catch (err) {
-      console.error('Erreur Supabase :', err);
+      console.error('Erreur Supabase taches PUT:', err);
     }
   }
-  const idx = serverStore.taches.findIndex(t => t.id === id);
+  const idx = serverStore.taches.findIndex(t => t.id === id && (t.userId === userId || t.user_id === userId));
   if (idx !== -1) {
-    serverStore.taches[idx] = { ...serverStore.taches[idx], ...req.body, userId };
+    serverStore.taches[idx] = { ...serverStore.taches[idx], ...req.body, userId, user_id: userId };
     res.json(serverStore.taches[idx]);
   } else {
     res.status(404).json({ error: 'Tâche introuvable' });
@@ -549,7 +643,7 @@ app.put('/api/taches/:id', async (req: Request, res: Response) => {
 app.patch('/api/taches/:id', async (req: Request, res: Response) => {
   const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
   if (!isSupabaseAuth || !userId) {
-   return res.status(401).json({ error: 'Connexion requise pour modifier une tâche.' });
+    return res.status(401).json({ error: 'Non authentifié. Connexion requise.' });
   }
   const id = Number(req.params.id);
   const client = supabaseAdmin || serverSupabase;
@@ -557,12 +651,12 @@ app.patch('/api/taches/:id', async (req: Request, res: Response) => {
     try {
       await client.from('taches').update({ ...req.body, user_id: userId }).eq('id', id).eq('user_id', userId);
     } catch (err) {
-      console.error('Erreur Supabase :', err);
+      console.error('Erreur Supabase taches PATCH:', err);
     }
   }
-  const idx = serverStore.taches.findIndex(t => t.id === id);
+  const idx = serverStore.taches.findIndex(t => t.id === id && (t.userId === userId || t.user_id === userId));
   if (idx !== -1) {
-    serverStore.taches[idx] = { ...serverStore.taches[idx], ...req.body, userId };
+    serverStore.taches[idx] = { ...serverStore.taches[idx], ...req.body, userId, user_id: userId };
     res.json(serverStore.taches[idx]);
   } else {
     res.status(404).json({ error: 'Tâche introuvable' });
@@ -572,7 +666,7 @@ app.patch('/api/taches/:id', async (req: Request, res: Response) => {
 app.delete('/api/taches/:id', async (req: Request, res: Response) => {
   const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
   if (!isSupabaseAuth || !userId) {
-    return res.status(401).json({ error: 'Connexion requise pour supprimer une tâche.' });
+    return res.status(401).json({ error: 'Non authentifié. Connexion requise.' });
   }
   const id = Number(req.params.id);
   const client = supabaseAdmin || serverSupabase;
@@ -580,10 +674,10 @@ app.delete('/api/taches/:id', async (req: Request, res: Response) => {
     try {
       await client.from('taches').delete().eq('id', id).eq('user_id', userId);
     } catch (err) {
-      console.error('Erreur Supabase :', err);
+      console.error('Erreur Supabase taches DELETE:', err);
     }
   }
-  serverStore.taches = serverStore.taches.filter(t => !(t.id === id && (!t.userId || t.userId === userId)));
+  serverStore.taches = serverStore.taches.filter(t => !(t.id === id && (t.userId === userId || t.user_id === userId)));
   res.json({ success: true });
 });
 
@@ -633,11 +727,15 @@ app.post('/api/conversations', async (req: Request, res: Response) => {
 });
 
 app.delete('/api/conversations/:id', async (req: Request, res: Response) => {
+  const { userId, isSupabaseAuth } = await authenticateSupabaseUser(req);
+  if (!isSupabaseAuth || !userId) {
+    return res.status(401).json({ error: 'Connexion requise pour supprimer une conversation.' });
+  }
   const id = req.params.id;
   const client = supabaseAdmin || serverSupabase;
   if (client) {
     try {
-      await client.from('conversations').delete().eq('id', id);
+      await client.from('conversations').delete().eq('id', id).eq('user_id', userId);
     } catch {}
   }
   res.json({ success: true });
@@ -853,10 +951,11 @@ app.post('/api/supabase/recharge', async (req: Request, res: Response) => {
  */
 async function authenticateSupabaseUser(req: Request): Promise<{ userId: string; userEmail: string; isSupabaseAuth: boolean }> {
   const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ') && serverSupabase) {
+  const client = supabaseAdmin || serverSupabase;
+  if (authHeader && authHeader.startsWith('Bearer ') && client) {
     const token = authHeader.replace('Bearer ', '').trim();
     try {
-      const { data, error } = await serverSupabase.auth.getUser(token);
+      const { data, error } = await client.auth.getUser(token);
       if (!error && data?.user) {
         return {
           userId: data.user.id,
@@ -1459,17 +1558,31 @@ DIRECTIVES DE RÉPONSE :
 2. Formule ta réponse de manière fluide, vivante et concrète, sans préambule superflu, sans répéter inutilement la date du jour en introduction sauf si l'utilisateur la demande explicitement ou si c'est indispensable pour le contexte temporel.
 3. Exploite pleinement les informations en temps réel de la recherche Google pour les faits d'actualité, la météo, les événements et données récentes en te basant sur la temporalité réelle actuelle.
 4. Évite toute structure rigide ou scolaire de type "Définition / Contexte / Analyse". Va droit au but avec un ton naturel.
-5. GESTION AUTOMATIQUE DES ENREGISTREMENTS DANS LE MENU :
-   Si l'utilisateur te demande de noter, enregistrer, programmer, rappeler, ajouter une tâche, retenir ou mettre en favori (ex: "note que...", "ajoute dans le menu...", "rappelle-moi...", "crée une tâche...", "mémorise..."), tu DOIS TOUJOURS inclure à la toute fin de ton message le bloc JSON structuré sous ce format exact :
-   Pour un rappel :
-   ACTION_JSON:{"actions":[{"type":"reminder","titre":"...","dateRappel":"YYYY-MM-DD","heure":"HH:MM","priorite":"haute"}]}
-   Pour une tâche :
-   ACTION_JSON:{"actions":[{"type":"task","titre":"...","priorite":"normale"}]}
-   Pour une note mémorisée :
-   ACTION_JSON:{"actions":[{"type":"memory","contenu":"...","importance":3}]}
-   Pour un favori :
-   ACTION_JSON:{"actions":[{"type":"favorite","titre":"...","contenu":"..."}]}
-   Si aucune action d'enregistrement n'est demandée, ne produis aucun bloc ACTION_JSON.`.trim();
+5. GESTION DES ACTIONS ET ENREGISTREMENTS (OBLIGATOIRE) :
+   Dès que l'utilisateur te demande d'ajouter, créer, planifier, mémoriser, modifier ou supprimer un élément, tu DOIS TOUJOURS respecter son choix et inclure à la toute fin de ta réponse un bloc [ACTION_JSON] sous ce format :
+
+[ACTION_JSON]
+{
+  "type": "CREATE_TASK" | "CREATE_REMINDER" | "CREATE_FAVORITE",
+  "data": { "title": "Titre", "date": "YYYY-MM-DD" }
+}
+[/ACTION_JSON]
+
+Règles de destination et types disponibles :
+- TÂCHES ("ajoute une tâche", "nouvelle tâche", "todo", "ajoute à faire", "dans mes tâches") :
+  "type": "CREATE_TASK", "data": { "title": "Titre de la tâche", "date": "YYYY-MM-DD", "priority": "normale", "description": "Détails" }
+- RAPPELS ("rappelle-moi", "crée un rappel", "mets une alerte pour", "ajoute un rappel") :
+  "type": "CREATE_REMINDER", "data": { "title": "Titre du rappel", "date": "YYYY-MM-DD", "time": "HH:MM", "priority": "normale" }
+- FAVORIS ("mets en favori", "dans mes favoris", "ajoute aux favoris", "garde en favori") :
+  "type": "CREATE_FAVORITE", "data": { "title": "Titre du favori", "description": "Contenu ou lien", "category": "Général" }
+- MÉMOIRE & NOTES ("note dans ma mémoire", "garde en note", "ajoute à mes notes", "retiens que", "mémorise") :
+  "type": "CREATE_MEMORY", "data": { "title": "Titre ou idée", "description": "Contenu détaillé de la note à retenir", "tags": ["note", "ia-auto"] }
+- Modifications et suppressions :
+  "type": "UPDATE_TASK" | "DELETE_TASK" | "UPDATE_REMINDER" | "DELETE_REMINDER" | "UPDATE_FAVORITE" | "DELETE_FAVORITE" | "UPDATE_MEMORY" | "DELETE_MEMORY", "data": { "id": 123, "title": "Titre" }
+
+Si l'utilisateur ne précise pas où enregistrer, choisis le module le plus pertinent ou demande-lui son choix parmi : Favoris, Mémoire & Notes, Rappels ou Tâches.
+Ne place JAMAIS de texte après la balise fermante [/ACTION_JSON].
+Si l'utilisateur ne demande aucun ajout, modification ou suppression, ne renvoie AUCUN bloc [ACTION_JSON].`.trim();
 
     const contents = buildGeminiContents(history, message || '', image);
     const ai = getGenAI();
@@ -1596,31 +1709,94 @@ DIRECTIVES DE RÉPONSE :
     let reply = fullText.trim();
     let actions: any[] = [];
 
-    // 1. Extract ACTION_JSON if present in any format (code block, bare JSON, multiline)
-    const jsonRegexes = [
-      /ACTION_JSON\s*:\s*```(?:json)?\s*([\s\S]*?)\s*```/i,
-      /ACTION_JSON\s*:\s*(\{[\s\S]*?\})/i,
-      /\[ACTION_JSON\]\s*(\{[\s\S]*?\})/i,
-      /```json\s*(\{\s*"actions"[\s\S]*?\})\s*```/i
-    ];
-
-    for (const regex of jsonRegexes) {
-      const match = fullText.match(regex);
-      if (match && match[1]) {
-        try {
-          const parsed = JSON.parse(match[1]);
-          if (Array.isArray(parsed.actions) && parsed.actions.length > 0) {
-            actions = parsed.actions;
-            break;
+    // 1. Extract [ACTION_JSON] block (single object, array or nested actions)
+    const actionTagMatch = fullText.match(/\[ACTION_JSON\]\s*([\s\S]*?)(?:\[\/ACTION_JSON\]|$)/i);
+    if (actionTagMatch && actionTagMatch[1]) {
+      try {
+        let jsonStr = actionTagMatch[1]
+          .replace(/^```json\s*/i, '')
+          .replace(/^```\s*/, '')
+          .replace(/```\s*$/, '')
+          .trim();
+        const parsed = JSON.parse(jsonStr);
+        if (parsed.type) {
+          const actType = String(parsed.type).toUpperCase();
+          const d = parsed.data || parsed;
+          if (actType === 'CREATE_TASK' || actType === 'TASK' || actType === 'TACHE' || actType === 'PROJECT' || actType === 'PROJET') {
+            actions.push({
+              type: actType.includes('PROJ') ? 'project' : 'task',
+              titre: d.title || d.titre || (actType.includes('PROJ') ? 'Nouveau projet' : 'Nouvelle tâche'),
+              description: d.description || '',
+              echeance: d.date || d.echeance || '',
+              priorite: d.priority || d.priorite || 'normale',
+              status: 'attente'
+            });
+          } else if (actType === 'CREATE_REMINDER' || actType === 'REMINDER' || actType === 'RAPPEL') {
+            actions.push({
+              type: 'reminder',
+              titre: d.title || d.titre || 'Rappel',
+              dateRappel: d.date || d.dateRappel || new Date().toISOString().split('T')[0],
+              heure: d.time || d.heure || '09:00',
+              priorite: d.priority || d.priorite || 'normale',
+              statut: 'actif'
+            });
+          } else if (actType === 'CREATE_FAVORITE' || actType === 'FAVORITE' || actType === 'FAVORI') {
+            actions.push({
+              type: 'favorite',
+              titre: d.title || d.titre || 'Favori',
+              contenu: d.description || d.content || d.contenu || '',
+            });
+          } else if (actType === 'CREATE_MEMORY' || actType === 'MEMORY' || actType === 'MEMOIRE') {
+            actions.push({
+              type: 'memory',
+              titre: d.title || d.titre || 'Mémoire',
+              contenu: d.description || d.content || d.contenu || d.title || d.titre || '',
+              tags: Array.isArray(d.tags) ? d.tags : ['ia-auto'],
+              importance: typeof d.importance === 'number' ? d.importance : 3
+            });
+          } else {
+            actions.push({
+              type: actType.toLowerCase(),
+              ...d
+            });
           }
-        } catch {
-          // Continue to next regex or fallback
+        } else if (Array.isArray(parsed.actions)) {
+          actions = parsed.actions;
+        } else if (Array.isArray(parsed)) {
+          actions = parsed;
+        }
+      } catch (e) {
+        console.warn('Erreur parsing [ACTION_JSON] serveur:', e);
+      }
+    }
+
+    // 1b. Legacy/alternative formats support
+    if (actions.length === 0) {
+      const jsonRegexes = [
+        /ACTION_JSON\s*:\s*```(?:json)?\s*([\s\S]*?)\s*```/i,
+        /ACTION_JSON\s*:\s*(\{[\s\S]*?\})/i,
+        /```json\s*(\{\s*"actions"[\s\S]*?\})\s*```/i
+      ];
+
+      for (const regex of jsonRegexes) {
+        const match = fullText.match(regex);
+        if (match && match[1]) {
+          try {
+            const parsed = JSON.parse(match[1]);
+            if (Array.isArray(parsed.actions) && parsed.actions.length > 0) {
+              actions = parsed.actions;
+              break;
+            }
+          } catch {
+            // Continue to next regex or fallback
+          }
         }
       }
     }
 
     // Clean ACTION_JSON remnants from display text
     reply = fullText
+      .replace(/\[ACTION_JSON\][\s\S]*?(?:\[\/ACTION_JSON\]|$)/gi, '')
       .replace(/ACTION_JSON\s*:\s*```(?:json)?[\s\S]*?```/gi, '')
       .replace(/(?:Rappel|Tâche|Mémoire|Favori)?\s*:?\s*ACTION_JSON\s*:?\s*\{[\s\S]*?\}/gi, '')
       .replace(/(?:Rappel|Tâche|Mémoire|Favori)?\s*:?\s*ACTION_JSON\s*:[\s\S]*/gi, '')
@@ -1909,6 +2085,7 @@ DIRECTIVES DE RÉPONSE :
     res.write(`data: ${JSON.stringify({
       type: 'done',
       reply: reply || "Transmission reçue.",
+      rawReply: fullText,
       actions,
       sources: uniqueSources,
       searchQueries: Array.from(new Set(searchQueries)),

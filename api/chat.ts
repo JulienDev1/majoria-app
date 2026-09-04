@@ -235,15 +235,20 @@ DIRECTIVES DE RÉPONSE :
 1. Réponds de façon concise, précise et directe dès les premiers mots sans préambule superflu ni répétitions inutiles.
 2. Formule ta réponse avec clarté, vivacité et fluidité.
 3. Si la question porte sur des faits récents, l'actualité ou la météo, exploite les données en temps réel.
-4. Si et seulement si l'utilisateur demande explicitement d'enregistrer une action (rappel, tâche, mémoire, favori), termine ton message par exactement :
-   ACTION_JSON:{"actions":[{"type":"reminder","titre":"...","dateRappel":"YYYY-MM-DD","heure":"HH:MM","dateFinRappel":"YYYY-MM-DD","heureFin":"HH:MM","priorite":"haute"}]}
-   ou
-   ACTION_JSON:{"actions":[{"type":"task","titre":"...","priorite":"normale"}]}
-   ou
-   ACTION_JSON:{"actions":[{"type":"memory","contenu":"...","importance":3}]}
-   ou
-   ACTION_JSON:{"actions":[{"type":"favorite","titre":"...","contenu":"..."}]}
-   Sinon, ne produis aucun bloc ACTION_JSON.`.trim();
+4. GESTION DES ACTIONS ET ENREGISTREMENTS (OBLIGATOIRE) :
+   Dès que l'utilisateur te demande d'ajouter, créer, planifier, mémoriser, modifier ou supprimer un élément, formate ta réponse avec un bloc JSON d'action à la fin :
+
+[ACTION_JSON]
+{
+  "type": "CREATE_TASK" | "CREATE_REMINDER" | "CREATE_FAVORITE",
+  "data": { "title": "Titre", "date": "YYYY-MM-DD" }
+}
+[/ACTION_JSON]
+
+Types supportés :
+- "CREATE_TASK" (tâches/projets), "CREATE_REMINDER" (rappels/alertes/agenda), "CREATE_FAVORITE" (favoris/liens), "CREATE_MEMORY" (mémoire/notes)
+- Actions de suppression ou modification : "DELETE_TASK", "DELETE_REMINDER", "DELETE_FAVORITE", "UPDATE_TASK", "UPDATE_REMINDER", "UPDATE_FAVORITE".
+Si l'utilisateur ne demande aucun ajout, modification ou suppression, ne renvoie AUCUN bloc [ACTION_JSON].`.trim();
 
     const contents = buildGeminiContents(history, message || '', image);
     const ai = new GoogleGenAI({
@@ -363,18 +368,85 @@ DIRECTIVES DE RÉPONSE :
     let reply = fullText.trim();
     let actions: any[] = [];
 
-    // Extract ACTION_JSON if present
-    const match = fullText.match(/ACTION_JSON\s*:\s*(\{.*?\})/s) || fullText.match(/ACTION_JSON\s*:\s*(\{[\s\S]*?\})/);
-    if (match) {
+    // 1. Extract [ACTION_JSON] block (single object, array or nested actions)
+    const actionTagMatch = fullText.match(/\[ACTION_JSON\]\s*([\s\S]*?)(?:\[\/ACTION_JSON\]|$)/i);
+    if (actionTagMatch && actionTagMatch[1]) {
       try {
-        const parsed = JSON.parse(match[1]);
-        actions = parsed.actions || [];
-        reply = fullText.replace(/(?:Rappel|Tâche|Mémoire|Favori)?\s*:?\s*ACTION_JSON\s*:\s*\{[\s\S]*?\}/gi, '').trim();
-      } catch {
-        reply = fullText.replace(/(?:Rappel|Tâche|Mémoire|Favori)?\s*:?\s*ACTION_JSON\s*:[\s\S]*/gi, '').trim();
+        let jsonStr = actionTagMatch[1]
+          .replace(/^```json\s*/i, '')
+          .replace(/^```\s*/, '')
+          .replace(/```\s*$/, '')
+          .trim();
+        const parsed = JSON.parse(jsonStr);
+        if (parsed.type) {
+          const actType = String(parsed.type).toUpperCase();
+          const d = parsed.data || parsed;
+          if (actType === 'CREATE_TASK' || actType === 'TASK' || actType === 'TACHE' || actType === 'PROJECT' || actType === 'PROJET') {
+            actions.push({
+              type: actType.includes('PROJ') ? 'project' : 'task',
+              titre: d.title || d.titre || (actType.includes('PROJ') ? 'Nouveau projet' : 'Nouvelle tâche'),
+              description: d.description || '',
+              echeance: d.date || d.echeance || '',
+              priorite: d.priority || d.priorite || 'normale',
+              status: 'attente'
+            });
+          } else if (actType === 'CREATE_REMINDER' || actType === 'REMINDER' || actType === 'RAPPEL') {
+            actions.push({
+              type: 'reminder',
+              titre: d.title || d.titre || 'Rappel',
+              dateRappel: d.date || d.dateRappel || new Date().toISOString().split('T')[0],
+              heure: d.time || d.heure || '09:00',
+              priorite: d.priority || d.priorite || 'normale',
+              statut: 'actif'
+            });
+          } else if (actType === 'CREATE_FAVORITE' || actType === 'FAVORITE' || actType === 'FAVORI') {
+            actions.push({
+              type: 'favorite',
+              titre: d.title || d.titre || 'Favori',
+              contenu: d.description || d.content || d.contenu || '',
+            });
+          } else if (actType === 'CREATE_MEMORY' || actType === 'MEMORY' || actType === 'MEMOIRE') {
+            actions.push({
+              type: 'memory',
+              titre: d.title || d.titre || 'Mémoire',
+              contenu: d.description || d.content || d.contenu || d.title || d.titre || '',
+              tags: Array.isArray(d.tags) ? d.tags : ['ia-auto'],
+              importance: typeof d.importance === 'number' ? d.importance : 3
+            });
+          } else {
+            actions.push({
+              type: actType.toLowerCase(),
+              ...d
+            });
+          }
+        } else if (Array.isArray(parsed.actions)) {
+          actions = parsed.actions;
+        } else if (Array.isArray(parsed)) {
+          actions = parsed;
+        }
+      } catch (e) {
+        console.warn('Erreur parsing [ACTION_JSON] api/chat:', e);
       }
     }
-    reply = reply.replace(/(?:\r?\n)*(?:Rappel|Tâche|Mémoire|Favori)\s*:\s*$/i, '').trim();
+
+    // 1b. Legacy/alternative formats support
+    if (actions.length === 0) {
+      const match = fullText.match(/ACTION_JSON\s*:\s*(\{.*?\})/s) || fullText.match(/ACTION_JSON\s*:\s*(\{[\s\S]*?\})/);
+      if (match) {
+        try {
+          const parsed = JSON.parse(match[1]);
+          actions = parsed.actions || [];
+        } catch {}
+      }
+    }
+
+    reply = fullText
+      .replace(/\[ACTION_JSON\][\s\S]*?(?:\[\/ACTION_JSON\]|$)/gi, '')
+      .replace(/ACTION_JSON\s*:\s*```(?:json)?[\s\S]*?```/gi, '')
+      .replace(/(?:Rappel|Tâche|Mémoire|Favori)?\s*:?\s*ACTION_JSON\s*:?\s*\{[\s\S]*?\}/gi, '')
+      .replace(/(?:Rappel|Tâche|Mémoire|Favori)?\s*:?\s*ACTION_JSON\s*:[\s\S]*/gi, '')
+      .replace(/(?:\r?\n)*(?:Rappel|Tâche|Mémoire|Favori)\s*:\s*$/i, '')
+      .trim();
 
     // Fallback NLP intent detection if ACTION_JSON wasn't emitted by model
     if (!actions || actions.length === 0) {

@@ -5,7 +5,7 @@
  */
 
 export interface ExtractedAction {
-  type: 'reminder' | 'rappel' | 'task' | 'tache' | 'project' | 'projet' | 'memory' | 'memoire' | 'favorite' | 'favori';
+  type: 'reminder' | 'rappel' | 'task' | 'tache' | 'project' | 'projet' | 'memory' | 'memoire' | 'favorite' | 'favori' | 'event' | 'agenda' | 'evenement';
   action?: 'add' | 'update' | 'delete';
   item?: any;
   titre?: string;
@@ -301,6 +301,81 @@ export function extractActionsFromText(userPrompt: string, aiReply?: string): Ex
       titre: favTitle,
       contenu: cleanPrompt,
       categorie: 'général',
+    });
+
+    return actions;
+  }
+
+  // -------------------------------------------------------------
+  // INTENT E: Agenda & Calendrier (Événement, Rendez-vous, Réunion)
+  // -------------------------------------------------------------
+  const isAgenda = (
+    norm.includes('agenda') ||
+    norm.includes('calendrier') ||
+    norm.includes('ajoute a l agenda') ||
+    norm.includes('ajoute a mon agenda') ||
+    norm.includes('ajouter a mon agenda') ||
+    norm.includes('dans mon agenda') ||
+    norm.includes('sur mon agenda') ||
+    norm.includes('sur mon calendrier') ||
+    norm.includes('dans le calendrier') ||
+    norm.includes('dans mon calendrier') ||
+    norm.includes('cree un evenement') ||
+    norm.includes('creer un evenement') ||
+    norm.includes('planifie un evenement') ||
+    norm.includes('planifie un rendez vous') ||
+    norm.includes('planifie une reunion') ||
+    norm.includes('prends rendez-vous') ||
+    norm.includes('prends rdv') ||
+    norm.includes('programme sur l agenda')
+  );
+
+  if (isAgenda) {
+    let eventTitle = cleanPrompt
+      .replace(/^(bonjour|salut|peux-tu|peux tu)?\s*(ajoute à l'agenda|ajoute à mon agenda|ajouter à mon agenda|ajoute dans mon agenda|ajoute au calendrier|sur mon agenda|sur mon calendrier|dans mon agenda|dans mon calendrier|crée un événement|créer un événement|planifie un événement|planifie un rendez-vous|planifie un rdv|planifie une réunion|programme sur l'agenda|agenda)\s*:?\s*/i, '')
+      .replace(/^(de|que|pour|à|a)\s+/i, '')
+      .trim();
+
+    // Extract potential time
+    let eventHour = '09:00';
+    const timeMatch = lower.match(/(?:à|vers|a|pour)\s*(\d{1,2})[h:]?(\d{2})?/i);
+    if (timeMatch) {
+      const h = timeMatch[1].padStart(2, '0');
+      const m = (timeMatch[2] || '00').padStart(2, '0');
+      eventHour = `${h}:${m}`;
+    }
+
+    // Extract potential date
+    let eventDate = getTodayStr();
+    if (norm.includes('demain')) {
+      eventDate = getTomorrowStr();
+    } else if (norm.includes('apres demain') || norm.includes('apres-demain')) {
+      const d = new Date(now);
+      d.setDate(d.getDate() + 2);
+      eventDate = d.toISOString().split('T')[0];
+    } else {
+      const dateMatch = lower.match(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/);
+      if (dateMatch) {
+        const day = dateMatch[1].padStart(2, '0');
+        const month = dateMatch[2].padStart(2, '0');
+        const year = dateMatch[3] ? (dateMatch[3].length === 2 ? `20${dateMatch[3]}` : dateMatch[3]) : now.getFullYear();
+        eventDate = `${year}-${month}-${day}`;
+      }
+    }
+
+    eventTitle = eventTitle
+      .replace(/(?:demain|après-demain|apres-demain|aujourd'hui|(?:à|vers|pour|a)\s*\d{1,2}[h:]?\d{0,2})/gi, '')
+      .trim();
+
+    if (!eventTitle) eventTitle = 'Événement Agenda';
+
+    actions.push({
+      type: 'event',
+      titre: eventTitle,
+      description: `Événement prévu le ${eventDate} à ${eventHour}`,
+      dateRappel: eventDate,
+      heure: eventHour,
+      priorite: 'normale',
     });
 
     return actions;
