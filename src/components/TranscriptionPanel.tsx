@@ -82,6 +82,30 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
     };
   }, []);
 
+  // Network offline listener: stop recording cleanly and alert user
+  useEffect(() => {
+    const handleOffline = () => {
+      if (isRecording) {
+        stopAllMedia();
+        setIsRecording(false);
+        setAudioLevel(0);
+        setIsProcessingAI(false);
+        playCyberSound('alert');
+        onShowToast('Transcription impossible hors ligne', 'danger');
+      } else if (isProcessingAI || isUploading) {
+        setIsProcessingAI(false);
+        setIsUploading(false);
+        playCyberSound('alert');
+        onShowToast('Transcription impossible hors ligne', 'danger');
+      }
+    };
+
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [isRecording, isProcessingAI, isUploading, onShowToast]);
+
   const stopAllMedia = () => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -124,6 +148,13 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
   };
 
   const handleStartRecording = async () => {
+    // Check network availability
+    if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
+      playCyberSound('alert');
+      onShowToast('Transcription impossible hors ligne', 'danger');
+      return;
+    }
+
     try {
       playCyberSound('beep');
       liveRecognizedRef.current = '';
@@ -365,13 +396,29 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
 
   // Helper to transcribe an audio Blob via server-side Gemini API
   const transcribeBlobWithGemini = async (blob: Blob, mimeType: string) => {
+    // Vérification réseau immédiate
+    if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
+      setIsProcessingAI(false);
+      playCyberSound('alert');
+      onShowToast('Transcription impossible hors ligne', 'danger');
+      return;
+    }
+
     setIsProcessingAI(true);
     onShowToast('Transcription haute précision avec l\'IA en cours...', 'info');
 
     try {
       const reader = new FileReader();
+      reader.onerror = () => {
+        setIsProcessingAI(false);
+        onShowToast("Erreur lors de la lecture des données audio", 'danger');
+      };
       reader.onload = async () => {
         try {
+          if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
+            throw new Error('Transcription impossible hors ligne');
+          }
+
           const base64Data = reader.result as string;
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 60000);
@@ -385,8 +432,21 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
               mimeType,
               language: selectedLanguage === 'fr-FR' ? 'français' : 'anglais',
             }),
+          }).catch((fetchErr) => {
+            if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
+              throw new Error('Transcription impossible hors ligne');
+            }
+            throw fetchErr;
           });
           clearTimeout(timeoutId);
+
+          if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
+              throw new Error('Transcription impossible hors ligne');
+            }
+            throw new Error(errData.error || 'Transcription impossible hors ligne');
+          }
 
           const data = await response.json();
 
@@ -411,10 +471,14 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
           }
         } catch (err: any) {
           console.error('Erreur API Transcription:', err);
-          if (err?.name === 'AbortError') {
+          if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
+            onShowToast('Transcription impossible hors ligne', 'danger');
+          } else if (err?.message && err.message.includes('hors ligne')) {
+            onShowToast('Transcription impossible hors ligne', 'danger');
+          } else if (err?.name === 'AbortError') {
             onShowToast('Délai d\'attente dépassé (connexion lente). Veuillez réessayer.', 'danger');
           } else {
-            onShowToast(err?.message || 'Erreur lors du traitement de l\'enregistrement vocal', 'danger');
+            onShowToast(err?.message || 'Transcription impossible hors ligne', 'danger');
           }
         } finally {
           setIsProcessingAI(false);
@@ -423,7 +487,7 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
       reader.readAsDataURL(blob);
     } catch (e) {
       setIsProcessingAI(false);
-      onShowToast('Erreur lors de la lecture audio', 'danger');
+      onShowToast(typeof window !== 'undefined' && !window.navigator.onLine ? 'Transcription impossible hors ligne' : 'Erreur lors de la lecture audio', 'danger');
     }
   };
 
@@ -431,6 +495,13 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
+      playCyberSound('alert');
+      onShowToast('Transcription impossible hors ligne', 'danger');
+      e.target.value = '';
+      return;
+    }
 
     if (file.size > 40 * 1024 * 1024) {
       onShowToast('Fichier trop volumineux (max 40 Mo)', 'warning');
@@ -443,8 +514,16 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
 
     try {
       const reader = new FileReader();
+      reader.onerror = () => {
+        setIsUploading(false);
+        onShowToast('Erreur lors de la lecture du fichier audio', 'danger');
+      };
       reader.onload = async () => {
         try {
+          if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
+            throw new Error('Transcription impossible hors ligne');
+          }
+
           const base64Data = reader.result as string;
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 90000);
@@ -458,8 +537,18 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
               mimeType: file.type || 'audio/mp3',
               language: selectedLanguage === 'fr-FR' ? 'français' : 'anglais',
             }),
+          }).catch((fetchErr) => {
+            if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
+              throw new Error('Transcription impossible hors ligne');
+            }
+            throw fetchErr;
           });
           clearTimeout(timeoutId);
+
+          if (!response.ok) {
+            const dataErr = await response.json().catch(() => ({}));
+            throw new Error(dataErr.error || 'Transcription impossible hors ligne');
+          }
 
           const data = await response.json();
 
@@ -484,10 +573,14 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
           }
         } catch (error: any) {
           console.error('Upload transcription error:', error);
-          if (error?.name === 'AbortError') {
+          if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
+            onShowToast('Transcription impossible hors ligne', 'danger');
+          } else if (error?.message && error.message.includes('hors ligne')) {
+            onShowToast('Transcription impossible hors ligne', 'danger');
+          } else if (error?.name === 'AbortError') {
             onShowToast('Délai dépassé pour le fichier audio volumineux. Veuillez réessayer.', 'danger');
           } else {
-            onShowToast(error?.message || 'Erreur lors de la transcription du fichier audio', 'danger');
+            onShowToast(error?.message || 'Transcription impossible hors ligne', 'danger');
           }
         } finally {
           setIsUploading(false);
@@ -497,7 +590,7 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
     } catch (err: any) {
       console.error('Upload error:', err);
       setIsUploading(false);
-      onShowToast('Erreur lors du chargement du fichier audio', 'danger');
+      onShowToast(typeof window !== 'undefined' && !window.navigator.onLine ? 'Transcription impossible hors ligne' : 'Erreur lors du chargement du fichier audio', 'danger');
     }
     e.target.value = '';
   };

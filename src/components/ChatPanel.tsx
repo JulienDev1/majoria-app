@@ -140,6 +140,26 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     };
   }, []);
 
+  // Stop recording cleanly on offline event and alert user
+  useEffect(() => {
+    const handleOffline = () => {
+      if (isDictatingRef.current) {
+        stopAllMedia();
+        playCyberSound('alert');
+        setMicErrorMessage('Transcription impossible hors ligne : enregistrement interrompu.');
+      } else if (isTranscribingAudio) {
+        setIsTranscribingAudio(false);
+        playCyberSound('alert');
+        setMicErrorMessage('Transcription impossible hors ligne');
+      }
+    };
+
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [isTranscribingAudio]);
+
   const stopAllMedia = () => {
     if (silenceTimeoutRef.current) {
       clearTimeout(silenceTimeoutRef.current);
@@ -218,6 +238,13 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   };
 
   const startRecording = async () => {
+    // Network offline check
+    if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
+      playCyberSound('alert');
+      setMicErrorMessage('Transcription impossible hors ligne');
+      return;
+    }
+
     setMicErrorMessage(null);
     baseInputTextRef.current = inputText;
     capturedTextRef.current = '';
@@ -451,18 +478,42 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
     // If no text was captured in real-time (e.g. browser without Web Speech),
     // transcribe the recorded audio chunks with Gemini AI ultra-fast!
+    if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
+      setIsTranscribingAudio(false);
+      stopAllMedia();
+      playCyberSound('alert');
+      setMicErrorMessage('Transcription impossible hors ligne');
+      return;
+    }
+
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       setIsTranscribingAudio(true);
 
       mediaRecorderRef.current.onstop = async () => {
         try {
+          if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
+            setIsTranscribingAudio(false);
+            stopAllMedia();
+            setMicErrorMessage('Transcription impossible hors ligne');
+            return;
+          }
+
           const mimeType = mediaRecorderRef.current?.mimeType || 'audio/webm';
           const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
 
           if (audioBlob.size > 50) {
             const reader = new FileReader();
+            reader.onerror = () => {
+              setIsTranscribingAudio(false);
+              stopAllMedia();
+              setMicErrorMessage("Erreur lors de la lecture audio.");
+            };
             reader.onload = async () => {
               try {
+                if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
+                  throw new Error('Transcription impossible hors ligne');
+                }
+
                 const base64Data = reader.result as string;
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 45000);
@@ -476,6 +527,11 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                     mimeType,
                     language: 'fr',
                   }),
+                }).catch((fetchErr) => {
+                  if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
+                    throw new Error('Transcription impossible hors ligne');
+                  }
+                  throw fetchErr;
                 });
                 clearTimeout(timeoutId);
 
@@ -497,16 +553,18 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   }
                 } else {
                   const errorData = await res.json().catch(() => ({}));
-                  setMicErrorMessage(errorData.error || "Impossible de transcrire l'enregistrement vocal.");
+                  setMicErrorMessage(errorData.error || (navigator.onLine ? "Impossible de transcrire l'enregistrement vocal." : "Transcription impossible hors ligne"));
                 }
               } catch (err: any) {
                 console.error('Erreur transcription rapide:', err);
-                if (err?.name === 'AbortError') {
+                if (typeof navigator !== 'undefined' && !navigator.onLine) {
+                  setMicErrorMessage('Transcription impossible hors ligne');
+                } else if (err?.message && err.message.includes('hors ligne')) {
+                  setMicErrorMessage('Transcription impossible hors ligne');
+                } else if (err?.name === 'AbortError') {
                   setMicErrorMessage("Délai de transcription dépassé (connexion lente). Veuillez réessayer.");
-                } else if (typeof navigator !== 'undefined' && !navigator.onLine) {
-                  setMicErrorMessage("Aucune connexion Internet disponible.");
                 } else {
-                  setMicErrorMessage("Erreur lors de la transcription vocale. Veuillez réessayer.");
+                  setMicErrorMessage("Transcription impossible hors ligne");
                 }
               } finally {
                 setIsTranscribingAudio(false);
@@ -554,6 +612,13 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       stopRecordingAndSend();
       return;
     }
+
+    if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
+      playCyberSound('alert');
+      setMicErrorMessage("Connexion Internet requise : l'IA est indisponible hors ligne.");
+      return;
+    }
+
     const text = cleanSpokenTranscript(inputText.trim());
     const image = selectedImage;
     if (!text && !image) return;

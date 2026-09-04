@@ -55,7 +55,7 @@ async function deductUserCredit(userId?: string, userEmail?: string): Promise<{ 
     return { success: false, remainingCredits: 0 };
   }
   
-  // BYPASS JFE26@LIVE.FR & JULDEV2
+  // BYPASS JFE26@LIVE.FR 
   const normalizedId = effectiveId.toLowerCase();
   const normalizedEmail = (userEmail || '').toLowerCase().trim();
   if (
@@ -2331,6 +2331,15 @@ app.post('/api/transcribe', async (req: Request, res: Response) => {
       rawText = '';
     }
 
+    if (!response && !rawText) {
+      return res.status(503).json({
+        success: false,
+        error: 'Transcription impossible hors ligne ou service indisponible',
+        language: language || 'fr',
+        transcription: ''
+      });
+    }
+
     return res.json({
       success: true,
       transcription: rawText,
@@ -2339,10 +2348,11 @@ app.post('/api/transcribe', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Erreur API Transcription:', error);
-    res.status(500).json({
+    res.status(503).json({
       success: false,
-      error: error?.message || 'Erreur lors de la transcription audio',
-      language: req.body?.language || 'fr'
+      error: error?.message || 'Transcription impossible hors ligne ou service indisponible',
+      language: req.body?.language || 'fr',
+      transcription: ''
     });
   }
 });

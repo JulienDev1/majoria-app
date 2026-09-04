@@ -132,6 +132,15 @@ export default async function handler(req: any, res: any) {
       rawText = '';
     }
 
+    if (!response && !rawText) {
+      res.status(503).json({
+        success: false,
+        error: 'Transcription impossible hors ligne ou service indisponible',
+        transcription: '',
+      });
+      return;
+    }
+
     res.status(200).json({
       success: true,
       transcription: rawText,
@@ -140,6 +149,9 @@ export default async function handler(req: any, res: any) {
     });
   } catch (error: any) {
     console.error('Erreur API Transcription Vercel:', error);
-    res.status(500).json({ error: error?.message || 'Erreur transcription' });
+    res.status(503).json({
+      success: false,
+      error: error?.message || 'Transcription impossible hors ligne ou service indisponible',
+    });
   }
 }

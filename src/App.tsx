@@ -539,19 +539,18 @@ export default function App() {
     }
   }, [applyBackground, checkAndApplyMonthlyRollover]);
 
-  const loadAllData = async () => {
-    // Load Conversations & auto-migrate any "MajorI.A" to "Major2I.A"
-    const savedConvs = safeLoad<Conversation[]>('neo-conversations', []);
-    if (savedConvs.length > 0) {
-      const migrated = savedConvs.map((c) => ({
+  const loadAllData = useCallback(async () => {
+    // 1. Charger immédiatement les données en cache local (LocalStorage)
+    // Permet une consultation instantanée et sans interruption en mode hors ligne
+    const cachedConvs = safeLoad<Conversation[]>('neo-conversations', []);
+    if (cachedConvs.length > 0) {
+      const migrated = cachedConvs.map((c) => ({
         ...c,
         titre: (c.titre || '').replace(/MajorI\.A/g, 'Major2I.A'),
       }));
       setConversations(migrated);
-      setActiveConversationId(migrated[0].id);
-      safeSave('neo-conversations', migrated);
+      setActiveConversationId((prev) => prev || migrated[0].id);
     } else {
-      // Seed Initial Greeting Conversation with user name if present
       const initialConv: Conversation = {
         id: Date.now(),
         titre: 'Discussion Principale',
@@ -574,83 +573,133 @@ export default function App() {
       safeSave('neo-conversations', [initialConv]);
     }
 
-    // Load Favoris
-    try {
-      const res = await fetch('/api/favoris', { headers: await getAuthHeader() });
-      if (res.ok) {
-        const data = await res.json();
-        setFavoris(data);
-      } else {
-        setFavoris(safeLoad('neo-favoris', []));
-      }
-    } catch {
-      setFavoris(safeLoad('neo-favoris', []));
+    const cachedFavoris = safeLoad<Favori[]>('neo-favoris', []);
+    setFavoris(cachedFavoris);
+
+    const cachedMemoire = safeLoad<Memoire[]>('neo-memoire', []);
+    setMemoire(cachedMemoire);
+
+    const cachedRappels = safeLoad<Rappel[]>('neo-rappels', []);
+    setRappels(cachedRappels);
+
+    const cachedTaches = safeLoad<Tache[]>('neo-taches', []);
+    setTaches(cachedTaches);
+
+    // 2. Si l'utilisateur est hors ligne : s'arrêter ici sans appeler les routes /api/
+    if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
+      return;
     }
 
-    // Load Memoire
+    // 3. Si en ligne : rafraîchir les données depuis les endpoints /api/ et mettre à jour le cache local
     try {
-      const res = await fetch('/api/memoire', { headers: await getAuthHeader() });
-      if (res.ok) {
-        const data = await res.json();
-        setMemoire(data);
-      } else {
-        setMemoire(safeLoad('neo-memoire', []));
-      }
-    } catch {
-      setMemoire(safeLoad('neo-memoire', []));
-    }
+      const authHeaders = await getAuthHeader();
 
-    // Load Rappels
-    try {
-      const res = await fetch('/api/rappels', { headers: await getAuthHeader() });
-      if (res.ok) {
-        const data = await res.json();
-        setRappels(data);
-      } else {
-        setRappels(safeLoad('neo-rappels', []));
-      }
-    } catch {
-      setRappels(safeLoad('neo-rappels', []));
-    }
-
-    // Load Taches
-    try {
-      const res = await fetch('/api/taches', { headers: await getAuthHeader() });
-      if (res.ok) {
-        const data = await res.json();
-        setTaches(data);
-      } else {
-        setTaches(safeLoad('neo-taches', []));
-      }
-    } catch {
-      setTaches(safeLoad('neo-taches', []));
-    }
-
-    // Load Supabase Energy / Battery with Subscription priority
-    try {
-      const effectiveUserId = user?.nom || (user as any)?.id || userProfile?.id || getOrCreateUserId();
-      const sub = await fetchUserSubscription(effectiveUserId);
-      if (sub && (sub.status === 'active' || sub.status === 'trialing')) {
-        setCurrentSubscription(sub);
-        const targetEnergy = sub.planId === 'pro' ? 500 : sub.planId === 'premium' ? 250 : 100;
-        setEnergyPercent((prev) => (prev === null || prev < 100 ? targetEnergy : Math.max(prev, targetEnergy)));
-        localStorage.setItem('neo-battery-energy', targetEnergy.toString());
-        localStorage.setItem('neo-local-credits', targetEnergy.toString());
-        localStorage.setItem(`neo-user-credits-${effectiveUserId}`, targetEnergy.toString());
-        syncCreditsToSupabase(effectiveUserId, targetEnergy).catch(() => {});
-      } else {
-        const balance = await getCreditBalance(effectiveUserId);
-        if (balance !== null && balance >= 0) {
-          setEnergyPercent(balance);
-          localStorage.setItem('neo-battery-energy', balance.toString());
-          localStorage.setItem('neo-local-credits', balance.toString());
-          localStorage.setItem(`neo-user-credits-${effectiveUserId}`, balance.toString());
+      // Favoris
+      try {
+        const res = await fetch('/api/favoris', { headers: authHeaders });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            setFavoris(data);
+            safeSave('neo-favoris', data);
+          }
         }
+      } catch (err) {
+        console.warn('Erreur chargement favoris en ligne:', err);
+      }
+
+      // Mémoire
+      try {
+        const res = await fetch('/api/memoire', { headers: authHeaders });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            setMemoire(data);
+            safeSave('neo-memoire', data);
+          }
+        }
+      } catch (err) {
+        console.warn('Erreur chargement mémoire en ligne:', err);
+      }
+
+      // Rappels
+      try {
+        const res = await fetch('/api/rappels', { headers: authHeaders });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            setRappels(data);
+            safeSave('neo-rappels', data);
+          }
+        }
+      } catch (err) {
+        console.warn('Erreur chargement rappels en ligne:', err);
+      }
+
+      // Tâches
+      try {
+        const res = await fetch('/api/taches', { headers: authHeaders });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            setTaches(data);
+            safeSave('neo-taches', data);
+          }
+        }
+      } catch (err) {
+        console.warn('Erreur chargement tâches en ligne:', err);
+      }
+
+      // Énergie / Forfait Supabase
+      try {
+        const effectiveUserId = user?.nom || (user as any)?.id || userProfile?.id || getOrCreateUserId();
+        const sub = await fetchUserSubscription(effectiveUserId);
+        if (sub && (sub.status === 'active' || sub.status === 'trialing')) {
+          setCurrentSubscription(sub);
+          const targetEnergy = sub.planId === 'pro' ? 500 : sub.planId === 'premium' ? 250 : 100;
+          setEnergyPercent((prev) => (prev === null || prev < 100 ? targetEnergy : Math.max(prev, targetEnergy)));
+          localStorage.setItem('neo-battery-energy', targetEnergy.toString());
+          localStorage.setItem('neo-local-credits', targetEnergy.toString());
+          localStorage.setItem(`neo-user-credits-${effectiveUserId}`, targetEnergy.toString());
+          syncCreditsToSupabase(effectiveUserId, targetEnergy).catch(() => {});
+        } else {
+          const balance = await getCreditBalance(effectiveUserId);
+          if (balance !== null && balance >= 0) {
+            setEnergyPercent(balance);
+            localStorage.setItem('neo-battery-energy', balance.toString());
+            localStorage.setItem('neo-local-credits', balance.toString());
+            localStorage.setItem(`neo-user-credits-${effectiveUserId}`, balance.toString());
+          }
+        }
+      } catch (err) {
+        console.warn('Erreur chargement IA:', err);
       }
     } catch (err) {
-      console.warn('Erreur chargement IA:', err);
+      console.warn('Erreur synchronisation globale:', err);
     }
-  };
+  }, [user, userProfile]);
+
+  // Écouteur d'état réseau : alertes et resynchronisation automatique au retour en ligne
+  useEffect(() => {
+    const handleOnline = () => {
+      playCyberSound('success');
+      showToast('🟢 Connexion rétablie : resynchronisation des données...', 'success');
+      loadAllData();
+    };
+
+    const handleOffline = () => {
+      playCyberSound('alert');
+      showToast('⚠️ Vous êtes hors ligne. Accès aux tâches et données locales en cache.', 'warning');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [loadAllData, showToast]);
 
   // Periodic Reminder Checker loop (checks every 15s for exact timing) with custom alert sound & browser notification
   useEffect(() => {
@@ -1443,8 +1492,8 @@ export default function App() {
 
     setIsChatLoading(true);
 
-    // 4. Hybrid Chat Engine: If client is offline, process immediately with local offline engine
-    if (!isOnline) {
+    // 4. Hybrid Chat Engine: If client is offline, prevent network calls (/api/chat) and process immediately with local offline engine
+    if (!isOnline || (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine)) {
       try {
         const offlineRes = generateOfflineResponse(safeMessageText, {
           userProfile,
@@ -2376,6 +2425,21 @@ export default function App() {
         onToggleCollapseHeader={handleToggleHeader}
         isOnline={isOnline}
       />
+
+      {/* Offline Mode Banner */}
+      {!isOnline && (
+        <div className="bg-amber-500/20 border-b border-amber-500/30 text-amber-200 px-4 py-2 text-xs flex items-center justify-between z-20 backdrop-blur-md shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
+            <span>
+              <strong>Mode Hors Ligne :</strong> Vos tâches, rappels et données locales en cache restent consultables. Les appels réseau (/api/chat, /api/transcribe) sont suspendus jusqu'au rétablissement de la connexion.
+            </span>
+          </div>
+          <span className="hidden sm:inline-block px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/30 text-amber-300 uppercase tracking-wide shrink-0">
+            Cache Local
+          </span>
+        </div>
+      )}
 
       {/* Main Layout Area */}
       <main className="flex-1 min-h-0 flex relative overflow-hidden pb-14 md:pb-0">
