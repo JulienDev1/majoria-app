@@ -710,7 +710,7 @@ export default function App() {
     setTaches(cachedTaches);
 
     // 2. Si l'utilisateur est hors ligne : s'arrêter ici sans appeler les routes /api/
-    if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
+    if (!isOnline) {
       return;
     }
 
@@ -1706,8 +1706,8 @@ export default function App() {
 
     setIsChatLoading(true);
 
-    // 4. Hybrid Chat Engine: If client is offline, prevent network calls (/api/chat) and process immediately with local offline engine
-    if (!isOnline || (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine)) {
+    // 4. Moteur de chat : le mode Hors-Ligne ne s'exécute qu'en cas de coupure réseau avérée
+    if (!isOnline) {
       try {
         const offlineRes = generateOfflineResponse(safeMessageText, {
           userProfile,
@@ -1988,7 +1988,7 @@ export default function App() {
     } catch (e: any) {
       console.warn('Requête chat en ligne terminée avec notification:', e);
       
-      const isActualNetworkCut = !isOnline || (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine);
+      const isActualNetworkCut = !isOnline;
 
       if (isActualNetworkCut) {
         // Le mode Hors-Ligne s'active UNIQUEMENT en cas de coupure réseau avérée
@@ -2834,6 +2834,7 @@ export default function App() {
 
           {activePanel === 'transcription' && (
             <TranscriptionPanel
+              isOnline={isOnline}
               onSendToChat={(text) => {
                 setActivePanel('chat');
                 handleSendMessage(text);

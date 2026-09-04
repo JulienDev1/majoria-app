@@ -27,6 +27,7 @@ interface TranscriptionPanelProps {
   onCreateReminder: (titre: string) => void;
   onCreateMemory: (text: string) => void;
   onShowToast: (message: string, type: 'info' | 'success' | 'warning' | 'danger') => void;
+  isOnline?: boolean;
 }
 
 export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
@@ -34,7 +35,8 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
   onCreateTask,
   onCreateReminder,
   onCreateMemory,
-  onShowToast
+  onShowToast,
+  isOnline = true
 }) => {
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [isProcessingAI, setIsProcessingAI] = useState<boolean>(false);
@@ -149,7 +151,7 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
 
   const handleStartRecording = async () => {
     // Check network availability
-    if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
+    if (!isOnline) {
       playCyberSound('alert');
       onShowToast('Transcription impossible hors ligne', 'danger');
       return;
@@ -397,7 +399,7 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
   // Helper to transcribe an audio Blob via server-side Gemini API
   const transcribeBlobWithGemini = async (blob: Blob, mimeType: string) => {
     // Vérification réseau immédiate
-    if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
+    if (!isOnline) {
       setIsProcessingAI(false);
       playCyberSound('alert');
       onShowToast('Transcription impossible hors ligne', 'danger');
@@ -415,7 +417,7 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
       };
       reader.onload = async () => {
         try {
-          if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
+          if (!isOnline) {
             throw new Error('Transcription impossible hors ligne');
           }
 
@@ -433,7 +435,7 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
               language: selectedLanguage === 'fr-FR' ? 'français' : 'anglais',
             }),
           }).catch((fetchErr) => {
-            if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
+            if (!isOnline) {
               throw new Error('Transcription impossible hors ligne');
             }
             throw fetchErr;
@@ -442,10 +444,10 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
 
           if (!response.ok) {
             const errData = await response.json().catch(() => ({}));
-            if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
+            if (!isOnline) {
               throw new Error('Transcription impossible hors ligne');
             }
-            throw new Error(errData.error || 'Transcription impossible hors ligne');
+            throw new Error(errData.error || 'Erreur lors de la transcription');
           }
 
           const data = await response.json();
@@ -471,14 +473,12 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
           }
         } catch (err: any) {
           console.error('Erreur API Transcription:', err);
-          if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
-            onShowToast('Transcription impossible hors ligne', 'danger');
-          } else if (err?.message && err.message.includes('hors ligne')) {
+          if (!isOnline || (err?.message && err.message.includes('hors ligne'))) {
             onShowToast('Transcription impossible hors ligne', 'danger');
           } else if (err?.name === 'AbortError') {
             onShowToast('Délai d\'attente dépassé (connexion lente). Veuillez réessayer.', 'danger');
           } else {
-            onShowToast(err?.message || 'Transcription impossible hors ligne', 'danger');
+            onShowToast(err?.message || 'Erreur lors de la transcription', 'danger');
           }
         } finally {
           setIsProcessingAI(false);
@@ -487,7 +487,7 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
       reader.readAsDataURL(blob);
     } catch (e) {
       setIsProcessingAI(false);
-      onShowToast(typeof window !== 'undefined' && !window.navigator.onLine ? 'Transcription impossible hors ligne' : 'Erreur lors de la lecture audio', 'danger');
+      onShowToast(!isOnline ? 'Transcription impossible hors ligne' : 'Erreur lors de la lecture audio', 'danger');
     }
   };
 
@@ -496,7 +496,7 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
+    if (!isOnline) {
       playCyberSound('alert');
       onShowToast('Transcription impossible hors ligne', 'danger');
       e.target.value = '';
@@ -520,7 +520,7 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
       };
       reader.onload = async () => {
         try {
-          if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
+          if (!isOnline) {
             throw new Error('Transcription impossible hors ligne');
           }
 
@@ -538,7 +538,7 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
               language: selectedLanguage === 'fr-FR' ? 'français' : 'anglais',
             }),
           }).catch((fetchErr) => {
-            if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
+            if (!isOnline) {
               throw new Error('Transcription impossible hors ligne');
             }
             throw fetchErr;
@@ -547,7 +547,7 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
 
           if (!response.ok) {
             const dataErr = await response.json().catch(() => ({}));
-            throw new Error(dataErr.error || 'Transcription impossible hors ligne');
+            throw new Error(dataErr.error || 'Erreur lors de la transcription');
           }
 
           const data = await response.json();
@@ -573,14 +573,12 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
           }
         } catch (error: any) {
           console.error('Upload transcription error:', error);
-          if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
-            onShowToast('Transcription impossible hors ligne', 'danger');
-          } else if (error?.message && error.message.includes('hors ligne')) {
+          if (!isOnline || (error?.message && error.message.includes('hors ligne'))) {
             onShowToast('Transcription impossible hors ligne', 'danger');
           } else if (error?.name === 'AbortError') {
             onShowToast('Délai dépassé pour le fichier audio volumineux. Veuillez réessayer.', 'danger');
           } else {
-            onShowToast(error?.message || 'Transcription impossible hors ligne', 'danger');
+            onShowToast(error?.message || 'Erreur lors de la transcription', 'danger');
           }
         } finally {
           setIsUploading(false);
@@ -590,7 +588,7 @@ export const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({
     } catch (err: any) {
       console.error('Upload error:', err);
       setIsUploading(false);
-      onShowToast(typeof window !== 'undefined' && !window.navigator.onLine ? 'Transcription impossible hors ligne' : 'Erreur lors du chargement du fichier audio', 'danger');
+      onShowToast(!isOnline ? 'Transcription impossible hors ligne' : 'Erreur lors du chargement du fichier audio', 'danger');
     }
     e.target.value = '';
   };

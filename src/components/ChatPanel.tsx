@@ -239,7 +239,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
   const startRecording = async () => {
     // Network offline check
-    if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
+    if (!isOnline) {
       playCyberSound('alert');
       setMicErrorMessage('Transcription impossible hors ligne');
       return;
@@ -478,7 +478,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
     // If no text was captured in real-time (e.g. browser without Web Speech),
     // transcribe the recorded audio chunks with Gemini AI ultra-fast!
-    if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
+    if (!isOnline) {
       setIsTranscribingAudio(false);
       stopAllMedia();
       playCyberSound('alert');
@@ -491,7 +491,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
       mediaRecorderRef.current.onstop = async () => {
         try {
-          if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
+          if (!isOnline) {
             setIsTranscribingAudio(false);
             stopAllMedia();
             setMicErrorMessage('Transcription impossible hors ligne');
@@ -510,7 +510,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             };
             reader.onload = async () => {
               try {
-                if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
+                if (!isOnline) {
                   throw new Error('Transcription impossible hors ligne');
                 }
 
@@ -528,7 +528,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                     language: 'fr',
                   }),
                 }).catch((fetchErr) => {
-                  if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
+                  if (!isOnline) {
                     throw new Error('Transcription impossible hors ligne');
                   }
                   throw fetchErr;
@@ -553,18 +553,16 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   }
                 } else {
                   const errorData = await res.json().catch(() => ({}));
-                  setMicErrorMessage(errorData.error || (navigator.onLine ? "Impossible de transcrire l'enregistrement vocal." : "Transcription impossible hors ligne"));
+                  setMicErrorMessage(errorData.error || (isOnline ? "Impossible de transcrire l'enregistrement vocal." : "Transcription impossible hors ligne"));
                 }
               } catch (err: any) {
                 console.error('Erreur transcription rapide:', err);
-                if (typeof navigator !== 'undefined' && !navigator.onLine) {
-                  setMicErrorMessage('Transcription impossible hors ligne');
-                } else if (err?.message && err.message.includes('hors ligne')) {
+                if (!isOnline || (err?.message && err.message.includes('hors ligne'))) {
                   setMicErrorMessage('Transcription impossible hors ligne');
                 } else if (err?.name === 'AbortError') {
                   setMicErrorMessage("Délai de transcription dépassé (connexion lente). Veuillez réessayer.");
                 } else {
-                  setMicErrorMessage("Transcription impossible hors ligne");
+                  setMicErrorMessage("Erreur lors de la transcription vocale. Veuillez réessayer.");
                 }
               } finally {
                 setIsTranscribingAudio(false);
@@ -610,12 +608,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     e.preventDefault();
     if (isDictating) {
       stopRecordingAndSend();
-      return;
-    }
-
-    if (typeof window !== 'undefined' && typeof window.navigator !== 'undefined' && !window.navigator.onLine) {
-      playCyberSound('alert');
-      setMicErrorMessage("Connexion Internet requise : l'IA est indisponible hors ligne.");
       return;
     }
 
