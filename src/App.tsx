@@ -539,6 +539,78 @@ export default function App() {
     }
   }, [applyBackground, checkAndApplyMonthlyRollover]);
 
+  const fetchFavoris = useCallback(async () => {
+    try {
+      const authHeaders = await getAuthHeader();
+      const res = await fetch('/api/favoris', { headers: authHeaders });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setFavoris(data);
+          safeSave('neo-favoris', data);
+          return data;
+        }
+      }
+    } catch (err) {
+      console.warn('Erreur chargement favoris en ligne:', err);
+    }
+    return null;
+  }, []);
+
+  const fetchMemoire = useCallback(async () => {
+    try {
+      const authHeaders = await getAuthHeader();
+      const res = await fetch('/api/memoire', { headers: authHeaders });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setMemoire(data);
+          safeSave('neo-memoire', data);
+          return data;
+        }
+      }
+    } catch (err) {
+      console.warn('Erreur chargement mémoire en ligne:', err);
+    }
+    return null;
+  }, []);
+
+  const fetchRappels = useCallback(async () => {
+    try {
+      const authHeaders = await getAuthHeader();
+      const res = await fetch('/api/rappels', { headers: authHeaders });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setRappels(data);
+          safeSave('neo-rappels', data);
+          return data;
+        }
+      }
+    } catch (err) {
+      console.warn('Erreur chargement rappels en ligne:', err);
+    }
+    return null;
+  }, []);
+
+  const fetchTaches = useCallback(async () => {
+    try {
+      const authHeaders = await getAuthHeader();
+      const res = await fetch('/api/taches', { headers: authHeaders });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setTaches(data);
+          safeSave('neo-taches', data);
+          return data;
+        }
+      }
+    } catch (err) {
+      console.warn('Erreur chargement tâches en ligne:', err);
+    }
+    return null;
+  }, []);
+
   const loadAllData = useCallback(async () => {
     // 1. Charger immédiatement les données en cache local (LocalStorage)
     // Permet une consultation instantanée et sans interruption en mode hors ligne
@@ -592,63 +664,12 @@ export default function App() {
 
     // 3. Si en ligne : rafraîchir les données depuis les endpoints /api/ et mettre à jour le cache local
     try {
-      const authHeaders = await getAuthHeader();
-
-      // Favoris
-      try {
-        const res = await fetch('/api/favoris', { headers: authHeaders });
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data)) {
-            setFavoris(data);
-            safeSave('neo-favoris', data);
-          }
-        }
-      } catch (err) {
-        console.warn('Erreur chargement favoris en ligne:', err);
-      }
-
-      // Mémoire
-      try {
-        const res = await fetch('/api/memoire', { headers: authHeaders });
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data)) {
-            setMemoire(data);
-            safeSave('neo-memoire', data);
-          }
-        }
-      } catch (err) {
-        console.warn('Erreur chargement mémoire en ligne:', err);
-      }
-
-      // Rappels
-      try {
-        const res = await fetch('/api/rappels', { headers: authHeaders });
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data)) {
-            setRappels(data);
-            safeSave('neo-rappels', data);
-          }
-        }
-      } catch (err) {
-        console.warn('Erreur chargement rappels en ligne:', err);
-      }
-
-      // Tâches
-      try {
-        const res = await fetch('/api/taches', { headers: authHeaders });
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data)) {
-            setTaches(data);
-            safeSave('neo-taches', data);
-          }
-        }
-      } catch (err) {
-        console.warn('Erreur chargement tâches en ligne:', err);
-      }
+      await Promise.all([
+        fetchFavoris(),
+        fetchMemoire(),
+        fetchRappels(),
+        fetchTaches()
+      ]);
 
       // Énergie / Forfait Supabase
       try {
@@ -1063,6 +1084,54 @@ export default function App() {
 
       for (const item of itemsToProcess) {
         if (!item) continue;
+
+        // Support direct format strict demandé: { type, endpoint, payload }
+        if (item.endpoint && item.payload) {
+          const effectiveUserId = user?.nom || (user as any)?.id || userProfile?.id || (typeof window !== 'undefined' ? (localStorage.getItem('user_id') || localStorage.getItem('neo-auth-user')) : null) || 'user_default';
+          const actionPayload = { ...item.payload };
+          if (!actionPayload.user_id || actionPayload.user_id === 'CURRENT_USER') {
+            actionPayload.user_id = effectiveUserId;
+          }
+          if (!actionPayload.userId || actionPayload.userId === 'CURRENT_USER') {
+            actionPayload.userId = effectiveUserId;
+          }
+
+          try {
+            const res = await fetch(item.endpoint, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...authHeaders,
+              },
+              body: JSON.stringify(actionPayload),
+            });
+
+            if (res.ok) {
+              if (item.endpoint.includes('rappel')) {
+                await fetchRappels();
+                playAlertSound(alertSound);
+                showToast(`🔔 Rappel / Rendez-vous enregistré : ${actionPayload.title || actionPayload.titre || ''}`, 'success');
+              } else if (item.endpoint.includes('tach')) {
+                await fetchTaches();
+                showToast(`✅ Tâche enregistrée : ${actionPayload.title || actionPayload.titre || ''}`, 'success');
+              } else if (item.endpoint.includes('favori')) {
+                await fetchFavoris();
+                showToast(`⭐ Favori enregistré : ${actionPayload.title || actionPayload.titre || ''}`, 'success');
+              } else if (item.endpoint.includes('memoire')) {
+                await fetchMemoire();
+                showToast(`🧠 Note / Mémoire enregistrée`, 'success');
+              } else {
+                showToast('Action exécutée avec succès', 'success');
+              }
+            } else {
+              console.warn(`Erreur statut POST ${item.endpoint}: ${res.status}`);
+            }
+          } catch (err) {
+            console.error(`Erreur réseau POST ${item.endpoint}:`, err);
+          }
+          continue;
+        }
+
         const actType = String(item.type || '').toUpperCase();
         const d = item.data || item;
 
@@ -1356,30 +1425,14 @@ export default function App() {
         }
       }
 
-      // Rafraîchissement de l'affichage du composant depuis l'API
+      // Rafraîchissement complet de l'affichage (Agenda, Tâches, Favoris, Mémoire) depuis l'API
       try {
-        const [tRes, rRes, fRes, mRes] = await Promise.all([
-          fetch('/api/taches', { headers: authHeaders }).catch(() => null),
-          fetch('/api/rappels', { headers: authHeaders }).catch(() => null),
-          fetch('/api/favoris', { headers: authHeaders }).catch(() => null),
-          fetch('/api/memoire', { headers: authHeaders }).catch(() => null),
+        await Promise.all([
+          fetchRappels(),
+          fetchTaches(),
+          fetchFavoris(),
+          fetchMemoire()
         ]);
-        if (tRes && tRes.ok) {
-          const fresh = await tRes.json();
-          if (Array.isArray(fresh)) setTaches(fresh);
-        }
-        if (rRes && rRes.ok) {
-          const fresh = await rRes.json();
-          if (Array.isArray(fresh)) setRappels(fresh);
-        }
-        if (fRes && fRes.ok) {
-          const fresh = await fRes.json();
-          if (Array.isArray(fresh)) setFavoris(fresh);
-        }
-        if (mRes && mRes.ok) {
-          const fresh = await mRes.json();
-          if (Array.isArray(fresh)) setMemoire(fresh);
-        }
       } catch (refreshErr) {
         console.warn('Erreur rafraîchissement API:', refreshErr);
       }

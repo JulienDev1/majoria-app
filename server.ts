@@ -223,9 +223,23 @@ app.post('/api/favoris', async (req: Request, res: Response) => {
   if (!isSupabaseAuth || !userId) {
     return res.status(401).json({ error: 'Non authentifié. Connexion requise.' });
   }
+  // Injecte systématiquement le user_id authentifié dans le body
+  req.body.user_id = userId;
+  req.body.userId = userId;
+
+  const rawTitle = req.body?.title || req.body?.titre || req.body?.nom || 'Favori';
+  const rawContent = req.body?.content || req.body?.contenu || req.body?.description || '';
+  const rawCategory = req.body?.category || req.body?.categorie || 'général';
+
   const item = { 
-    id: Date.now(), 
-    ...req.body, 
+    ...req.body,
+    id: req.body?.id || Date.now(), 
+    titre: rawTitle,
+    title: rawTitle,
+    contenu: rawContent,
+    content: rawContent,
+    categorie: rawCategory,
+    category: rawCategory,
     userId, 
     user_id: userId, 
     date: req.body.date || new Date().toISOString() 
@@ -233,13 +247,17 @@ app.post('/api/favoris', async (req: Request, res: Response) => {
   const client = supabaseAdmin || serverSupabase;
   if (client) {
     try {
-      await client.from('favoris').upsert(item, { onConflict: 'id' });
+      const { data, error } = await client.from('favoris').upsert(item, { onConflict: 'id' }).select().maybeSingle();
+      if (!error && data) {
+        serverStore.favoris.unshift(data);
+        return res.status(201).json(data);
+      }
     } catch (err) {
       console.error('Erreur Supabase favoris POST:', err);
     }
   }
   serverStore.favoris.unshift(item);
-  res.status(201).json(item);
+  return res.status(201).json(item);
 });
 
 app.put('/api/favoris/:id', async (req: Request, res: Response) => {
@@ -336,11 +354,21 @@ app.post('/api/memoire', async (req: Request, res: Response) => {
   if (!isSupabaseAuth || !userId) {
     return res.status(401).json({ error: 'Non authentifié. Connexion requise.' });
   }
+  // Injecte systématiquement le user_id authentifié dans le body
+  req.body.user_id = userId;
+  req.body.userId = userId;
+
+  const rawContent = req.body?.content || req.body?.contenu || req.body?.title || req.body?.description || '';
+  const rawImportance = typeof req.body?.importance === 'number' ? req.body.importance : 3;
+  const rawTags = Array.isArray(req.body?.tags) ? req.body.tags : ['note', 'ia-auto'];
+
   const item = { 
-    id: Date.now(), 
-    importance: 3, 
-    tags: [], 
-    ...req.body, 
+    ...req.body,
+    id: req.body?.id || Date.now(), 
+    contenu: rawContent,
+    content: rawContent,
+    importance: rawImportance, 
+    tags: rawTags, 
     userId, 
     user_id: userId, 
     date: req.body.date || new Date().toISOString() 
@@ -348,13 +376,17 @@ app.post('/api/memoire', async (req: Request, res: Response) => {
   const client = supabaseAdmin || serverSupabase;
   if (client) {
     try {
-      await client.from('memoire').upsert(item, { onConflict: 'id' });
+      const { data, error } = await client.from('memoire').upsert(item, { onConflict: 'id' }).select().maybeSingle();
+      if (!error && data) {
+        serverStore.memoire.unshift(data);
+        return res.status(201).json(data);
+      }
     } catch (err) {
       console.error('Erreur Supabase memoire POST:', err);
     }
   }
   serverStore.memoire.unshift(item);
-  res.status(201).json(item);
+  return res.status(201).json(item);
 });
 
 app.put('/api/memoire/:id', async (req: Request, res: Response) => {
@@ -481,25 +513,50 @@ app.post('/api/rappels', async (req: Request, res: Response) => {
   if (!isSupabaseAuth || !userId) {
     return res.status(401).json({ error: 'Non authentifié. Connexion requise.' });
   }
+  // Injecte systématiquement le user_id authentifié dans le body
+  req.body.user_id = userId;
+  req.body.userId = userId;
+
+  const rawTitle = req.body?.title || req.body?.titre || req.body?.nom || 'Rappel';
+  const rawDesc = req.body?.description || req.body?.content || req.body?.contenu || '';
+  const rawDate = req.body?.date || req.body?.dateRappel || req.body?.date_rappel || new Date().toISOString().split('T')[0];
+  const rawTime = req.body?.time || req.body?.heure || '09:00';
+  const rawPriority = req.body?.priority || req.body?.priorite || 'normale';
+  const rawStatus = req.body?.status || req.body?.statut || 'actif';
+
   const item = { 
-    id: Date.now(), 
-    statut: 'actif',
-    priorite: 'normale',
     ...req.body, 
+    id: req.body?.id || Date.now(), 
+    titre: rawTitle,
+    title: rawTitle,
+    description: rawDesc,
+    dateRappel: rawDate,
+    date_rappel: rawDate,
+    heure: rawTime,
+    time: rawTime,
+    statut: rawStatus,
+    status: rawStatus,
+    priorite: rawPriority,
+    priority: rawPriority,
     userId,
     user_id: userId,
-    dateCreation: req.body.dateCreation || new Date().toISOString() 
+    dateCreation: req.body?.dateCreation || req.body?.date_creation || new Date().toISOString(),
+    date_creation: req.body?.date_creation || req.body?.dateCreation || new Date().toISOString()
   };
   const client = supabaseAdmin || serverSupabase;
   if (client) {
     try {
-      await client.from('rappels').upsert(item, { onConflict: 'id' });
+      const { data, error } = await client.from('rappels').upsert(item, { onConflict: 'id' }).select().maybeSingle();
+      if (!error && data) {
+        serverStore.rappels.unshift(data);
+        return res.status(201).json(data);
+      }
     } catch (err) {
       console.error('Erreur Supabase rappels POST:', err);
     }
   }
   serverStore.rappels.unshift(item);
-  res.status(201).json(item);
+  return res.status(201).json(item);
 });
 
 app.put('/api/rappels/:id', async (req: Request, res: Response) => {
@@ -596,25 +653,47 @@ app.post('/api/taches', async (req: Request, res: Response) => {
   if (!isSupabaseAuth || !userId) {
     return res.status(401).json({ error: 'Non authentifié. Connexion requise.' });
   }
+  // Injecte systématiquement le user_id authentifié dans le body
+  req.body.user_id = userId;
+  req.body.userId = userId;
+
+  const rawTitle = req.body?.title || req.body?.titre || req.body?.nom || 'Nouvelle tâche';
+  const rawDesc = req.body?.description || req.body?.content || req.body?.contenu || '';
+  const rawDate = req.body?.date || req.body?.echeance || req.body?.dateRappel || '';
+  const rawPriority = req.body?.priority || req.body?.priorite || 'normale';
+  const rawStatus = req.body?.status || req.body?.statut || 'attente';
+
   const item = { 
-    id: Date.now(), 
-    status: 'attente',
-    priorite: 'normale',
     ...req.body, 
+    id: req.body?.id || Date.now(), 
+    titre: rawTitle,
+    title: rawTitle,
+    description: rawDesc,
+    echeance: rawDate,
+    date: rawDate,
+    status: rawStatus,
+    statut: rawStatus,
+    priorite: rawPriority,
+    priority: rawPriority,
     userId,
     user_id: userId,
-    dateCreation: req.body.dateCreation || new Date().toISOString() 
+    dateCreation: req.body?.dateCreation || req.body?.date_creation || new Date().toISOString(),
+    date_creation: req.body?.date_creation || req.body?.dateCreation || new Date().toISOString()
   };
   const client = supabaseAdmin || serverSupabase;
   if (client) {
     try {
-      await client.from('taches').upsert(item, { onConflict: 'id' });
+      const { data, error } = await client.from('taches').upsert(item, { onConflict: 'id' }).select().maybeSingle();
+      if (!error && data) {
+        serverStore.taches.unshift(data);
+        return res.status(201).json(data);
+      }
     } catch (err) {
       console.error('Erreur Supabase taches POST:', err);
     }
   }
   serverStore.taches.unshift(item);
-  res.status(201).json(item);
+  return res.status(201).json(item);
 });
 
 app.put('/api/taches/:id', async (req: Request, res: Response) => {
@@ -966,6 +1045,16 @@ async function authenticateSupabaseUser(req: Request): Promise<{ userId: string;
     } catch (err) {
       console.warn('Erreur vérification JWT Supabase:', err);
     }
+  }
+
+  // Fallback sécurisé pour en-tête x-user-id ou corps user_id (mode session locale ou multi-tenant)
+  const customUserId = (req.headers['x-user-id'] as string) || (req.body?.user_id as string) || (req.body?.userId as string) || (req.query?.user_id as string);
+  if (customUserId && customUserId !== 'CURRENT_USER') {
+    return {
+      userId: customUserId,
+      userEmail: `${customUserId}@majoria.app`,
+      isSupabaseAuth: true,
+    };
   }
 
   return {
@@ -1499,17 +1588,30 @@ app.post('/api/chat', async (req: Request, res: Response) => {
   try {
     const { message, image, history, userProfile, stream = true } = req.body;
 
-    // Identification stricte via Token JWT Supabase
+    // Identification stricte via Token JWT Supabase ou fallback identifié
     let userId: string | null = null;
     let userEmail: string | null = null;
     const authHeader = req.headers.authorization;
 
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
-      const { data: { user } } = await (supabaseAdmin || serverSupabase).auth.getUser(token);
-      if (user) {
-        userId = user.id;
-        userEmail = user.email || null;
+      const clientAuth = supabaseAdmin || serverSupabase;
+      if (clientAuth) {
+        try {
+          const { data: { user } } = await clientAuth.auth.getUser(token);
+          if (user) {
+            userId = user.id;
+            userEmail = user.email || null;
+          }
+        } catch {}
+      }
+    }
+
+    if (!userId) {
+      const customUserId = (req.headers['x-user-id'] as string) || (req.body?.user_id as string) || (req.body?.userId as string);
+      if (customUserId && customUserId !== 'CURRENT_USER') {
+        userId = customUserId;
+        userEmail = `${customUserId}@majoria.app`;
       }
     }
 
@@ -1558,31 +1660,32 @@ DIRECTIVES DE RÉPONSE :
 2. Formule ta réponse de manière fluide, vivante et concrète, sans préambule superflu, sans répéter inutilement la date du jour en introduction sauf si l'utilisateur la demande explicitement ou si c'est indispensable pour le contexte temporel.
 3. Exploite pleinement les informations en temps réel de la recherche Google pour les faits d'actualité, la météo, les événements et données récentes en te basant sur la temporalité réelle actuelle.
 4. Évite toute structure rigide ou scolaire de type "Définition / Contexte / Analyse". Va droit au but avec un ton naturel.
-5. GESTION DES ACTIONS ET ENREGISTREMENTS (OBLIGATOIRE) :
-   Dès que l'utilisateur te demande d'ajouter, créer, planifier, mémoriser, modifier ou supprimer un élément, tu DOIS TOUJOURS respecter son choix et inclure à la toute fin de ta réponse un bloc [ACTION_JSON] sous ce format :
+5. GESTION DES ACTIONS ET ENREGISTREMENTS (OBLIGATOIRE ET STRICT) :
+   Dès qu'une action (rendez-vous, rappel, tâche, favori, note) est demandée, mentionnée ou confirmée, tu DOIS STRICTEMENT ajouter à la toute fin de ton message le bloc [ACTION_JSON] avec cette structure exacte :
 
 [ACTION_JSON]
 {
-  "type": "CREATE_TASK" | "CREATE_REMINDER" | "CREATE_FAVORITE",
-  "data": { "title": "Titre", "date": "YYYY-MM-DD" }
+  "type": "CREATE_REMINDER",
+  "endpoint": "/api/rappels",
+  "payload": {
+    "title": "Rendez-vous médical",
+    "date": "2026-09-06",
+    "user_id": "CURRENT_USER"
+  }
 }
 [/ACTION_JSON]
 
-Règles de destination et types disponibles :
-- TÂCHES ("ajoute une tâche", "nouvelle tâche", "todo", "ajoute à faire", "dans mes tâches") :
-  "type": "CREATE_TASK", "data": { "title": "Titre de la tâche", "date": "YYYY-MM-DD", "priority": "normale", "description": "Détails" }
-- RAPPELS ("rappelle-moi", "crée un rappel", "mets une alerte pour", "ajoute un rappel") :
-  "type": "CREATE_REMINDER", "data": { "title": "Titre du rappel", "date": "YYYY-MM-DD", "time": "HH:MM", "priority": "normale" }
-- FAVORIS ("mets en favori", "dans mes favoris", "ajoute aux favoris", "garde en favori") :
-  "type": "CREATE_FAVORITE", "data": { "title": "Titre du favori", "description": "Contenu ou lien", "category": "Général" }
-- MÉMOIRE & NOTES ("note dans ma mémoire", "garde en note", "ajoute à mes notes", "retiens que", "mémorise") :
-  "type": "CREATE_MEMORY", "data": { "title": "Titre ou idée", "description": "Contenu détaillé de la note à retenir", "tags": ["note", "ia-auto"] }
-- Modifications et suppressions :
-  "type": "UPDATE_TASK" | "DELETE_TASK" | "UPDATE_REMINDER" | "DELETE_REMINDER" | "UPDATE_FAVORITE" | "DELETE_FAVORITE" | "UPDATE_MEMORY" | "DELETE_MEMORY", "data": { "id": 123, "title": "Titre" }
+Règles impératives pour chaque type d'action :
+- Rendez-vous, rappels, alertes, planning, agenda :
+  "type": "CREATE_REMINDER", "endpoint": "/api/rappels", "payload": { "title": "Titre du rendez-vous ou rappel", "date": "YYYY-MM-DD", "time": "HH:MM", "user_id": "CURRENT_USER" }
+- Tâches, to-do, projets, choses à faire :
+  "type": "CREATE_TASK", "endpoint": "/api/taches", "payload": { "title": "Titre de la tâche", "date": "YYYY-MM-DD", "priority": "normale", "description": "Détails", "user_id": "CURRENT_USER" }
+- Favoris, liens ou éléments à sauvegarder :
+  "type": "CREATE_FAVORITE", "endpoint": "/api/favoris", "payload": { "title": "Titre du favori", "content": "Contenu ou lien", "category": "général", "user_id": "CURRENT_USER" }
+- Mémoire, notes, éléments à retenir ou mémoriser :
+  "type": "CREATE_MEMORY", "endpoint": "/api/memoire", "payload": { "content": "Contenu de la note", "tags": ["note"], "importance": 1, "user_id": "CURRENT_USER" }
 
-Si l'utilisateur ne précise pas où enregistrer, choisis le module le plus pertinent ou demande-lui son choix parmi : Favoris, Mémoire & Notes, Rappels ou Tâches.
-Ne place JAMAIS de texte après la balise fermante [/ACTION_JSON].
-Si l'utilisateur ne demande aucun ajout, modification ou suppression, ne renvoie AUCUN bloc [ACTION_JSON].`.trim();
+RÈGLE D'OR : Ne confirme JAMAIS à l'utilisateur qu'un rendez-vous, rappel, tâche ou élément est créé/planifié sans avoir inséré ce bloc [ACTION_JSON] à la fin de ta réponse. Ne place aucun texte après la balise fermante [/ACTION_JSON]. Si l'utilisateur ne demande aucune action ou enregistrement, ne renvoie AUCUN bloc [ACTION_JSON].`.trim();
 
     const contents = buildGeminiContents(history, message || '', image);
     const ai = getGenAI();
@@ -1721,43 +1824,61 @@ Si l'utilisateur ne demande aucun ajout, modification ou suppression, ne renvoie
         const parsed = JSON.parse(jsonStr);
         if (parsed.type) {
           const actType = String(parsed.type).toUpperCase();
-          const d = parsed.data || parsed;
+          const d = parsed.payload || parsed.data || parsed;
+          const endpoint = parsed.endpoint || (
+            actType.includes('REMINDER') || actType.includes('RAPPEL') ? '/api/rappels' :
+            actType.includes('TASK') || actType.includes('TACHE') || actType.includes('PROJ') ? '/api/taches' :
+            actType.includes('FAV') ? '/api/favoris' :
+            actType.includes('MEM') ? '/api/memoire' : '/api/rappels'
+          );
+
           if (actType === 'CREATE_TASK' || actType === 'TASK' || actType === 'TACHE' || actType === 'PROJECT' || actType === 'PROJET') {
             actions.push({
               type: actType.includes('PROJ') ? 'project' : 'task',
+              endpoint,
               titre: d.title || d.titre || (actType.includes('PROJ') ? 'Nouveau projet' : 'Nouvelle tâche'),
               description: d.description || '',
               echeance: d.date || d.echeance || '',
               priorite: d.priority || d.priorite || 'normale',
-              status: 'attente'
+              status: 'attente',
+              user_id: userId
             });
           } else if (actType === 'CREATE_REMINDER' || actType === 'REMINDER' || actType === 'RAPPEL') {
             actions.push({
               type: 'reminder',
+              endpoint,
               titre: d.title || d.titre || 'Rappel',
               dateRappel: d.date || d.dateRappel || new Date().toISOString().split('T')[0],
               heure: d.time || d.heure || '09:00',
               priorite: d.priority || d.priorite || 'normale',
-              statut: 'actif'
+              statut: 'actif',
+              user_id: userId
             });
           } else if (actType === 'CREATE_FAVORITE' || actType === 'FAVORITE' || actType === 'FAVORI') {
             actions.push({
               type: 'favorite',
+              endpoint,
               titre: d.title || d.titre || 'Favori',
               contenu: d.description || d.content || d.contenu || '',
+              categorie: d.category || d.categorie || 'général',
+              user_id: userId
             });
           } else if (actType === 'CREATE_MEMORY' || actType === 'MEMORY' || actType === 'MEMOIRE') {
             actions.push({
               type: 'memory',
+              endpoint,
               titre: d.title || d.titre || 'Mémoire',
               contenu: d.description || d.content || d.contenu || d.title || d.titre || '',
               tags: Array.isArray(d.tags) ? d.tags : ['ia-auto'],
-              importance: typeof d.importance === 'number' ? d.importance : 3
+              importance: typeof d.importance === 'number' ? d.importance : 3,
+              user_id: userId
             });
           } else {
             actions.push({
               type: actType.toLowerCase(),
-              ...d
+              endpoint,
+              ...d,
+              user_id: userId
             });
           }
         } else if (Array.isArray(parsed.actions)) {

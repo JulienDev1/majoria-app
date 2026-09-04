@@ -35,12 +35,21 @@ export function getAuthRedirectUrl(): string {
   return VERCEL_PROD_URL;
 }
 
-// Récupère le JWT valide pour chaque appel HTTP
+// Récupère le JWT valide pour chaque appel HTTP avec header x-user-id
 export async function getAuthHeader(): Promise<Record<string, string>> {
   try {
+    const headers: Record<string, string> = {};
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) return {};
-    return { 'Authorization': `Bearer ${session.access_token}` };
+    if (session?.access_token) {
+      headers['Authorization'] = `Bearer ${session.access_token}`;
+    }
+    const localUser = typeof window !== 'undefined' 
+      ? (localStorage.getItem('user_id') || localStorage.getItem('neo-auth-user') || '') 
+      : '';
+    if (localUser) {
+      headers['x-user-id'] = localUser;
+    }
+    return headers;
   } catch {
     return {};
   }

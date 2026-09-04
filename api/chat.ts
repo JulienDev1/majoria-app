@@ -228,27 +228,39 @@ export default async function handler(req: any, res: any) {
       ? `L'utilisateur avec qui tu discutes s'appelle "${userName}".`
       : "";
 
-    const systemInstruction = `Tu es MajorI.A, un assistant d'intelligence artificielle ultra-rapide, précis, direct, naturel et chaleureux.
+    const systemInstruction = `Tu es Major2I.A, un assistant d'intelligence artificielle hautement performant, précis, direct, naturel et chaleureux.
 ${userGreetingInstruction}
 
 DIRECTIVES DE RÉPONSE :
 1. Réponds de façon concise, précise et directe dès les premiers mots sans préambule superflu ni répétitions inutiles.
 2. Formule ta réponse avec clarté, vivacité et fluidité.
 3. Si la question porte sur des faits récents, l'actualité ou la météo, exploite les données en temps réel.
-4. GESTION DES ACTIONS ET ENREGISTREMENTS (OBLIGATOIRE) :
-   Dès que l'utilisateur te demande d'ajouter, créer, planifier, mémoriser, modifier ou supprimer un élément, formate ta réponse avec un bloc JSON d'action à la fin :
+4. GESTION DES ACTIONS ET ENREGISTREMENTS (OBLIGATOIRE ET STRICT) :
+   Dès qu'une action (rendez-vous, rappel, tâche, favori, note) est demandée, mentionnée ou confirmée, tu DOIS STRICTEMENT ajouter à la toute fin de ton message le bloc [ACTION_JSON] avec cette structure exacte :
 
 [ACTION_JSON]
 {
-  "type": "CREATE_TASK" | "CREATE_REMINDER" | "CREATE_FAVORITE",
-  "data": { "title": "Titre", "date": "YYYY-MM-DD" }
+  "type": "CREATE_REMINDER",
+  "endpoint": "/api/rappels",
+  "payload": {
+    "title": "Rendez-vous médical",
+    "date": "2026-09-06",
+    "user_id": "CURRENT_USER"
+  }
 }
 [/ACTION_JSON]
 
-Types supportés :
-- "CREATE_TASK" (tâches/projets), "CREATE_REMINDER" (rappels/alertes/agenda), "CREATE_FAVORITE" (favoris/liens), "CREATE_MEMORY" (mémoire/notes)
-- Actions de suppression ou modification : "DELETE_TASK", "DELETE_REMINDER", "DELETE_FAVORITE", "UPDATE_TASK", "UPDATE_REMINDER", "UPDATE_FAVORITE".
-Si l'utilisateur ne demande aucun ajout, modification ou suppression, ne renvoie AUCUN bloc [ACTION_JSON].`.trim();
+Règles impératives pour chaque type d'action :
+- Rendez-vous, rappels, alertes, planning, agenda :
+  "type": "CREATE_REMINDER", "endpoint": "/api/rappels", "payload": { "title": "Titre du rendez-vous ou rappel", "date": "YYYY-MM-DD", "time": "HH:MM", "user_id": "CURRENT_USER" }
+- Tâches, to-do, projets, choses à faire :
+  "type": "CREATE_TASK", "endpoint": "/api/taches", "payload": { "title": "Titre de la tâche", "date": "YYYY-MM-DD", "priority": "normale", "description": "Détails", "user_id": "CURRENT_USER" }
+- Favoris, liens ou éléments à sauvegarder :
+  "type": "CREATE_FAVORITE", "endpoint": "/api/favoris", "payload": { "title": "Titre du favori", "content": "Contenu ou lien", "category": "général", "user_id": "CURRENT_USER" }
+- Mémoire, notes, éléments à retenir ou mémoriser :
+  "type": "CREATE_MEMORY", "endpoint": "/api/memoire", "payload": { "content": "Contenu de la note", "tags": ["note"], "importance": 1, "user_id": "CURRENT_USER" }
+
+RÈGLE D'OR : Ne confirme JAMAIS à l'utilisateur qu'un rendez-vous, rappel, tâche ou élément est créé/planifié sans avoir inséré ce bloc [ACTION_JSON] à la fin de ta réponse. Ne place aucun texte après la balise fermante [/ACTION_JSON]. Si l'utilisateur ne demande aucune action ou enregistrement, ne renvoie AUCUN bloc [ACTION_JSON].`.trim();
 
     const contents = buildGeminiContents(history, message || '', image);
     const ai = new GoogleGenAI({
@@ -380,43 +392,60 @@ Si l'utilisateur ne demande aucun ajout, modification ou suppression, ne renvoie
         const parsed = JSON.parse(jsonStr);
         if (parsed.type) {
           const actType = String(parsed.type).toUpperCase();
-          const d = parsed.data || parsed;
+          const d = parsed.payload || parsed.data || parsed;
+          const endpoint = parsed.endpoint || (
+            actType.includes('REMINDER') || actType.includes('RAPPEL') ? '/api/rappels' :
+            actType.includes('TASK') || actType.includes('TACHE') || actType.includes('PROJ') ? '/api/taches' :
+            actType.includes('FAV') ? '/api/favoris' :
+            actType.includes('MEM') ? '/api/memoire' : '/api/rappels'
+          );
           if (actType === 'CREATE_TASK' || actType === 'TASK' || actType === 'TACHE' || actType === 'PROJECT' || actType === 'PROJET') {
             actions.push({
               type: actType.includes('PROJ') ? 'project' : 'task',
+              endpoint,
               titre: d.title || d.titre || (actType.includes('PROJ') ? 'Nouveau projet' : 'Nouvelle tâche'),
               description: d.description || '',
               echeance: d.date || d.echeance || '',
               priorite: d.priority || d.priorite || 'normale',
-              status: 'attente'
+              status: 'attente',
+              user_id: userId
             });
           } else if (actType === 'CREATE_REMINDER' || actType === 'REMINDER' || actType === 'RAPPEL') {
             actions.push({
               type: 'reminder',
+              endpoint,
               titre: d.title || d.titre || 'Rappel',
               dateRappel: d.date || d.dateRappel || new Date().toISOString().split('T')[0],
               heure: d.time || d.heure || '09:00',
               priorite: d.priority || d.priorite || 'normale',
-              statut: 'actif'
+              statut: 'actif',
+              user_id: userId
             });
           } else if (actType === 'CREATE_FAVORITE' || actType === 'FAVORITE' || actType === 'FAVORI') {
             actions.push({
               type: 'favorite',
+              endpoint,
               titre: d.title || d.titre || 'Favori',
               contenu: d.description || d.content || d.contenu || '',
+              categorie: d.category || d.categorie || 'général',
+              user_id: userId
             });
           } else if (actType === 'CREATE_MEMORY' || actType === 'MEMORY' || actType === 'MEMOIRE') {
             actions.push({
               type: 'memory',
+              endpoint,
               titre: d.title || d.titre || 'Mémoire',
               contenu: d.description || d.content || d.contenu || d.title || d.titre || '',
               tags: Array.isArray(d.tags) ? d.tags : ['ia-auto'],
-              importance: typeof d.importance === 'number' ? d.importance : 3
+              importance: typeof d.importance === 'number' ? d.importance : 3,
+              user_id: userId
             });
           } else {
             actions.push({
+              endpoint,
               type: actType.toLowerCase(),
-              ...d
+              ...d,
+              user_id: userId
             });
           }
         } else if (Array.isArray(parsed.actions)) {
