@@ -1060,386 +1060,495 @@ export default function App() {
     }
   };
 
-  // Intercepte les blocs [ACTION_JSON], exécute les requêtes API (POST/PUT), et rafraîchit l'affichage
+  // ============================================================
+  // ACTIONS IA AUTOMATIQUES — VERSION ROBUSTE
+  // ============================================================
   const interceptAndExecuteActionJson = async (rawReplyText: string): Promise<boolean> => {
     if (!rawReplyText || !rawReplyText.includes('[ACTION_JSON]')) {
       return false;
     }
 
-    const match = rawReplyText.match(/\[ACTION_JSON\]\s*([\s\S]*?)(?:\[\/ACTION_JSON\]|$)/i);
-    if (!match || !match[1]) return false;
-
     try {
-      let jsonStr = match[1].trim();
-      jsonStr = jsonStr.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
-      const parsed = JSON.parse(jsonStr);
+      // ----------------------------------------------------------
+      // 1. Extraction du bloc ACTION_JSON
+      // ----------------------------------------------------------
+      const match = rawReplyText.match(
+        /\[ACTION_JSON\]\s*([\s\S]*?)(?:\[\/ACTION_JSON\]|$)/i
+      );
 
-      const itemsToProcess = Array.isArray(parsed)
+      if (!match || !match[1]) {
+        console.warn('⚠️ ACTION_JSON détecté mais contenu introuvable');
+        return false;
+      }
+
+      let jsonStr = match[1]
+        .trim()
+        .replace(/^```json\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/```\s*$/i, '')
+        .trim();
+
+      let parsed: any;
+
+      try {
+        parsed = JSON.parse(jsonStr);
+      } catch (jsonError) {
+        console.error('❌ JSON ACTION invalide :', jsonStr, jsonError);
+        showToast('⚠️ Action IA invalide', 'danger');
+        return false;
+      }
+
+      // ----------------------------------------------------------
+      // 2. Normalisation : objet / tableau / { actions: [] }
+      // ----------------------------------------------------------
+      const actionsToProcess: any[] = Array.isArray(parsed)
         ? parsed
         : Array.isArray(parsed.actions)
           ? parsed.actions
           : [parsed];
 
+      if (actionsToProcess.length === 0) {
+        return false;
+      }
+
       const authHeaders = await getAuthHeader();
 
-      for (const item of itemsToProcess) {
-        if (!item) continue;
+      let executedAtLeastOne = false;
 
-        // Support direct format strict demandé: { type, endpoint, payload }
-        if (item.endpoint && item.payload) {
-          const effectiveUserId = user?.nom || (user as any)?.id || userProfile?.id || (typeof window !== 'undefined' ? (localStorage.getItem('user_id') || localStorage.getItem('neo-auth-user')) : null) || 'user_default';
-          const actionPayload = { ...item.payload };
-          if (!actionPayload.user_id || actionPayload.user_id === 'CURRENT_USER') {
-            actionPayload.user_id = effectiveUserId;
+      // ----------------------------------------------------------
+      // 3. Exécution séquentielle des actions
+      // ----------------------------------------------------------
+      for (const action of actionsToProcess) {
+        if (!action) continue;
+
+        const actionType = String(action.type || '').toUpperCase();
+
+        // Format moderne :
+        // {
+        //   type: "CREATE_REMINDER",
+        //   endpoint: "/api/rappels",
+        //   payload: {...}
+        // }
+        const endpoint = action.endpoint;
+        const payload = action.payload || action.data || {};
+
+        // --------------------------------------------------------
+        // A — FORMAT endpoint + payload
+        // --------------------------------------------------------
+        if (endpoint && payload) {
+          const finalPayload = { ...payload };
+
+          // Ne jamais envoyer CURRENT_USER au backend
+          const storedUserId =
+            (user as any)?.id ||
+            userProfile?.id ||
+            localStorage.getItem('user_id') ||
+            localStorage.getItem('neo-auth-user') ||
+            '';
+
+          if (
+            !finalPayload.user_id ||
+            finalPayload.user_id === 'CURRENT_USER'
+          ) {
+            if (storedUserId) {
+              finalPayload.user_id = storedUserId;
+            }
           }
-          if (!actionPayload.userId || actionPayload.userId === 'CURRENT_USER') {
-            actionPayload.userId = effectiveUserId;
+
+          if (
+            !finalPayload.userId ||
+            finalPayload.userId === 'CURRENT_USER'
+          ) {
+            if (storedUserId) {
+              finalPayload.userId = storedUserId;
+            }
           }
+
+          console.log('🤖 ACTION IA →', actionType, endpoint, finalPayload);
 
           try {
-            const res = await fetch(item.endpoint, {
+            const res = await fetch(endpoint, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
                 ...authHeaders,
               },
-              body: JSON.stringify(actionPayload),
+              body: JSON.stringify(finalPayload),
             });
 
-            if (res.ok) {
-              if (item.endpoint.includes('rappel')) {
-                await fetchRappels();
-                playAlertSound(alertSound);
-                showToast(`🔔 Rappel / Rendez-vous enregistré : ${actionPayload.title || actionPayload.titre || ''}`, 'success');
-              } else if (item.endpoint.includes('tach')) {
-                await fetchTaches();
-                showToast(`✅ Tâche enregistrée : ${actionPayload.title || actionPayload.titre || ''}`, 'success');
-              } else if (item.endpoint.includes('favori')) {
-                await fetchFavoris();
-                showToast(`⭐ Favori enregistré : ${actionPayload.title || actionPayload.titre || ''}`, 'success');
-              } else if (item.endpoint.includes('memoire')) {
-                await fetchMemoire();
-                showToast(`🧠 Note / Mémoire enregistrée`, 'success');
-              } else {
-                showToast('Action exécutée avec succès', 'success');
-              }
-            } else {
-              console.warn(`Erreur statut POST ${item.endpoint}: ${res.status}`);
+            if (!res.ok) {
+              const errorText = await res.text().catch(() => '');
+              console.error(
+                `❌ Action IA refusée ${endpoint}:`,
+                res.status,
+                errorText
+              );
+
+              showToast(
+                `⚠️ Impossible d'enregistrer l'action (${res.status})`,
+                'danger'
+              );
+
+              continue;
             }
-          } catch (err) {
-            console.error(`Erreur réseau POST ${item.endpoint}:`, err);
+
+            // Réponse réelle du serveur
+            const created = await res.json().catch(() => finalPayload);
+
+            executedAtLeastOne = true;
+
+            // ----------------------------------------------------
+            // RAPPEL / AGENDA
+            // ----------------------------------------------------
+            if (
+              endpoint.includes('/api/rappels') ||
+              actionType.includes('REMINDER') ||
+              actionType.includes('RAPPEL') ||
+              actionType.includes('EVENT') ||
+              actionType.includes('AGENDA')
+            ) {
+              const item: Rappel = {
+                id:
+                  created.id ||
+                  finalPayload.id ||
+                  Date.now(),
+
+                titre:
+                  created.titre ||
+                  created.title ||
+                  finalPayload.title ||
+                  finalPayload.titre ||
+                  'Rappel MajorIA',
+
+                description:
+                  created.description ||
+                  finalPayload.description ||
+                  '',
+
+                dateRappel:
+                  created.dateRappel ||
+                  created.date_rappel ||
+                  created.date ||
+                  finalPayload.date ||
+                  finalPayload.dateRappel ||
+                  new Date().toISOString().split('T')[0],
+
+                heure:
+                  created.heure ||
+                  created.time ||
+                  finalPayload.time ||
+                  finalPayload.heure ||
+                  '09:00',
+
+                dateFinRappel:
+                  created.dateFinRappel ||
+                  finalPayload.dateFinRappel ||
+                  undefined,
+
+                heureFin:
+                  created.heureFin ||
+                  finalPayload.heureFin ||
+                  undefined,
+
+                priorite:
+                  (created.priorite ||
+                    created.priority ||
+                    finalPayload.priority ||
+                    finalPayload.priorite ||
+                    'normale') as Priority,
+
+                statut:
+                  created.statut ||
+                  created.status ||
+                  finalPayload.status ||
+                  'actif',
+
+                dateCreation:
+                  created.dateCreation ||
+                  created.date_creation ||
+                  new Date().toISOString(),
+              };
+
+              setRappels((prev) => {
+                const next = [
+                  item,
+                  ...prev.filter((r) => r.id !== item.id),
+                ];
+
+                safeSave('neo-rappels', next);
+                return next;
+              });
+
+              playAlertSound(alertSound);
+
+              showToast(
+                `📅 ${actionType.includes('EVENT') || actionType.includes('AGENDA')
+                  ? 'Rendez-vous ajouté à l’agenda'
+                  : 'Rappel enregistré'} : ${item.titre}`,
+                'success'
+              );
+
+              continue;
+            }
+
+            // ----------------------------------------------------
+            // TÂCHE / PROJET
+            // ----------------------------------------------------
+            if (
+              endpoint.includes('/api/taches') ||
+              actionType.includes('TASK') ||
+              actionType.includes('TACHE') ||
+              actionType.includes('PROJECT') ||
+              actionType.includes('PROJET')
+            ) {
+              const item: Tache = {
+                id:
+                  created.id ||
+                  finalPayload.id ||
+                  Date.now(),
+
+                titre:
+                  created.titre ||
+                  created.title ||
+                  finalPayload.title ||
+                  finalPayload.titre ||
+                  'Nouvelle tâche',
+
+                description:
+                  created.description ||
+                  finalPayload.description ||
+                  '',
+
+                priorite:
+                  (created.priorite ||
+                    created.priority ||
+                    finalPayload.priority ||
+                    finalPayload.priorite ||
+                    'normale') as Priority,
+
+                status:
+                  created.status ||
+                  created.statut ||
+                  finalPayload.status ||
+                  'attente',
+
+                echeance:
+                  created.echeance ||
+                  created.date ||
+                  finalPayload.date ||
+                  finalPayload.echeance ||
+                  '',
+
+                dateCreation:
+                  created.dateCreation ||
+                  created.date_creation ||
+                  new Date().toISOString(),
+              };
+
+              setTaches((prev) => {
+                const next = [
+                  item,
+                  ...prev.filter((t) => t.id !== item.id),
+                ];
+
+                safeSave('neo-taches', next);
+                return next;
+              });
+
+              showToast(
+                `✅ Tâche enregistrée : ${item.titre}`,
+                'success'
+              );
+
+              continue;
+            }
+
+            // ----------------------------------------------------
+            // FAVORI
+            // ----------------------------------------------------
+            if (
+              endpoint.includes('/api/favoris') ||
+              actionType.includes('FAVORITE') ||
+              actionType.includes('FAVORI')
+            ) {
+              const item: Favori = {
+                id:
+                  created.id ||
+                  finalPayload.id ||
+                  Date.now(),
+
+                titre:
+                  created.titre ||
+                  created.title ||
+                  finalPayload.title ||
+                  finalPayload.titre ||
+                  'Favori',
+
+                contenu:
+                  created.contenu ||
+                  created.content ||
+                  finalPayload.content ||
+                  finalPayload.contenu ||
+                  finalPayload.description ||
+                  '',
+
+                categorie:
+                  created.categorie ||
+                  created.category ||
+                  finalPayload.category ||
+                  finalPayload.categorie ||
+                  'général',
+
+                date:
+                  created.date ||
+                  finalPayload.date ||
+                  new Date().toISOString(),
+              };
+
+              setFavoris((prev) => {
+                const next = [
+                  item,
+                  ...prev.filter((f) => f.id !== item.id),
+                ];
+
+                safeSave('neo-favoris', next);
+                return next;
+              });
+
+              showToast(
+                `⭐ Favori enregistré : ${item.titre}`,
+                'success'
+              );
+
+              continue;
+            }
+
+            // ----------------------------------------------------
+            // MÉMOIRE / NOTE
+            // ----------------------------------------------------
+            if (
+              endpoint.includes('/api/memoire') ||
+              actionType.includes('MEMORY') ||
+              actionType.includes('MEMOIRE') ||
+              actionType.includes('NOTE')
+            ) {
+              const item: Memoire = {
+                id:
+                  created.id ||
+                  finalPayload.id ||
+                  Date.now(),
+
+                contenu:
+                  created.contenu ||
+                  created.content ||
+                  created.description ||
+                  finalPayload.content ||
+                  finalPayload.contenu ||
+                  finalPayload.description ||
+                  finalPayload.title ||
+                  finalPayload.titre ||
+                  'Note mémorisée',
+
+                tags:
+                  Array.isArray(created.tags)
+                    ? created.tags
+                    : Array.isArray(finalPayload.tags)
+                      ? finalPayload.tags
+                      : ['ia-auto'],
+
+                importance:
+                  typeof created.importance === 'number'
+                    ? created.importance
+                    : typeof finalPayload.importance === 'number'
+                      ? finalPayload.importance
+                      : 3,
+
+                date:
+                  created.date ||
+                  finalPayload.date ||
+                  new Date().toISOString(),
+              };
+
+              setMemoire((prev) => {
+                const next = [
+                  item,
+                  ...prev.filter((m) => m.id !== item.id),
+                ];
+
+                safeSave('neo-memoire', next);
+                return next;
+              });
+
+              showToast(
+                '🧠 Note enregistrée dans la mémoire',
+                'success'
+              );
+
+              continue;
+            }
+
+            showToast(
+              '✅ Action IA exécutée',
+              'success'
+            );
+
+          } catch (error) {
+            console.error(
+              `❌ Erreur réseau action IA ${endpoint}:`,
+              error
+            );
+
+            showToast(
+              '⚠️ Erreur lors de l’enregistrement',
+              'danger'
+            );
           }
+
           continue;
         }
 
-        const actType = String(item.type || '').toUpperCase();
-        const d = item.data || item;
-
-        if (actType === 'CREATE_TASK' || actType === 'TASK' || actType === 'TACHE' || actType === 'PROJECT' || actType === 'PROJET') {
-          const isProj = actType.includes('PROJ');
-          const taskPayload = {
-            id: d.id || Date.now() + Math.floor(Math.random() * 1000),
-            titre: d.title || d.titre || (isProj ? 'Projet Major2I.A' : 'Tâche Major2I.A'),
-            description: d.description || (isProj ? 'Projet créé par Major2I.A' : 'Tâche créée par Major2I.A'),
-            priorite: (d.priority || d.priorite || 'normale') as Priority,
-            status: (d.status || 'attente') as TaskStatus,
-            echeance: d.date || d.echeance || '',
-            dateCreation: new Date().toISOString()
-          };
-
-          try {
-            const res = await fetch('/api/taches', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', ...authHeaders },
-              body: JSON.stringify(taskPayload)
-            });
-            if (res.ok) {
-              const created = await res.json();
-              setTaches(prev => [created, ...prev.filter(t => t.id !== created.id)]);
-            } else {
-              setTaches(prev => [taskPayload, ...prev.filter(t => t.id !== taskPayload.id)]);
-            }
-          } catch {
-            setTaches(prev => [taskPayload, ...prev.filter(t => t.id !== taskPayload.id)]);
-          }
-          showToast(isProj ? `📁 Projet créé : ${taskPayload.titre}` : `✅ Tâche créée : ${taskPayload.titre}`, 'success');
-
-        } else if (actType === 'UPDATE_TASK') {
-          const taskId = d.id || d.taskId;
-          if (taskId) {
-            const updatePayload = {
-              titre: d.title || d.titre,
-              description: d.description,
-              echeance: d.date || d.echeance,
-              priorite: d.priority || d.priorite,
-              status: d.status
-            };
-            try {
-              const res = await fetch(`/api/taches/${taskId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json', ...authHeaders },
-                body: JSON.stringify(updatePayload)
-              });
-              if (res.ok) {
-                const updated = await res.json();
-                setTaches(prev => prev.map(t => t.id === taskId ? { ...t, ...updated } : t));
-              }
-            } catch {}
-            showToast('✏️ Tâche mise à jour', 'success');
-          }
-
-        } else if (actType === 'CREATE_REMINDER' || actType === 'REMINDER' || actType === 'RAPPEL') {
-          const reminderPayload = {
-            id: d.id || Date.now() + Math.floor(Math.random() * 1000),
-            titre: d.title || d.titre || 'Rappel Major2I.A',
-            description: d.description || '',
-            dateRappel: d.date || d.dateRappel || new Date().toISOString().split('T')[0],
-            heure: d.time || d.heure || '09:00',
-            priorite: (d.priority || d.priorite || 'normale') as Priority,
-            statut: 'actif' as const,
-            dateCreation: new Date().toISOString()
-          };
+        // --------------------------------------------------------
+        // B — FORMAT NORMALISÉ RENVOYÉ PAR LE SERVEUR
+        // --------------------------------------------------------
+        // Exemple :
+        // {
+        //   type: "reminder",
+        //   titre: "...",
+        //   dateRappel: "...",
+        //   heure: "..."
+        // }
+        // On délègue au système processAiActions déjà présent.
+        // --------------------------------------------------------
+        if (actionType) {
+          console.log(
+            '🤖 ACTION IA normalisée → processAiActions',
+            action
+          );
 
           try {
-            const res = await fetch('/api/rappels', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', ...authHeaders },
-              body: JSON.stringify(reminderPayload)
-            });
-            if (res.ok) {
-              const created = await res.json();
-              setRappels(prev => [created, ...prev.filter(r => r.id !== created.id)]);
-            } else {
-              setRappels(prev => [reminderPayload, ...prev.filter(r => r.id !== reminderPayload.id)]);
-            }
-          } catch {
-            setRappels(prev => [reminderPayload, ...prev.filter(r => r.id !== reminderPayload.id)]);
-          }
-          playAlertSound(alertSound);
-          showToast(`🔔 Rappel créé : ${reminderPayload.titre}`, 'success');
-
-        } else if (actType === 'CREATE_FAVORITE' || actType === 'FAVORITE' || actType === 'FAVORI') {
-          const favPayload = {
-            id: d.id || Date.now() + Math.floor(Math.random() * 1000),
-            titre: d.title || d.titre || 'Favori Major2I.A',
-            contenu: d.description || d.content || d.contenu || '',
-            categorie: d.category || d.categorie || 'Général',
-            date: new Date().toISOString()
-          };
-
-          try {
-            const res = await fetch('/api/favoris', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', ...authHeaders },
-              body: JSON.stringify(favPayload)
-            });
-            if (res.ok) {
-              const created = await res.json();
-              setFavoris(prev => [created, ...prev.filter(f => f.id !== created.id)]);
-            } else {
-              setFavoris(prev => [favPayload, ...prev.filter(f => f.id !== favPayload.id)]);
-            }
-          } catch {
-            setFavoris(prev => [favPayload, ...prev.filter(f => f.id !== favPayload.id)]);
-          }
-          showToast(`⭐ Favori enregistré : ${favPayload.titre}`, 'success');
-
-        } else if (actType === 'CREATE_MEMORY' || actType === 'MEMORY' || actType === 'MEMOIRE' || actType === 'CREATE_NOTE' || actType === 'NOTE') {
-          const memoPayload = {
-            id: d.id || Date.now() + Math.floor(Math.random() * 1000),
-            contenu: d.description || d.content || d.contenu || d.title || d.titre || 'Note mémorisée',
-            tags: Array.isArray(d.tags) && d.tags.length > 0 ? d.tags : ['mémoire', 'notes', 'ia-auto'],
-            importance: typeof d.importance === 'number' ? d.importance : 3,
-            date: d.date || new Date().toISOString()
-          };
-
-          try {
-            const res = await fetch('/api/memoire', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', ...authHeaders },
-              body: JSON.stringify(memoPayload)
-            });
-            if (res.ok) {
-              const created = await res.json();
-              setMemoire(prev => [created, ...prev.filter(m => m.id !== created.id)]);
-            } else {
-              setMemoire(prev => [memoPayload, ...prev.filter(m => m.id !== memoPayload.id)]);
-            }
-          } catch {
-            setMemoire(prev => [memoPayload, ...prev.filter(m => m.id !== memoPayload.id)]);
-          }
-          showToast(`🧠 Mémoire & notes enregistrées`, 'success');
-
-        } else if (actType === 'CREATE_EVENT' || actType === 'EVENT' || actType === 'AGENDA' || actType === 'EVENEMENT' || actType === 'CREATE_AGENDA') {
-          const eventPayload = {
-            id: d.id || Date.now() + Math.floor(Math.random() * 1000),
-            titre: d.title || d.titre || 'Événement Agenda',
-            description: d.description || '',
-            dateRappel: d.date || d.dateRappel || new Date().toISOString().split('T')[0],
-            heure: d.time || d.heure || '09:00',
-            dateFinRappel: d.endDate || d.dateFinRappel || undefined,
-            heureFin: d.endTime || d.heureFin || undefined,
-            priorite: (d.priority || d.priorite || 'normale') as Priority,
-            statut: 'actif' as const,
-            dateCreation: new Date().toISOString()
-          };
-
-          try {
-            const res = await fetch('/api/rappels', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', ...authHeaders },
-              body: JSON.stringify(eventPayload)
-            });
-            if (res.ok) {
-              const created = await res.json();
-              setRappels(prev => [created, ...prev.filter(r => r.id !== created.id)]);
-            } else {
-              setRappels(prev => [eventPayload, ...prev.filter(r => r.id !== eventPayload.id)]);
-            }
-          } catch {
-            setRappels(prev => [eventPayload, ...prev.filter(r => r.id !== eventPayload.id)]);
-          }
-          playAlertSound(alertSound);
-          showToast(`📅 Événement planifié sur l'agenda : ${eventPayload.titre}`, 'success');
-
-        } else if (actType === 'UPDATE_REMINDER') {
-          const reminderId = d.id || d.reminderId;
-          if (reminderId) {
-            const updatePayload = {
-              titre: d.title || d.titre,
-              description: d.description,
-              dateRappel: d.date || d.dateRappel,
-              heure: d.time || d.heure,
-              priorite: d.priority || d.priorite,
-              statut: d.status || d.statut
-            };
-            try {
-              const res = await fetch(`/api/rappels/${reminderId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json', ...authHeaders },
-                body: JSON.stringify(updatePayload)
-              });
-              if (res.ok) {
-                const updated = await res.json();
-                setRappels(prev => prev.map(r => r.id === reminderId ? { ...r, ...updated } : r));
-              }
-            } catch {}
-            showToast('✏️ Rappel mis à jour', 'success');
-          }
-
-        } else if (actType === 'UPDATE_FAVORITE') {
-          const favId = d.id || d.favoriteId;
-          if (favId) {
-            const updatePayload = {
-              titre: d.title || d.titre,
-              contenu: d.description || d.content || d.contenu,
-              categorie: d.category || d.categorie
-            };
-            try {
-              const res = await fetch(`/api/favoris/${favId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json', ...authHeaders },
-                body: JSON.stringify(updatePayload)
-              });
-              if (res.ok) {
-                const updated = await res.json();
-                setFavoris(prev => prev.map(f => f.id === favId ? { ...f, ...updated } : f));
-              }
-            } catch {}
-            showToast('✏️ Favori mis à jour', 'success');
-          }
-
-        } else if (actType === 'UPDATE_MEMORY') {
-          const memId = d.id || d.memoryId;
-          if (memId) {
-            const updatePayload = {
-              contenu: d.description || d.content || d.contenu || d.title || d.titre,
-              tags: d.tags,
-              importance: d.importance
-            };
-            try {
-              const res = await fetch(`/api/memoire/${memId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json', ...authHeaders },
-                body: JSON.stringify(updatePayload)
-              });
-              if (res.ok) {
-                const updated = await res.json();
-                setMemoire(prev => prev.map(m => m.id === memId ? { ...m, ...updated } : m));
-              }
-            } catch {}
-            showToast('✏️ Mémoire mise à jour', 'success');
-          }
-
-        } else if (actType === 'DELETE_TASK' || actType === 'SUPPRIMER_TACHE') {
-          const taskId = d.id || d.taskId;
-          if (taskId) {
-            try {
-              await fetch(`/api/taches/${taskId}`, {
-                method: 'DELETE',
-                headers: authHeaders
-              });
-              setTaches(prev => prev.filter(t => t.id !== taskId));
-            } catch {}
-            showToast('🗑️ Tâche supprimée', 'info');
-          }
-
-        } else if (actType === 'DELETE_REMINDER' || actType === 'SUPPRIMER_RAPPEL') {
-          const reminderId = d.id || d.reminderId;
-          if (reminderId) {
-            try {
-              await fetch(`/api/rappels/${reminderId}`, {
-                method: 'DELETE',
-                headers: authHeaders
-              });
-              setRappels(prev => prev.filter(r => r.id !== reminderId));
-            } catch {}
-            showToast('🗑️ Rappel supprimé', 'info');
-          }
-
-        } else if (actType === 'DELETE_FAVORITE' || actType === 'SUPPRIMER_FAVORI') {
-          const favId = d.id || d.favoriteId;
-          if (favId) {
-            try {
-              await fetch(`/api/favoris/${favId}`, {
-                method: 'DELETE',
-                headers: authHeaders
-              });
-              setFavoris(prev => prev.filter(f => f.id !== favId));
-            } catch {}
-            showToast('🗑️ Favori supprimé', 'info');
-          }
-
-        } else if (actType === 'DELETE_MEMORY' || actType === 'SUPPRIMER_MEMOIRE') {
-          const memId = d.id || d.memoryId;
-          if (memId) {
-            try {
-              await fetch(`/api/memoire/${memId}`, {
-                method: 'DELETE',
-                headers: authHeaders
-              });
-              setMemoire(prev => prev.filter(m => m.id !== memId));
-            } catch {}
-            showToast('🗑️ Note/mémoire supprimée', 'info');
+            await processAiActions([action]);
+            executedAtLeastOne = true;
+          } catch (error) {
+            console.error(
+              '❌ Erreur processAiActions:',
+              error
+            );
           }
         }
       }
 
-      // Rafraîchissement complet de l'affichage (Agenda, Tâches, Favoris, Mémoire) depuis l'API
-      try {
-        await Promise.all([
-          fetchRappels(),
-          fetchTaches(),
-          fetchFavoris(),
-          fetchMemoire()
-        ]);
-      } catch (refreshErr) {
-        console.warn('Erreur rafraîchissement API:', refreshErr);
-      }
+      // ----------------------------------------------------------
+      // 4. Retourne TRUE uniquement si au moins une action a été
+      // réellement exécutée
+      // ----------------------------------------------------------
+      return executedAtLeastOne;
 
-      return true;
-    } catch (e) {
-      console.error('Erreur interceptAndExecuteActionJson:', e);
+    } catch (error) {
+      console.error(
+        '❌ Erreur interceptAndExecuteActionJson:',
+        error
+      );
+
       return false;
     }
   };
