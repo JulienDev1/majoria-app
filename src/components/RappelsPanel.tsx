@@ -3,6 +3,7 @@ import { Bell, Plus, CheckCircle, Trash2, FileText, Clock, Search, Calendar, Vol
 import { Rappel, Priority } from '../types';
 import { playCyberSound, playReminderAlarmSound } from '../utils/security';
 import { exportItemToPDF } from '../utils/pdfExport';
+import { ensureValidDate, ensureValidTime } from '../utils/dateUtils';
 
 interface RappelsPanelProps {
   rappels: Rappel[];
@@ -48,8 +49,8 @@ export const RappelsPanel: React.FC<RappelsPanelProps> = ({
     setEditingRappel(null);
     setNewTitle('');
     setNewDesc('');
-    setNewDate('');
-    setNewTime('');
+    setNewDate(new Date().toISOString().split('T')[0]);
+    setNewTime('09:00');
     setNewEndDate('');
     setNewEndTime('');
     setHasEndDate(false);
@@ -62,8 +63,8 @@ export const RappelsPanel: React.FC<RappelsPanelProps> = ({
     setEditingRappel(r);
     setNewTitle(r.titre);
     setNewDesc(r.description || '');
-    setNewDate(r.dateRappel || '');
-    setNewTime(r.heure || '');
+    setNewDate(r.dateRappel || new Date().toISOString().split('T')[0]);
+    setNewTime(r.heure || '09:00');
     setNewEndDate(r.dateFinRappel || '');
     setNewEndTime(r.heureFin || '');
     setHasEndDate(Boolean(r.dateFinRappel || r.heureFin));
@@ -75,15 +76,21 @@ export const RappelsPanel: React.FC<RappelsPanelProps> = ({
     e.preventDefault();
     if (!newTitle.trim()) return;
 
+    // Obligatoirement synchronisé dans l'agenda avec une date valide
+    const targetDate = ensureValidDate(newDate);
+    const targetTime = ensureValidTime(newTime);
+    const targetEndDate = (hasEndDate && newEndDate) ? ensureValidDate(newEndDate) : undefined;
+    const targetEndTime = (hasEndDate && newEndTime) ? ensureValidTime(newEndTime) : undefined;
+
     if (editingRappel && onUpdateRappel) {
       await onUpdateRappel({
         ...editingRappel,
         titre: newTitle.trim(),
         description: newDesc.trim() || undefined,
-        dateRappel: newDate || undefined,
-        heure: newTime || undefined,
-        dateFinRappel: hasEndDate && newEndDate ? newEndDate : undefined,
-        heureFin: hasEndDate && newEndTime ? newEndTime : undefined,
+        dateRappel: targetDate,
+        heure: targetTime,
+        dateFinRappel: targetEndDate,
+        heureFin: targetEndTime,
         priorite: newPriority,
       });
       playCyberSound('success');
@@ -91,10 +98,10 @@ export const RappelsPanel: React.FC<RappelsPanelProps> = ({
       await onAddRappel({
         titre: newTitle.trim(),
         description: newDesc.trim() || undefined,
-        dateRappel: newDate || undefined,
-        heure: newTime || undefined,
-        dateFinRappel: hasEndDate && newEndDate ? newEndDate : undefined,
-        heureFin: hasEndDate && newEndTime ? newEndTime : undefined,
+        dateRappel: targetDate,
+        heure: targetTime,
+        dateFinRappel: targetEndDate,
+        heureFin: targetEndTime,
         priorite: newPriority,
       });
     }

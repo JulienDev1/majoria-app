@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Rappel, Tache, TaskStatus, Priority } from '../types';
 import { playCyberSound } from '../utils/security';
+import { ensureValidDate, normalizeDateKey, getDateRangeDays } from '../utils/dateUtils';
 
 interface CalendarPanelProps {
   rappels: Rappel[];
@@ -83,21 +84,23 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
   // Group events by date string "YYYY-MM-DD"
   const eventsByDate = new Map<string, { type: 'rappel' | 'tache'; title: string; item: any }[]>();
 
-  rappels
-    .filter((r) => r.statut !== 'termine' && r.dateRappel)
-    .forEach((r) => {
-      const key = r.dateRappel!;
-      if (!eventsByDate.has(key)) eventsByDate.set(key, []);
-      eventsByDate.get(key)!.push({ type: 'rappel', title: r.titre, item: r });
+  // Synchronisation obligatoire de tous les rappels dans l'agenda à la date indiquée
+  rappels.forEach((r) => {
+    const rawStart = r.dateRappel || r.dateCreation || new Date().toISOString().split('T')[0];
+    const days = getDateRangeDays(rawStart, r.dateFinRappel);
+    days.forEach((dayKey) => {
+      if (!eventsByDate.has(dayKey)) eventsByDate.set(dayKey, []);
+      eventsByDate.get(dayKey)!.push({ type: 'rappel', title: r.titre, item: r });
     });
+  });
 
-  taches
-    .filter((t) => t.status !== 'termine' && t.echeance)
-    .forEach((t) => {
-      const key = t.echeance!;
-      if (!eventsByDate.has(key)) eventsByDate.set(key, []);
-      eventsByDate.get(key)!.push({ type: 'tache', title: t.titre, item: t });
-    });
+  taches.forEach((t) => {
+    const dayKey = normalizeDateKey(t.echeance);
+    if (dayKey) {
+      if (!eventsByDate.has(dayKey)) eventsByDate.set(dayKey, []);
+      eventsByDate.get(dayKey)!.push({ type: 'tache', title: t.titre, item: t });
+    }
+  });
 
   const changeMonth = (offset: number) => {
     playCyberSound('click');
@@ -156,9 +159,9 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
           await onAddRappel({
             titre: newTitle.trim(),
             description: newDesc.trim() || undefined,
-            dateRappel: newDate || new Date().toISOString().split('T')[0],
+            dateRappel: ensureValidDate(newDate),
             heure: newTime || '09:00',
-            dateFinRappel: hasNewEndDate && newEndDate ? newEndDate : undefined,
+            dateFinRappel: hasNewEndDate && newEndDate ? ensureValidDate(newEndDate) : undefined,
             heureFin: hasNewEndDate && newEndTime ? newEndTime : undefined,
             priorite: newPriority,
           });
@@ -168,7 +171,7 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
           await onAddTache({
             titre: newTitle.trim(),
             description: newDesc.trim() || undefined,
-            echeance: newDate || new Date().toISOString().split('T')[0],
+            echeance: ensureValidDate(newDate),
             priorite: newPriority,
           });
         }
@@ -218,9 +221,9 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
         ...editingItem.data,
         titre: editTitle.trim(),
         description: editDesc.trim() || undefined,
-        dateRappel: editDate || undefined,
-        heure: editTime || undefined,
-        dateFinRappel: hasEditEndDate && editEndDate ? editEndDate : undefined,
+        dateRappel: ensureValidDate(editDate),
+        heure: editTime || '09:00',
+        dateFinRappel: hasEditEndDate && editEndDate ? ensureValidDate(editEndDate) : undefined,
         heureFin: hasEditEndDate && editEndTime ? editEndTime : undefined,
         priorite: editPriority,
       });
@@ -230,7 +233,7 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
         ...editingItem.data,
         titre: editTitle.trim(),
         description: editDesc.trim() || undefined,
-        echeance: editDate || undefined,
+        echeance: ensureValidDate(editDate),
         priorite: editPriority,
         status: editStatus,
       });
@@ -409,14 +412,16 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className={`text-xs font-bold uppercase flex items-center gap-1 px-2 py-0.5 rounded-full ${
-                      ev.type === 'rappel' ? 'bg-[#fa383e]/15 text-[#fa383e]' : 'bg-[#42b72a]/20 text-[#42b72a]'
+                      ev.type === 'rappel'
+                        ? (ev.item.statut === 'termine' ? 'bg-[#e4e6eb] text-[#65676b]' : 'bg-[#fa383e]/15 text-[#fa383e]')
+                        : (ev.item.status === 'termine' ? 'bg-[#e4e6eb] text-[#65676b]' : 'bg-[#42b72a]/20 text-[#42b72a]')
                     }`}>
                       {ev.type === 'rappel' ? (
-                        <Bell className="w-3.5 h-3.5 text-[#fa383e]" />
+                        <Bell className={`w-3.5 h-3.5 ${ev.item.statut === 'termine' ? 'text-[#65676b]' : 'text-[#fa383e]'}`} />
                       ) : (
-                        <CheckSquare className="w-3.5 h-3.5 text-[#42b72a]" />
+                        <CheckSquare className={`w-3.5 h-3.5 ${ev.item.status === 'termine' ? 'text-[#65676b]' : 'text-[#42b72a]'}`} />
                       )}
-                      {ev.type === 'rappel' ? 'Rappel' : 'Tâche'}
+                      {ev.type === 'rappel' ? (ev.item.statut === 'termine' ? 'Rappel (Terminé)' : 'Rappel') : (ev.item.status === 'termine' ? 'Tâche (Terminée)' : 'Tâche')}
                     </span>
 
                     <div className="flex items-center gap-1">
@@ -438,7 +443,11 @@ export const CalendarPanel: React.FC<CalendarPanelProps> = ({
                     </div>
                   </div>
 
-                  <p className="text-sm font-bold text-[#050505] leading-snug">
+                  <p className={`text-sm font-bold leading-snug ${
+                    (ev.type === 'rappel' ? ev.item.statut === 'termine' : ev.item.status === 'termine')
+                      ? 'line-through text-[#65676b]'
+                      : 'text-[#050505]'
+                  }`}>
                     {ev.title}
                   </p>
 

@@ -26,6 +26,7 @@ import {
   speakCyberResponse, 
   sanitizeConfidentialText,
 } from './utils/security';
+import { ensureValidDate, ensureValidTime, normalizeDateKey } from './utils/dateUtils';
 import { callUseCredit, getCreditBalance, syncCreditsToSupabase } from './utils/supabase';
 import { supabase, getAuthHeader, getAuthRedirectUrl } from './utils/supabaseAuth';
 import { getOrCreateUserId, setStoredUserId } from './utils/userId';
@@ -983,10 +984,10 @@ export default function App() {
             id: itemData.id || Date.now() + Math.floor(Math.random() * 1000),
             titre: itemData.title || itemData.titre || itemData.nom || 'Rappel Major2I.A',
             description: itemData.description || '',
-            dateRappel: itemData.date || itemData.dateRappel || new Date().toISOString().split('T')[0],
-            heure: itemData.time || itemData.heure || '12:00',
-            dateFinRappel: itemData.dateFinRappel || undefined,
-            heureFin: itemData.heureFin || undefined,
+            dateRappel: ensureValidDate(itemData.date || itemData.dateRappel || itemData.date_rappel),
+            heure: ensureValidTime(itemData.time || itemData.heure),
+            dateFinRappel: itemData.dateFinRappel ? ensureValidDate(itemData.dateFinRappel) : undefined,
+            heureFin: itemData.heureFin ? ensureValidTime(itemData.heureFin) : undefined,
             priorite: (itemData.priority || itemData.priorite as Priority) || 'normale',
             statut: itemData.statut || 'actif',
             dateCreation: itemData.dateCreation || new Date().toISOString(),
@@ -1011,7 +1012,7 @@ export default function App() {
           } catch {}
 
           playAlertSound(alertSound);
-          showToast(`🔔 Rappel créé : ${item.titre}`, 'success');
+          showToast(`📅 Rappel & événement agenda programmés : ${item.titre}`, 'success');
         } else if (actType === 'task' || actType === 'tache' || actType === 'project' || actType === 'projet' || actType === 'create_task') {
           const isProj = actType.includes('projet') || actType.includes('project');
           const item: Tache = {
@@ -1277,30 +1278,28 @@ export default function App() {
                   finalPayload.description ||
                   '',
 
-                dateRappel:
+                dateRappel: ensureValidDate(
                   created.dateRappel ||
                   created.date_rappel ||
                   created.date ||
                   finalPayload.date ||
-                  finalPayload.dateRappel ||
-                  new Date().toISOString().split('T')[0],
+                  finalPayload.dateRappel
+                ),
 
-                heure:
+                heure: ensureValidTime(
                   created.heure ||
                   created.time ||
                   finalPayload.time ||
-                  finalPayload.heure ||
-                  '09:00',
+                  finalPayload.heure
+                ),
 
-                dateFinRappel:
-                  created.dateFinRappel ||
-                  finalPayload.dateFinRappel ||
-                  undefined,
+                dateFinRappel: (created.dateFinRappel || finalPayload.dateFinRappel)
+                  ? ensureValidDate(created.dateFinRappel || finalPayload.dateFinRappel)
+                  : undefined,
 
-                heureFin:
-                  created.heureFin ||
-                  finalPayload.heureFin ||
-                  undefined,
+                heureFin: (created.heureFin || finalPayload.heureFin)
+                  ? ensureValidTime(created.heureFin || finalPayload.heureFin)
+                  : undefined,
 
                 priorite:
                   (created.priorite ||
@@ -1336,7 +1335,7 @@ export default function App() {
               showToast(
                 `📅 ${actionType.includes('EVENT') || actionType.includes('AGENDA')
                   ? 'Rendez-vous ajouté à l’agenda'
-                  : 'Rappel enregistré'} : ${item.titre}`,
+                  : 'Rappel programmé & synchronisé dans l’agenda'} : ${item.titre}`,
                 'success'
               );
 
@@ -2271,6 +2270,10 @@ export default function App() {
     const item: Rappel = {
       ...rappel,
       id: Date.now(),
+      dateRappel: ensureValidDate(rappel.dateRappel),
+      heure: ensureValidTime(rappel.heure),
+      dateFinRappel: rappel.dateFinRappel ? ensureValidDate(rappel.dateFinRappel) : undefined,
+      heureFin: rappel.heureFin ? ensureValidTime(rappel.heureFin) : undefined,
       statut: 'actif',
       dateCreation: new Date().toISOString(),
     };
@@ -2287,23 +2290,30 @@ export default function App() {
       return next;
     });
     playAlertSound(alertSound);
-    showToast(`🔔 Rappel programmé : ${item.titre}`, 'success');
+    showToast(`🔔 Rappel synchronisé dans l'agenda : ${item.titre}`, 'success');
   };
 
   const handleUpdateRappel = async (rappel: Rappel) => {
+    const updated: Rappel = {
+      ...rappel,
+      dateRappel: ensureValidDate(rappel.dateRappel),
+      heure: ensureValidTime(rappel.heure),
+      dateFinRappel: rappel.dateFinRappel ? ensureValidDate(rappel.dateFinRappel) : undefined,
+      heureFin: rappel.heureFin ? ensureValidTime(rappel.heureFin) : undefined,
+    };
     try {
-      await fetch(`/api/rappels/${rappel.id}`, {
+      await fetch(`/api/rappels/${updated.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
-        body: JSON.stringify(rappel),
+        body: JSON.stringify(updated),
       });
     } catch {}
     setRappels((prev) => {
-      const next = prev.map((r) => (r.id === rappel.id ? rappel : r));
+      const next = prev.map((r) => (r.id === updated.id ? updated : r));
       safeSave('neo-rappels', next);
       return next;
     });
-    showToast(`✏️ Rappel mis à jour : ${rappel.titre}`, 'success');
+    showToast(`✏️ Rappel synchronisé dans l'agenda : ${updated.titre}`, 'success');
   };
 
   const handleToggleRappelStatus = async (id: number) => {

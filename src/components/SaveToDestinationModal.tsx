@@ -126,11 +126,12 @@ export const SaveToDestinationModal: React.FC<SaveToDestinationModalProps> = ({
 
     setIsSaving(true);
     playCyberSound('click');
+    const today = new Date().toISOString().split('T')[0];
     try {
       await onSave(selectedDestination, content, {
         title: title.trim() || 'Élément enregistré',
-        date: date || undefined,
-        time: time || undefined,
+        date: (selectedDestination === 'rappels' || selectedDestination === 'agenda') ? (date || today) : (date || undefined),
+        time: (selectedDestination === 'rappels' || selectedDestination === 'agenda') ? (time || '09:00') : (time || undefined),
         priority,
       });
       onClose();
