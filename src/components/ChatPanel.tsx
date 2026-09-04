@@ -43,6 +43,7 @@ import { FormattedMarkdown } from './FormattedMarkdown';
 import { NewsHeadlineFeed } from './NewsHeadlineFeed';
 import { SaveToDestinationModal, DestinationType } from './SaveToDestinationModal';
 import { useLanguage } from '../context/LanguageContext';
+import { useNetworkStatus } from '../hooks/useNetworkStatus';
 
 interface ChatPanelProps {
   conversation: Conversation | null;
@@ -95,6 +96,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   onSaveToDestination,
 }) => {
   const { t } = useLanguage();
+  const contextNetworkOnline = useNetworkStatus();
+  const effectiveIsOnline = typeof isOnline === 'boolean' ? isOnline : contextNetworkOnline;
   const [inputText, setInputText] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedImageName, setSelectedImageName] = useState<string | null>(null);
@@ -699,14 +702,14 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 </h2>
                 <Check className="w-3.5 h-3.5 text-[var(--fb-blue)] shrink-0" />
               </div>
-              <div className="flex items-center gap-2 text-xs text-[var(--fb-text-secondary)] leading-tight font-medium">
-                {isOnline ? (
-                  <span className="flex items-center gap-1 text-[var(--fb-green)]">
+              <div className="flex items-center gap-2 text-xs text-[var(--fb-text-secondary)] leading-tight font-medium" id="chat-network-indicator">
+                {effectiveIsOnline ? (
+                  <span className="flex items-center gap-1 text-[var(--fb-green)]" id="chat-status-online">
                     <span className="w-2 h-2 rounded-full bg-[var(--fb-green)] animate-pulse inline-block" />
-                    <span>En ligne</span>
+                    <span>{t('header.online') || 'En ligne'}</span>
                   </span>
                 ) : (
-                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-[10px] text-amber-700 dark:text-amber-300 font-semibold border border-amber-500/30">
+                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-[10px] text-amber-700 dark:text-amber-300 font-semibold border border-amber-500/30" id="chat-status-offline">
                     <WifiOff className="w-3 h-3" />
                     <span>Mode Hors-ligne (Local)</span>
                   </span>
@@ -811,7 +814,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                         </span>
                       </div>
 
-                      {msg.offline && (
+                      {msg.offline && !effectiveIsOnline && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-[10px] text-amber-700 dark:text-amber-300 font-bold border border-amber-400/40">
                           <Cpu className="w-3 h-3" />
                           Local

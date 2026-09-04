@@ -1708,14 +1708,18 @@ export default function App() {
     // 4. Moteur de chat : le mode Hors-Ligne ne s'exécute qu'en cas de coupure réseau avérée
     if (!isOnline) {
       try {
-        const offlineRes = generateOfflineResponse(safeMessageText, {
-          userProfile,
-          user,
-          taches,
-          rappels,
-          memoire,
-          favoris,
-        });
+        const offlineRes = generateOfflineResponse(
+          safeMessageText,
+          {
+            userProfile,
+            user,
+            taches,
+            rappels,
+            memoire,
+            favoris,
+          },
+          true
+        );
 
         const finalizedContent = confidentialMode
           ? sanitizeConfidentialText(offlineRes.reply)
@@ -1992,14 +1996,18 @@ export default function App() {
       if (isActualNetworkCut) {
         // Le mode Hors-Ligne s'active UNIQUEMENT en cas de coupure réseau avérée
         try {
-          const offlineFallback = generateOfflineResponse(safeMessageText, {
-            userProfile,
-            user,
-            taches,
-            rappels,
-            memoire,
-            favoris,
-          });
+          const offlineFallback = generateOfflineResponse(
+            safeMessageText,
+            {
+              userProfile,
+              user,
+              taches,
+              rappels,
+              memoire,
+              favoris,
+            },
+            true
+          );
 
           const finalizedFallback = confidentialMode
             ? sanitizeConfidentialText(offlineFallback.reply)
@@ -2036,7 +2044,7 @@ export default function App() {
         } catch (fallbackError) {
           const errorMessage = {
             role: 'neo' as const,
-            contenu: "Mode hors-ligne : une interruption temporaire est survenue. Vos données locales restent protégées.",
+            contenu: "Mode hors-ligne : coupure réseau détectée. Vos données locales restent protégées.",
             offline: true,
             date: new Date().toISOString(),
           };
@@ -2052,21 +2060,20 @@ export default function App() {
         // L'utilisateur est toujours en ligne (aucune coupure réseau)
         // Le mode 'En-ligne' reste actif : exécution des actions et réponse en ligne
         try {
-          const localProcessed = generateOfflineResponse(safeMessageText, {
-            userProfile,
-            user,
-            taches,
-            rappels,
-            memoire,
-            favoris,
-          });
+          const localProcessed = generateOfflineResponse(
+            safeMessageText,
+            {
+              userProfile,
+              user,
+              taches,
+              rappels,
+              memoire,
+              favoris,
+            },
+            false
+          );
 
-          // Nettoyer les mentions [Mode Hors-Ligne] car l'utilisateur est bien connecté
-          const onlineCleanReply = localProcessed.reply
-            .replace(/⚡\s*\*\*\[Mode Hors-Ligne\]\*\*\s*/gi, '')
-            .replace(/\[Mode Hors-Ligne\]\s*/gi, '')
-            .replace(/mode hors-ligne/gi, 'mode en ligne')
-            .trim();
+          const onlineCleanReply = localProcessed.reply.trim();
 
           const finalizedOnlineText = confidentialMode
             ? sanitizeConfidentialText(onlineCleanReply)

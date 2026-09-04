@@ -15,6 +15,7 @@ import {
 import { playCyberSound } from '../utils/security';
 import { UserProfile, ThemeMode } from '../types';
 import { useLanguage } from '../context/LanguageContext';
+import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { LanguageSelector } from './LanguageSelector';
 
 interface CyberHeaderProps {
@@ -60,6 +61,8 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
   isOnline = true,
 }) => {
   const { language, t } = useLanguage();
+  const contextOnline = useNetworkStatus();
+  const effectiveIsOnline = typeof isOnline === 'boolean' ? isOnline : contextOnline;
   const [cyberClock, setCyberClock] = useState('');
 
   useEffect(() => {
@@ -97,15 +100,15 @@ export const CyberHeader: React.FC<CyberHeaderProps> = ({
         </div>
 
         {/* Center: Status & Live Time Badge */}
-        <div className="hidden sm:flex items-center gap-3">
-          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[var(--fb-surface-secondary)] text-xs font-semibold text-[var(--fb-text-secondary)]">
-            {isOnline ? (
-              <span className="flex items-center gap-1.5 text-[var(--fb-green)]">
+        <div className="hidden sm:flex items-center gap-3" id="header-network-container">
+          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[var(--fb-surface-secondary)] text-xs font-semibold text-[var(--fb-text-secondary)]" id="header-network-pill">
+            {effectiveIsOnline ? (
+              <span className="flex items-center gap-1.5 text-[var(--fb-green)]" id="header-network-online">
                 <span className="w-2 h-2 rounded-full bg-[var(--fb-green)] animate-pulse inline-block" />
                 <span>{t('header.online')}</span>
               </span>
             ) : (
-              <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-bold">
+              <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-bold" id="header-network-offline">
                 <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />
                 <span>{language === 'en' ? 'Offline (Local Engine)' : 'Hors-ligne (Moteur Local)'}</span>
               </span>
