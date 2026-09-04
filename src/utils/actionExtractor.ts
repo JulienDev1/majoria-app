@@ -209,7 +209,7 @@ export function extractActionsFromText(userPrompt: string, aiReply?: string): Ex
   }
 
   // -------------------------------------------------------------
-  // INTENT C: Memory / Note / Enregistrement Menu
+  // INTENT C: Memory / Note / Enregistrement Mémoire
   // -------------------------------------------------------------
   const isMemory = (
     norm.startsWith('note ') ||
@@ -238,8 +238,12 @@ export function extractActionsFromText(userPrompt: string, aiReply?: string): Ex
     norm.startsWith('memoire') ||
     norm.includes('memorise') ||
     norm.includes('memoriser') ||
-    norm.includes('retiens que') ||
-    norm.includes('retiens ceci') ||
+    norm.includes('mémorise') ||
+    norm.includes('mémoriser') ||
+    norm.includes('retiens') ||
+    norm.includes('retenir') ||
+    norm.includes('peux tu retenir') ||
+    norm.includes('peux-tu retenir') ||
     norm.includes('souviens toi') ||
     norm.includes('souviens-toi') ||
     norm.includes('enregistre en memoire') ||
@@ -253,12 +257,15 @@ export function extractActionsFromText(userPrompt: string, aiReply?: string): Ex
     norm.includes('inscris dans mes notes') ||
     norm.includes('ajoute a mes notes') ||
     norm.includes('ajoute dans mes notes') ||
-    norm.includes('n oublie pas que')
+    norm.includes('ajoute a ma memoire') ||
+    norm.includes('ajoute dans ma memoire') ||
+    norm.includes('n oublie pas que') ||
+    norm.includes('n oublie pas')
   );
 
   if (isMemory) {
     let memoContent = cleanPrompt
-      .replace(/^(bonjour|salut|peux-tu|peux tu|pourrais-tu|pourrais tu|s il te plait|svp)?\s*(note dans le menu que|note dans le menu|note dans ma mémoire que|note dans ma mémoire|note-moi que|note moi que|note-moi|note moi|note que|note ceci|note ça|note :|note:|note|mémoire|memoire|mémorise|mémoriser|garde en mémoire que|garde en mémoire|garde en tête que|garde en tête|garde ceci en mémoire|garde en note|garde ceci|garde ça|retiens que|retiens ceci|souviens-toi de|souviens-toi que|souviens toi|enregistre en mémoire|enregistre dans la mémoire|enregistre dans le menu|enregistre cette note|enregistre ceci|mets en mémoire|sauvegarde en mémoire|sauvegarder en mémoire|inscris dans mes notes|ajoute à mes notes|ajoute dans mes notes|n'oublie pas que)\s*:?\s*/i, '')
+      .replace(/^(bonjour|salut|peux-tu|peux tu|pourrais-tu|pourrais tu|s il te plait|svp)?\s*(note dans le menu que|note dans le menu|note dans ma mémoire que|note dans ma mémoire|note-moi que|note moi que|note-moi|note moi|note que|note ceci|note ça|note :|note:|note|mémoire|memoire|mémorise|mémoriser|garde en mémoire que|garde en mémoire|garde en tête que|garde en tête|garde ceci en mémoire|garde en note|garde ceci|garde ça|retiens que|retiens ceci|retiens|retenir|souviens-toi de|souviens-toi que|souviens toi|enregistre en mémoire|enregistre dans la mémoire|enregistre dans le menu|enregistre cette note|enregistre ceci|mets en mémoire|sauvegarde en mémoire|sauvegarder en mémoire|inscris dans mes notes|ajoute à mes notes|ajoute dans mes notes|ajoute à ma mémoire|ajoute dans ma mémoire|n'oublie pas que|n'oublie pas)\s*:?\s*/i, '')
       .replace(/^(de|que|pour|ceci|cela)\s+/i, '')
       .trim();
 
@@ -267,7 +274,7 @@ export function extractActionsFromText(userPrompt: string, aiReply?: string): Ex
     actions.push({
       type: 'memory',
       contenu: memoContent,
-      tags: ['menu', 'mémoire', 'ia-auto'],
+      tags: ['mémoire', 'notes', 'ia-auto'],
       importance: 4,
     });
 
@@ -312,6 +319,11 @@ export function extractActionsFromText(userPrompt: string, aiReply?: string): Ex
   const isAgenda = (
     norm.includes('agenda') ||
     norm.includes('calendrier') ||
+    norm.includes('rendez vous') ||
+    norm.includes('rendez-vous') ||
+    norm.includes('rdv') ||
+    norm.includes('reunion') ||
+    norm.includes('meeting') ||
     norm.includes('ajoute a l agenda') ||
     norm.includes('ajoute a mon agenda') ||
     norm.includes('ajouter a mon agenda') ||
@@ -332,8 +344,8 @@ export function extractActionsFromText(userPrompt: string, aiReply?: string): Ex
 
   if (isAgenda) {
     let eventTitle = cleanPrompt
-      .replace(/^(bonjour|salut|peux-tu|peux tu)?\s*(ajoute à l'agenda|ajoute à mon agenda|ajouter à mon agenda|ajoute dans mon agenda|ajoute au calendrier|sur mon agenda|sur mon calendrier|dans mon agenda|dans mon calendrier|crée un événement|créer un événement|planifie un événement|planifie un rendez-vous|planifie un rdv|planifie une réunion|programme sur l'agenda|agenda)\s*:?\s*/i, '')
-      .replace(/^(de|que|pour|à|a)\s+/i, '')
+      .replace(/^(bonjour|salut|peux-tu|peux tu)?\s*(ajoute à l'agenda|ajoute à mon agenda|ajouter à mon agenda|ajoute dans mon agenda|ajoute au calendrier|sur mon agenda|sur mon calendrier|dans mon agenda|dans mon calendrier|crée un événement|créer un événement|planifie un événement|planifie un rendez-vous|planifie un rdv|planifie une réunion|programme sur l'agenda|rendez-vous|rendez vous|rdv|agenda)\s*:?\s*/i, '')
+      .replace(/^(de|que|pour|à|a|chez le|chez la|chez)\s+/i, '')
       .trim();
 
     // Extract potential time

@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import { GoogleGenAI, ThinkingLevel } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel, FunctionDeclaration, Type } from '@google/genai';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 
@@ -231,9 +231,14 @@ app.post('/api/favoris', async (req: Request, res: Response) => {
   const rawContent = req.body?.content || req.body?.contenu || req.body?.description || '';
   const rawCategory = req.body?.category || req.body?.categorie || 'général';
 
+  // Toujours générer un ID unique pour garantir l'ajout sans remplacement
+  const uniqueId = (req.body?.id && Number(req.body.id) > 10000000)
+    ? Number(req.body.id)
+    : Date.now() + Math.floor(Math.random() * 10000000);
+
   const item = { 
     ...req.body,
-    id: req.body?.id || Date.now(), 
+    id: uniqueId, 
     titre: rawTitle,
     title: rawTitle,
     contenu: rawContent,
@@ -247,10 +252,20 @@ app.post('/api/favoris', async (req: Request, res: Response) => {
   const client = supabaseAdmin || serverSupabase;
   if (client) {
     try {
-      const { data, error } = await client.from('favoris').upsert(item, { onConflict: 'id' }).select().maybeSingle();
+      // Utilise INSERT pour ajouter et ne jamais écraser
+      const { data, error } = await client.from('favoris').insert([item]).select().maybeSingle();
       if (!error && data) {
         serverStore.favoris.unshift(data);
         return res.status(201).json(data);
+      }
+      if (error) {
+        // En cas de conflit d'ID, retenter avec un ID aléatoire neuf
+        const retryItem = { ...item, id: Date.now() + Math.floor(Math.random() * 10000000) };
+        const { data: retryData } = await client.from('favoris').insert([retryItem]).select().maybeSingle();
+        if (retryData) {
+          serverStore.favoris.unshift(retryData);
+          return res.status(201).json(retryData);
+        }
       }
     } catch (err) {
       console.error('Erreur Supabase favoris POST:', err);
@@ -360,11 +375,16 @@ app.post('/api/memoire', async (req: Request, res: Response) => {
 
   const rawContent = req.body?.content || req.body?.contenu || req.body?.title || req.body?.description || '';
   const rawImportance = typeof req.body?.importance === 'number' ? req.body.importance : 3;
-  const rawTags = Array.isArray(req.body?.tags) ? req.body.tags : ['note', 'ia-auto'];
+  const rawTags = Array.isArray(req.body?.tags) ? req.body.tags : ['mémoire', 'notes', 'ia-auto'];
+
+  // Toujours générer un ID unique pour garantir l'ajout sans remplacement
+  const uniqueId = (req.body?.id && Number(req.body.id) > 10000000)
+    ? Number(req.body.id)
+    : Date.now() + Math.floor(Math.random() * 10000000);
 
   const item = { 
     ...req.body,
-    id: req.body?.id || Date.now(), 
+    id: uniqueId, 
     contenu: rawContent,
     content: rawContent,
     importance: rawImportance, 
@@ -376,10 +396,20 @@ app.post('/api/memoire', async (req: Request, res: Response) => {
   const client = supabaseAdmin || serverSupabase;
   if (client) {
     try {
-      const { data, error } = await client.from('memoire').upsert(item, { onConflict: 'id' }).select().maybeSingle();
+      // Utilise INSERT pour ajouter sans jamais écraser
+      const { data, error } = await client.from('memoire').insert([item]).select().maybeSingle();
       if (!error && data) {
         serverStore.memoire.unshift(data);
         return res.status(201).json(data);
+      }
+      if (error) {
+        // En cas de conflit d'ID, retenter avec un ID aléatoire neuf
+        const retryItem = { ...item, id: Date.now() + Math.floor(Math.random() * 10000000) };
+        const { data: retryData } = await client.from('memoire').insert([retryItem]).select().maybeSingle();
+        if (retryData) {
+          serverStore.memoire.unshift(retryData);
+          return res.status(201).json(retryData);
+        }
       }
     } catch (err) {
       console.error('Erreur Supabase memoire POST:', err);
@@ -524,9 +554,14 @@ app.post('/api/rappels', async (req: Request, res: Response) => {
   const rawPriority = req.body?.priority || req.body?.priorite || 'normale';
   const rawStatus = req.body?.status || req.body?.statut || 'actif';
 
+  // Toujours générer un ID unique pour garantir l'ajout sans remplacement
+  const uniqueId = (req.body?.id && Number(req.body.id) > 10000000)
+    ? Number(req.body.id)
+    : Date.now() + Math.floor(Math.random() * 10000000);
+
   const item = { 
     ...req.body, 
-    id: req.body?.id || Date.now(), 
+    id: uniqueId, 
     titre: rawTitle,
     title: rawTitle,
     description: rawDesc,
@@ -546,10 +581,20 @@ app.post('/api/rappels', async (req: Request, res: Response) => {
   const client = supabaseAdmin || serverSupabase;
   if (client) {
     try {
-      const { data, error } = await client.from('rappels').upsert(item, { onConflict: 'id' }).select().maybeSingle();
+      // Utilise INSERT pour ajouter et ne jamais écraser
+      const { data, error } = await client.from('rappels').insert([item]).select().maybeSingle();
       if (!error && data) {
         serverStore.rappels.unshift(data);
         return res.status(201).json(data);
+      }
+      if (error) {
+        // En cas de conflit d'ID, retenter avec un ID aléatoire neuf
+        const retryItem = { ...item, id: Date.now() + Math.floor(Math.random() * 10000000) };
+        const { data: retryData } = await client.from('rappels').insert([retryItem]).select().maybeSingle();
+        if (retryData) {
+          serverStore.rappels.unshift(retryData);
+          return res.status(201).json(retryData);
+        }
       }
     } catch (err) {
       console.error('Erreur Supabase rappels POST:', err);
@@ -663,9 +708,14 @@ app.post('/api/taches', async (req: Request, res: Response) => {
   const rawPriority = req.body?.priority || req.body?.priorite || 'normale';
   const rawStatus = req.body?.status || req.body?.statut || 'attente';
 
+  // Toujours générer un ID unique pour garantir l'ajout sans remplacement
+  const uniqueId = (req.body?.id && Number(req.body.id) > 10000000)
+    ? Number(req.body.id)
+    : Date.now() + Math.floor(Math.random() * 10000000);
+
   const item = { 
     ...req.body, 
-    id: req.body?.id || Date.now(), 
+    id: uniqueId, 
     titre: rawTitle,
     title: rawTitle,
     description: rawDesc,
@@ -683,10 +733,20 @@ app.post('/api/taches', async (req: Request, res: Response) => {
   const client = supabaseAdmin || serverSupabase;
   if (client) {
     try {
-      const { data, error } = await client.from('taches').upsert(item, { onConflict: 'id' }).select().maybeSingle();
+      // Utilise INSERT pour ajouter et ne jamais écraser
+      const { data, error } = await client.from('taches').insert([item]).select().maybeSingle();
       if (!error && data) {
         serverStore.taches.unshift(data);
         return res.status(201).json(data);
+      }
+      if (error) {
+        // En cas de conflit d'ID, retenter avec un ID aléatoire neuf
+        const retryItem = { ...item, id: Date.now() + Math.floor(Math.random() * 10000000) };
+        const { data: retryData } = await client.from('taches').insert([retryItem]).select().maybeSingle();
+        if (retryData) {
+          serverStore.taches.unshift(retryData);
+          return res.status(201).json(retryData);
+        }
       }
     } catch (err) {
       console.error('Erreur Supabase taches POST:', err);
@@ -1660,8 +1720,15 @@ DIRECTIVES DE RÉPONSE :
 2. Formule ta réponse de manière fluide, vivante et concrète, sans préambule superflu, sans répéter inutilement la date du jour en introduction sauf si l'utilisateur la demande explicitement ou si c'est indispensable pour le contexte temporel.
 3. Exploite pleinement les informations en temps réel de la recherche Google pour les faits d'actualité, la météo, les événements et données récentes en te basant sur la temporalité réelle actuelle.
 4. Évite toute structure rigide ou scolaire de type "Définition / Contexte / Analyse". Va droit au but avec un ton naturel.
-5. GESTION DES ACTIONS ET ENREGISTREMENTS (OBLIGATOIRE ET STRICT) :
-   Dès qu'une action (rendez-vous, rappel, tâche, favori, note) est demandée, mentionnée ou confirmée, tu DOIS STRICTEMENT ajouter à la toute fin de ton message le bloc [ACTION_JSON] avec cette structure exacte :
+5. GESTION STRICTE DES ACTIONS, OUTILS ET ENREGISTREMENTS (OBLIGATOIRE) :
+   Dès que l'utilisateur demande de retenir, mémoriser, noter, ajouter dans l'agenda, planifier un rendez-vous, programmer un rappel, créer une tâche ou ajouter un favori :
+   - TU NE DOIS JAMAIS répondre uniquement par du texte seul ! (Ne dis jamais "C'est noté", "J'ai retenu", "C'est ajouté" sans appeler l'outil).
+   - Tu DOIS OBLIGATOIREMENT appeler l'outil approprié :
+     * saveMemory : pour tout souvenir, information, préférence, fait ou note à mémoriser ou retenir.
+     * createReminder : pour tout rendez-vous, événement, réunion, alerte ou ajout à l'agenda / planning.
+     * createTask : pour toute tâche, to-do, projet ou chose à faire.
+     * addFavorite : pour tout favori, signet, lien ou élément à sauvegarder.
+   - Tu DOIS ÉGALEMENT ajouter à la toute fin de ton message le bloc [ACTION_JSON] correspondant :
 
 [ACTION_JSON]
 {
@@ -1685,7 +1752,7 @@ Règles impératives pour chaque type d'action :
 - Mémoire, notes, éléments à retenir ou mémoriser :
   "type": "CREATE_MEMORY", "endpoint": "/api/memoire", "payload": { "content": "Contenu de la note", "tags": ["note"], "importance": 1, "user_id": "CURRENT_USER" }
 
-RÈGLE D'OR : Ne confirme JAMAIS à l'utilisateur qu'un rendez-vous, rappel, tâche ou élément est créé/planifié sans avoir inséré ce bloc [ACTION_JSON] à la fin de ta réponse. Ne place aucun texte après la balise fermante [/ACTION_JSON]. Si l'utilisateur ne demande aucune action ou enregistrement, ne renvoie AUCUN bloc [ACTION_JSON].`.trim();
+RÈGLE D'OR : Ne confirme JAMAIS à l'utilisateur qu'un rendez-vous, rappel, tâche ou élément est créé/planifié sans appeler l'outil adéquat et sans avoir inséré ce bloc [ACTION_JSON] à la fin de ta réponse. Toutes les nouvelles demandes doivent être AJOUTÉES sans jamais remplacer ni écraser les éléments existants.`.trim();
 
     const contents = buildGeminiContents(history, message || '', image);
     const ai = getGenAI();
@@ -1698,17 +1765,128 @@ RÈGLE D'OR : Ne confirme JAMAIS à l'utilisateur qu'un rendez-vous, rappel, tâ
       )
     );
 
+    // Déclaration des outils Gemini d'action
+    const saveMemoryTool: FunctionDeclaration = {
+      name: 'saveMemory',
+      description: "Enregistre, retient ou mémorise une note, un fait, une préférence ou une information dans la mémoire permanente de l'utilisateur. Déclencher OBLIGATOIREMENT dès que l'utilisateur demande de retenir, mémoriser, noter ou garder en mémoire.",
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          content: {
+            type: Type.STRING,
+            description: "L'information exacte, le fait, la note ou le souvenir à mémoriser."
+          },
+          tags: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+            description: "Mots-clés associés (ex: ['mémoire', 'notes'])."
+          },
+          importance: {
+            type: Type.INTEGER,
+            description: "Niveau d'importance de 1 à 5."
+          }
+        },
+        required: ['content']
+      }
+    };
+
+    const createReminderTool: FunctionDeclaration = {
+      name: 'createReminder',
+      description: "Ajoute un rappel, un rendez-vous, un événement ou une réunion dans l'agenda / planning de l'utilisateur. Déclencher OBLIGATOIREMENT dès que l'utilisateur demande d'ajouter à l'agenda, de planifier un rendez-vous, ou de programmer un rappel.",
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          title: {
+            type: Type.STRING,
+            description: "Titre du rendez-vous ou rappel (ex: 'Rendez-vous médecin', 'Appeler Paul')."
+          },
+          date: {
+            type: Type.STRING,
+            description: "Date au format YYYY-MM-DD (ex: '2026-09-05')."
+          },
+          time: {
+            type: Type.STRING,
+            description: "Heure au format HH:MM (ex: '14:30')."
+          },
+          description: {
+            type: Type.STRING,
+            description: "Description ou détails supplémentaires."
+          },
+          priority: {
+            type: Type.STRING,
+            description: "Priorité : 'basse', 'normale' ou 'haute'."
+          }
+        },
+        required: ['title', 'date']
+      }
+    };
+
+    const createTaskTool: FunctionDeclaration = {
+      name: 'createTask',
+      description: "Crée et ajoute une tâche, un projet, un to-do ou une chose à faire dans la liste des tâches de l'utilisateur. Déclencher OBLIGATOIREMENT dès que l'utilisateur demande d'ajouter une tâche ou un projet.",
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          title: {
+            type: Type.STRING,
+            description: "Titre de la tâche ou du projet."
+          },
+          date: {
+            type: Type.STRING,
+            description: "Date d'échéance au format YYYY-MM-DD."
+          },
+          priority: {
+            type: Type.STRING,
+            description: "Priorité : 'basse', 'normale' ou 'haute'."
+          },
+          description: {
+            type: Type.STRING,
+            description: "Description de la tâche."
+          }
+        },
+        required: ['title']
+      }
+    };
+
+    const addFavoriteTool: FunctionDeclaration = {
+      name: 'addFavorite',
+      description: "Ajoute un favori, un signet ou une ressource dans les favoris de l'utilisateur. Déclencher OBLIGATOIREMENT dès que l'utilisateur demande d'ajouter en favori.",
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          title: {
+            type: Type.STRING,
+            description: "Titre du favori."
+          },
+          content: {
+            type: Type.STRING,
+            description: "Lien URL ou contenu du favori."
+          },
+          category: {
+            type: Type.STRING,
+            description: "Catégorie du favori (ex: 'général', 'technique')."
+          }
+        },
+        required: ['title', 'content']
+      }
+    };
+
+    const assistantTools: any[] = [
+      { functionDeclarations: [saveMemoryTool, createReminderTool, createTaskTool, addFavoriteTool] }
+    ];
+
+    if (needsLiveSearch) {
+      assistantTools.unshift({ googleSearch: {} });
+    }
+
     const config: any = {
       systemInstruction,
       temperature: 0.7,
+      tools: assistantTools,
       thinkingConfig: {
         thinkingLevel: ThinkingLevel.LOW,
       },
     };
-
-    if (needsLiveSearch) {
-      config.tools = [{ googleSearch: {} }];
-    }
 
     // Set SSE headers for streaming response
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
@@ -1776,6 +1954,7 @@ RÈGLE D'OR : Ne confirme JAMAIS à l'utilisateur qu'un rendez-vous, rappel, tâ
     let fullText = '';
     const rawSources: { title: string; uri: string }[] = [];
     const searchQueries: string[] = [];
+    const detectedFunctionCalls: { name: string; args: any }[] = [];
 
     for await (const chunk of streamResponse) {
       const chunkText = chunk.text || '';
@@ -1784,6 +1963,23 @@ RÈGLE D'OR : Ne confirme JAMAIS à l'utilisateur qu'un rendez-vous, rappel, tâ
         res.write(`data: ${JSON.stringify({ type: 'chunk', text: chunkText })}\n\n`);
         if (typeof (res as any).flush === 'function') {
           (res as any).flush();
+        }
+      }
+
+      // Détecter les appels d'outils Gemini
+      if (chunk.functionCalls && Array.isArray(chunk.functionCalls)) {
+        for (const fc of chunk.functionCalls) {
+          if (fc && fc.name) {
+            detectedFunctionCalls.push({ name: fc.name, args: fc.args || {} });
+          }
+        }
+      }
+      const parts = chunk?.candidates?.[0]?.content?.parts;
+      if (Array.isArray(parts)) {
+        for (const p of parts) {
+          if (p.functionCall && p.functionCall.name) {
+            detectedFunctionCalls.push({ name: p.functionCall.name, args: p.functionCall.args || {} });
+          }
         }
       }
 
@@ -1812,6 +2008,88 @@ RÈGLE D'OR : Ne confirme JAMAIS à l'utilisateur qu'un rendez-vous, rappel, tâ
     let reply = fullText.trim();
     let actions: any[] = [];
 
+    // 0. Traitement prioritaire des appels d'outils natifs Gemini
+    if (detectedFunctionCalls.length > 0) {
+      for (const fc of detectedFunctionCalls) {
+        const fnName = fc.name;
+        const args = fc.args || {};
+        const uniqueId = Date.now() + Math.floor(Math.random() * 10000000);
+
+        if (fnName === 'saveMemory') {
+          const content = args.content || args.contenu || args.title || '';
+          if (content) {
+            actions.push({
+              id: uniqueId,
+              type: 'memory',
+              endpoint: '/api/memoire',
+              titre: content,
+              contenu: content,
+              tags: Array.isArray(args.tags) && args.tags.length > 0 ? args.tags : ['mémoire', 'notes', 'ia-auto'],
+              importance: typeof args.importance === 'number' ? args.importance : 3,
+              user_id: userId
+            });
+            if (!reply) {
+              reply = `C'est bien mémorisé ! J'ai enregistré dans votre mémoire : « ${content} ».`;
+              res.write(`data: ${JSON.stringify({ type: 'chunk', text: reply })}\n\n`);
+            }
+          }
+        } else if (fnName === 'createReminder') {
+          const title = args.title || args.titre || 'Rappel programmé';
+          const date = args.date || new Date().toISOString().split('T')[0];
+          const time = args.time || '09:00';
+          actions.push({
+            id: uniqueId,
+            type: 'reminder',
+            endpoint: '/api/rappels',
+            titre: title,
+            description: args.description || `Rappel pour le ${date} à ${time}`,
+            dateRappel: date,
+            heure: time,
+            priorite: args.priority || 'normale',
+            statut: 'actif',
+            user_id: userId
+          });
+          if (!reply) {
+            reply = `C'est programmé ! J'ai ajouté à votre agenda : « ${title} » pour le ${date} à ${time}.`;
+            res.write(`data: ${JSON.stringify({ type: 'chunk', text: reply })}\n\n`);
+          }
+        } else if (fnName === 'createTask') {
+          const title = args.title || args.titre || 'Nouvelle tâche';
+          actions.push({
+            id: uniqueId,
+            type: 'task',
+            endpoint: '/api/taches',
+            titre: title,
+            description: args.description || 'Tâche planifiée par Major2I.A',
+            echeance: args.date || '',
+            priorite: args.priority || 'normale',
+            status: 'attente',
+            user_id: userId
+          });
+          if (!reply) {
+            reply = `C'est fait ! J'ai ajouté la tâche « ${title} » à votre liste de tâches.`;
+            res.write(`data: ${JSON.stringify({ type: 'chunk', text: reply })}\n\n`);
+          }
+        } else if (fnName === 'addFavorite') {
+          const title = args.title || args.titre || 'Favori';
+          const content = args.content || args.contenu || '';
+          actions.push({
+            id: uniqueId,
+            type: 'favorite',
+            endpoint: '/api/favoris',
+            titre: title,
+            contenu: content,
+            categorie: args.category || 'général',
+            user_id: userId
+          });
+          if (!reply) {
+            reply = `C'est enregistré ! J'ai ajouté « ${title} » à vos favoris.`;
+            res.write(`data: ${JSON.stringify({ type: 'chunk', text: reply })}\n\n`);
+          }
+        }
+      }
+    }
+
     // 1. Extract [ACTION_JSON] block (single object, array or nested actions)
     const actionTagMatch = fullText.match(/\[ACTION_JSON\]\s*([\s\S]*?)(?:\[\/ACTION_JSON\]|$)/i);
     if (actionTagMatch && actionTagMatch[1]) {
@@ -1826,7 +2104,7 @@ RÈGLE D'OR : Ne confirme JAMAIS à l'utilisateur qu'un rendez-vous, rappel, tâ
           const actType = String(parsed.type).toUpperCase();
           const d = parsed.payload || parsed.data || parsed;
           const endpoint = parsed.endpoint || (
-            actType.includes('REMINDER') || actType.includes('RAPPEL') ? '/api/rappels' :
+            actType.includes('REMINDER') || actType.includes('RAPPEL') || actType.includes('AGENDA') || actType.includes('EVENT') ? '/api/rappels' :
             actType.includes('TASK') || actType.includes('TACHE') || actType.includes('PROJ') ? '/api/taches' :
             actType.includes('FAV') ? '/api/favoris' :
             actType.includes('MEM') ? '/api/memoire' : '/api/rappels'
@@ -1834,6 +2112,7 @@ RÈGLE D'OR : Ne confirme JAMAIS à l'utilisateur qu'un rendez-vous, rappel, tâ
 
           if (actType === 'CREATE_TASK' || actType === 'TASK' || actType === 'TACHE' || actType === 'PROJECT' || actType === 'PROJET') {
             actions.push({
+              id: Date.now() + Math.floor(Math.random() * 10000000),
               type: actType.includes('PROJ') ? 'project' : 'task',
               endpoint,
               titre: d.title || d.titre || (actType.includes('PROJ') ? 'Nouveau projet' : 'Nouvelle tâche'),
@@ -1843,8 +2122,9 @@ RÈGLE D'OR : Ne confirme JAMAIS à l'utilisateur qu'un rendez-vous, rappel, tâ
               status: 'attente',
               user_id: userId
             });
-          } else if (actType === 'CREATE_REMINDER' || actType === 'REMINDER' || actType === 'RAPPEL') {
+          } else if (actType === 'CREATE_REMINDER' || actType === 'REMINDER' || actType === 'RAPPEL' || actType === 'CREATE_EVENT' || actType === 'AGENDA') {
             actions.push({
+              id: Date.now() + Math.floor(Math.random() * 10000000),
               type: 'reminder',
               endpoint,
               titre: d.title || d.titre || 'Rappel',
@@ -1856,6 +2136,7 @@ RÈGLE D'OR : Ne confirme JAMAIS à l'utilisateur qu'un rendez-vous, rappel, tâ
             });
           } else if (actType === 'CREATE_FAVORITE' || actType === 'FAVORITE' || actType === 'FAVORI') {
             actions.push({
+              id: Date.now() + Math.floor(Math.random() * 10000000),
               type: 'favorite',
               endpoint,
               titre: d.title || d.titre || 'Favori',
@@ -1865,6 +2146,7 @@ RÈGLE D'OR : Ne confirme JAMAIS à l'utilisateur qu'un rendez-vous, rappel, tâ
             });
           } else if (actType === 'CREATE_MEMORY' || actType === 'MEMORY' || actType === 'MEMOIRE') {
             actions.push({
+              id: Date.now() + Math.floor(Math.random() * 10000000),
               type: 'memory',
               endpoint,
               titre: d.title || d.titre || 'Mémoire',
@@ -1875,6 +2157,7 @@ RÈGLE D'OR : Ne confirme JAMAIS à l'utilisateur qu'un rendez-vous, rappel, tâ
             });
           } else {
             actions.push({
+              id: Date.now() + Math.floor(Math.random() * 10000000),
               type: actType.toLowerCase(),
               endpoint,
               ...d,
@@ -1916,7 +2199,7 @@ RÈGLE D'OR : Ne confirme JAMAIS à l'utilisateur qu'un rendez-vous, rappel, tâ
     }
 
     // Clean ACTION_JSON remnants from display text
-    reply = fullText
+    reply = (reply || fullText)
       .replace(/\[ACTION_JSON\][\s\S]*?(?:\[\/ACTION_JSON\]|$)/gi, '')
       .replace(/ACTION_JSON\s*:\s*```(?:json)?[\s\S]*?```/gi, '')
       .replace(/(?:Rappel|Tâche|Mémoire|Favori)?\s*:?\s*ACTION_JSON\s*:?\s*\{[\s\S]*?\}/gi, '')
@@ -1924,7 +2207,7 @@ RÈGLE D'OR : Ne confirme JAMAIS à l'utilisateur qu'un rendez-vous, rappel, tâ
       .replace(/(?:\r?\n)*(?:Rappel|Tâche|Mémoire|Favori)\s*:\s*$/i, '')
       .trim();
 
-    // 2. Intelligent Server Fallback: If Gemini did not generate ACTION_JSON, detect user intent
+    // 2. Intelligent Server Fallback: If Gemini did not generate ACTION_JSON or tool calls, detect user intent
     if (actions.length === 0 && message) {
       const cleanPrompt = message.trim();
       const norm = cleanPrompt
@@ -1937,7 +2220,7 @@ RÈGLE D'OR : Ne confirme JAMAIS à l'utilisateur qu'un rendez-vous, rappel, tâ
       const now = new Date();
       const todayStr = now.toISOString().split('T')[0];
 
-      // Reminder detection
+      // Reminder & Agenda detection
       if (
         norm.startsWith('rappel') ||
         norm.includes('rappelle moi') ||
@@ -1950,10 +2233,24 @@ RÈGLE D'OR : Ne confirme JAMAIS à l'utilisateur qu'un rendez-vous, rappel, tâ
         norm.includes('programme un rappel') ||
         norm.includes('mets une alerte') ||
         norm.includes('mets une alarme') ||
-        norm.includes('n oublie pas de me rappeler')
+        norm.includes('n oublie pas de me rappeler') ||
+        norm.includes('agenda') ||
+        norm.includes('calendrier') ||
+        norm.includes('rendez vous') ||
+        norm.includes('rendez-vous') ||
+        norm.includes('rdv') ||
+        norm.includes('reunion') ||
+        norm.includes('ajoute a l agenda') ||
+        norm.includes('ajoute a mon agenda') ||
+        norm.includes('dans mon agenda') ||
+        norm.includes('sur mon agenda') ||
+        norm.includes('dans mon calendrier') ||
+        norm.includes('planifie un rendez vous') ||
+        norm.includes('planifie une reunion') ||
+        norm.includes('prends rdv')
       ) {
         let reminderTitle = cleanPrompt
-          .replace(/^(bonjour|salut|peux-tu|peux tu|pourrais-tu|pourrais tu|s il te plait|svp)?\s*(rappel|rappelle-moi|rappelle moi|me rappeler de|rappeler de|ajoute un rappel|ajouter un rappel|crée un rappel|créer un rappel|programme un rappel|programmer un rappel|mets une alerte pour|mets une alarme pour|n'oublie pas de me rappeler)\s*:?\s*/i, '')
+          .replace(/^(bonjour|salut|peux-tu|peux tu|pourrais-tu|pourrais tu|s il te plait|svp)?\s*(rappel|rappelle-moi|rappelle moi|me rappeler de|rappeler de|ajoute un rappel|ajouter un rappel|crée un rappel|créer un rappel|programme un rappel|programmer un rappel|mets une alerte pour|mets une alarme pour|n'oublie pas de me rappeler|ajoute à l'agenda|ajoute à mon agenda|dans mon agenda|sur mon agenda|rendez-vous|rendez vous|rdv|agenda)\s*:?\s*/i, '')
           .replace(/^(de|que|pour|à|a)\s+/i, '')
           .trim();
 
@@ -1975,15 +2272,18 @@ RÈGLE D'OR : Ne confirme JAMAIS à l'utilisateur qu'un rendez-vous, rappel, tâ
         }
 
         reminderTitle = reminderTitle.replace(/(?:demain|après-demain|apres-demain|aujourd'hui|(?:à|vers|pour|a)\s*\d{1,2}[h:]?\d{0,2})/gi, '').trim();
-        if (!reminderTitle) reminderTitle = 'Rappel programmé';
+        if (!reminderTitle) reminderTitle = norm.includes('rendez') || norm.includes('agenda') ? 'Rendez-vous programmé' : 'Rappel programmé';
 
         actions.push({
+          id: Date.now() + Math.floor(Math.random() * 10000000),
           type: 'reminder',
+          endpoint: '/api/rappels',
           titre: reminderTitle,
           description: `Rappel créé pour le ${reminderDate} à ${reminderHour}`,
           dateRappel: reminderDate,
           heure: reminderHour,
           priorite: norm.includes('urgent') || norm.includes('important') ? 'haute' : 'normale',
+          user_id: userId
         });
       }
       // Task & Project detection
@@ -2013,10 +2313,13 @@ RÈGLE D'OR : Ne confirme JAMAIS à l'utilisateur qu'un rendez-vous, rappel, tâ
         if (!taskTitle) taskTitle = isProject ? 'Nouveau projet' : 'Nouvelle tâche';
 
         actions.push({
+          id: Date.now() + Math.floor(Math.random() * 10000000),
           type: isProject ? 'project' : 'task',
+          endpoint: '/api/taches',
           titre: taskTitle,
           description: isProject ? 'Projet créé par Major2I.A' : 'Tâche créée par Major2I.A',
           priorite: norm.includes('urgent') || norm.includes('important') ? 'haute' : 'normale',
+          user_id: userId
         });
       }
       // Memory / Note detection
@@ -2044,6 +2347,12 @@ RÈGLE D'OR : Ne confirme JAMAIS à l'utilisateur qu'un rendez-vous, rappel, tâ
         norm.startsWith('memoire') ||
         norm.includes('memorise') ||
         norm.includes('memoriser') ||
+        norm.includes('mémorise') ||
+        norm.includes('mémoriser') ||
+        norm.includes('retiens') ||
+        norm.includes('retenir') ||
+        norm.includes('peux tu retenir') ||
+        norm.includes('peux-tu retenir') ||
         norm.includes('retiens que') ||
         norm.includes('souviens toi') ||
         norm.includes('souviens-toi') ||
@@ -2057,17 +2366,46 @@ RÈGLE D'OR : Ne confirme JAMAIS à l'utilisateur qu'un rendez-vous, rappel, tâ
         norm.includes('ajoute dans mes notes')
       ) {
         let memoContent = cleanPrompt
-          .replace(/^(bonjour|salut|peux-tu|peux tu|pourrais-tu|pourrais tu|s il te plait|svp)?\s*(note dans le menu que|note dans le menu|note dans ma mémoire que|note dans ma mémoire|note-moi que|note moi que|note-moi|note moi|note que|note ceci|note ça|note :|note:|note|mémoire|memoire|mémorise|mémoriser|garde en mémoire que|garde en mémoire|garde en tête|garde en note|garde ceci|retiens que|souviens-toi de|souviens toi de|enregistre en mémoire|enregistre dans la mémoire|enregistre dans le menu|enregistre cette note|mets en mémoire|sauvegarde en mémoire|ajoute à mes notes|ajoute dans mes notes)\s*:?\s*/i, '')
+          .replace(/^(bonjour|salut|peux-tu|peux tu|pourrais-tu|pourrais tu|s il te plait|svp)?\s*(note dans le menu que|note dans le menu|note dans ma mémoire que|note dans ma mémoire|note-moi que|note moi que|note-moi|note moi|note que|note ceci|note ça|note :|note:|note|mémoire|memoire|mémorise|mémoriser|garde en mémoire que|garde en mémoire|garde en tête|garde en note|garde ceci|retiens que|retiens|retenir|souviens-toi de|souviens toi de|souviens-toi|souviens toi|enregistre en mémoire|enregistre dans la mémoire|enregistre dans le menu|enregistre cette note|mets en mémoire|sauvegarde en mémoire|ajoute à mes notes|ajoute dans mes notes)\s*:?\s*/i, '')
           .replace(/^(de|que|pour|ceci|cela)\s+/i, '')
           .trim();
 
         if (!memoContent) memoContent = cleanPrompt;
 
         actions.push({
+          id: Date.now() + Math.floor(Math.random() * 10000000),
           type: 'memory',
+          endpoint: '/api/memoire',
+          titre: memoContent,
           contenu: memoContent,
           tags: ['ia-auto', 'mémoire', 'menu'],
           importance: 4,
+          user_id: userId
+        });
+      }
+      // Favorite detection
+      else if (
+        norm.includes('favori') ||
+        norm.includes('favoris') ||
+        norm.includes('ajoute aux favoris') ||
+        norm.includes('mets en favori') ||
+        norm.includes('enregistre dans mes favoris')
+      ) {
+        let favTitle = cleanPrompt
+          .replace(/^(bonjour|salut|peux-tu|peux tu)?\s*(ajoute aux favoris|ajouter aux favoris|mets en favori|mettre en favori|enregistre dans mes favoris|favori)\s*:?\s*/i, '')
+          .replace(/^(de|que|pour|ceci)\s+/i, '')
+          .trim();
+
+        if (!favTitle) favTitle = 'Favori';
+
+        actions.push({
+          id: Date.now() + Math.floor(Math.random() * 10000000),
+          type: 'favorite',
+          endpoint: '/api/favoris',
+          titre: favTitle,
+          contenu: cleanPrompt,
+          categorie: 'général',
+          user_id: userId
         });
       }
     }
@@ -2135,66 +2473,135 @@ RÈGLE D'OR : Ne confirme JAMAIS à l'utilisateur qu'un rendez-vous, rappel, tâ
           }
         }
 
-        // 3. Insérer automatiquement les tâches, projets, rappels, mémoire et favoris créés dans Supabase
+        // 3. Insérer automatiquement les tâches, projets, rappels, mémoire et favoris créés dans Supabase & mémoire serveur
         if (Array.isArray(actions) && actions.length > 0) {
           const dbClient = supabaseAdmin || serverSupabase;
-          if (dbClient) {
-            for (const act of actions) {
-              try {
-                const actType = (act.type || '').toLowerCase();
-                if (actType === 'task' || actType === 'tache' || actType === 'project' || actType === 'projet') {
-                  const tacheItem = {
-                    id: act.id || Date.now() + Math.floor(Math.random() * 1000),
-                    titre: act.titre || act.nom || 'Nouvelle tâche',
-                    description: act.description || (actType.includes('projet') ? 'Projet créé par Major2I.A' : 'Tâche créée par Major2I.A'),
-                    priorite: act.priorite || 'normale',
-                    status: act.status || 'attente',
-                    echeance: act.echeance || act.dateRappel || null,
-                    user_id: userId,
-                    date_creation: new Date().toISOString()
-                  };
-                  await dbClient.from('taches').upsert(tacheItem, { onConflict: 'id' });
-                  console.log(`[Supabase] Tâche/Projet inséré automatiquement pour ${userId}:`, tacheItem.titre);
-                } else if (actType === 'reminder' || actType === 'rappel') {
-                  const rappelItem = {
-                    id: act.id || Date.now() + Math.floor(Math.random() * 1000),
-                    titre: act.titre || act.nom || 'Rappel programmé',
-                    description: act.description || 'Rappel créé par Major2I.A',
-                    date_rappel: act.dateRappel || new Date().toISOString().split('T')[0],
-                    heure: act.heure || '12:00',
-                    priorite: act.priorite || 'normale',
-                    statut: act.statut || 'actif',
-                    user_id: userId,
-                    date_creation: new Date().toISOString()
-                  };
-                  await dbClient.from('rappels').upsert(rappelItem, { onConflict: 'id' });
-                  console.log(`[Supabase] Rappel inséré automatiquement pour ${userId}:`, rappelItem.titre);
-                } else if (actType === 'memory' || actType === 'memoire') {
-                  const memoItem = {
-                    id: act.id || Date.now() + Math.floor(Math.random() * 1000),
-                    contenu: act.contenu || act.titre || 'Note mémorisée',
-                    tags: Array.isArray(act.tags) ? act.tags : ['ia-auto'],
-                    importance: typeof act.importance === 'number' ? act.importance : 3,
-                    user_id: userId,
-                    date: new Date().toISOString()
-                  };
-                  await dbClient.from('memoire').upsert(memoItem, { onConflict: 'id' });
-                  console.log(`[Supabase] Mémoire insérée automatiquement pour ${userId}`);
-                } else if (actType === 'favorite' || actType === 'favori') {
-                  const favItem = {
-                    id: act.id || Date.now() + Math.floor(Math.random() * 1000),
-                    titre: act.titre || act.nom || 'Favori',
-                    contenu: act.contenu || act.description || '',
-                    categorie: act.categorie || 'général',
-                    user_id: userId,
-                    date_creation: new Date().toISOString()
-                  };
-                  await dbClient.from('favoris').upsert(favItem, { onConflict: 'id' });
-                  console.log(`[Supabase] Favori inséré automatiquement pour ${userId}`);
+          for (const act of actions) {
+            try {
+              const actType = (act.type || '').toLowerCase();
+              const uniqueId = act.id || (Date.now() + Math.floor(Math.random() * 10000000));
+              act.id = uniqueId;
+
+              if (actType === 'task' || actType === 'tache' || actType === 'project' || actType === 'projet') {
+                const tacheItem = {
+                  id: uniqueId,
+                  titre: act.titre || act.nom || (actType.includes('projet') ? 'Nouveau projet' : 'Nouvelle tâche'),
+                  description: act.description || (actType.includes('projet') ? 'Projet créé par Major2I.A' : 'Tâche créée par Major2I.A'),
+                  priorite: act.priorite || 'normale',
+                  status: act.status || 'attente',
+                  echeance: act.echeance || act.dateRappel || null,
+                  user_id: userId,
+                  date_creation: new Date().toISOString()
+                };
+
+                // Sauvegarde mémoire serveur (ajout sans écrasement)
+                serverStore.taches.unshift(tacheItem);
+
+                if (dbClient) {
+                  for (let attempt = 0; attempt < 3; attempt++) {
+                    const { error: insErr } = await dbClient.from('taches').insert([tacheItem]);
+                    if (!insErr) {
+                      console.log(`[Supabase] Tâche/Projet inséré avec succès pour ${userId}:`, tacheItem.titre);
+                      break;
+                    }
+                    if (insErr.code === '23505') {
+                      tacheItem.id = Date.now() + Math.floor(Math.random() * 10000000);
+                      continue;
+                    }
+                    console.warn('[Supabase] Note insertion tâche:', insErr.message || insErr);
+                    break;
+                  }
                 }
-              } catch (actDbErr) {
-                console.warn('[Supabase] Erreur insertion automatique action:', actDbErr);
+              } else if (actType === 'reminder' || actType === 'rappel' || actType === 'event' || actType === 'agenda') {
+                const rappelItem = {
+                  id: uniqueId,
+                  titre: act.titre || act.nom || 'Rappel programmé',
+                  description: act.description || 'Rappel créé par Major2I.A',
+                  date_rappel: act.dateRappel || act.date || new Date().toISOString().split('T')[0],
+                  heure: act.heure || act.time || '09:00',
+                  priorite: act.priorite || 'normale',
+                  statut: act.statut || 'actif',
+                  user_id: userId,
+                  date_creation: new Date().toISOString()
+                };
+
+                // Sauvegarde mémoire serveur (ajout sans écrasement)
+                serverStore.rappels.unshift(rappelItem);
+
+                if (dbClient) {
+                  for (let attempt = 0; attempt < 3; attempt++) {
+                    const { error: insErr } = await dbClient.from('rappels').insert([rappelItem]);
+                    if (!insErr) {
+                      console.log(`[Supabase] Rappel inséré avec succès pour ${userId}:`, rappelItem.titre);
+                      break;
+                    }
+                    if (insErr.code === '23505') {
+                      rappelItem.id = Date.now() + Math.floor(Math.random() * 10000000);
+                      continue;
+                    }
+                    console.warn('[Supabase] Note insertion rappel:', insErr.message || insErr);
+                    break;
+                  }
+                }
+              } else if (actType === 'memory' || actType === 'memoire') {
+                const memoItem = {
+                  id: uniqueId,
+                  contenu: act.contenu || act.titre || 'Note mémorisée',
+                  tags: Array.isArray(act.tags) ? act.tags : ['ia-auto'],
+                  importance: typeof act.importance === 'number' ? act.importance : 3,
+                  user_id: userId,
+                  date: new Date().toISOString()
+                };
+
+                // Sauvegarde mémoire serveur (ajout sans écrasement)
+                serverStore.memoire.unshift(memoItem);
+
+                if (dbClient) {
+                  for (let attempt = 0; attempt < 3; attempt++) {
+                    const { error: insErr } = await dbClient.from('memoire').insert([memoItem]);
+                    if (!insErr) {
+                      console.log(`[Supabase] Mémoire insérée avec succès pour ${userId}`);
+                      break;
+                    }
+                    if (insErr.code === '23505') {
+                      memoItem.id = Date.now() + Math.floor(Math.random() * 10000000);
+                      continue;
+                    }
+                    console.warn('[Supabase] Note insertion mémoire:', insErr.message || insErr);
+                    break;
+                  }
+                }
+              } else if (actType === 'favorite' || actType === 'favori') {
+                const favItem = {
+                  id: uniqueId,
+                  titre: act.titre || act.nom || 'Favori',
+                  contenu: act.contenu || act.description || '',
+                  categorie: act.categorie || 'général',
+                  user_id: userId,
+                  date_creation: new Date().toISOString()
+                };
+
+                // Sauvegarde mémoire serveur (ajout sans écrasement)
+                serverStore.favoris.unshift(favItem);
+
+                if (dbClient) {
+                  for (let attempt = 0; attempt < 3; attempt++) {
+                    const { error: insErr } = await dbClient.from('favoris').insert([favItem]);
+                    if (!insErr) {
+                      console.log(`[Supabase] Favori inséré avec succès pour ${userId}`);
+                      break;
+                    }
+                    if (insErr.code === '23505') {
+                      favItem.id = Date.now() + Math.floor(Math.random() * 10000000);
+                      continue;
+                    }
+                    console.warn('[Supabase] Note insertion favori:', insErr.message || insErr);
+                    break;
+                  }
+                }
               }
+            } catch (actDbErr) {
+              console.warn('[Supabase] Erreur insertion automatique action:', actDbErr);
             }
           }
         }
