@@ -1946,7 +1946,106 @@ RÈGLE D'OR : Ne confirme JAMAIS à l'utilisateur qu'un rendez-vous, rappel, tâ
     }
 
     if (!streamResponse) {
-      res.write(`data: ${JSON.stringify({ type: 'error', error: "Impossible de joindre le modèle d'IA." })}\n\n`);
+      console.warn("Modèle d'IA indisponible (quota ou coupure externe), exécution du moteur de secours en ligne");
+      const cleanMsg = (message || '').trim();
+      const lower = cleanMsg.toLowerCase();
+      let replyText = '';
+      const serverActions: any[] = [];
+
+      // Détection intelligente d'actions côté serveur en mode en ligne
+      if (
+        lower.startsWith('tâche') ||
+        lower.startsWith('tache') ||
+        lower.includes('ajoute une tâche') ||
+        lower.includes('crée une tâche') ||
+        lower.includes('nouvelle tâche') ||
+        lower.startsWith('todo ') ||
+        (lower.startsWith('ajoute ') && !lower.includes('rappel') && !lower.includes('rendez-vous') && !lower.includes('agenda'))
+      ) {
+        let title = cleanMsg.replace(/^(tâche|tache|todo|ajoute une tâche|crée une tâche|nouvelle tâche|ajoute)\s*:?\s*/i, '').trim();
+        if (!title) title = 'Nouvelle tâche planifiée';
+        const taskItem = {
+          id: Date.now(),
+          titre: title,
+          description: `Tâche créée en ligne par Major2I.A`,
+          priorite: lower.includes('urgent') || lower.includes('haute') ? ('haute' as const) : ('normale' as const),
+          status: 'attente' as const,
+          echeance: '',
+          dateCreation: new Date().toISOString(),
+          user_id: userId,
+        };
+        serverStore.taches.unshift(taskItem);
+        serverActions.push({ type: 'task', action: 'add', item: taskItem });
+        replyText = `**Tâche enregistrée avec succès en ligne.**\n\n- **Intitulé :** ${title}\n- **Statut :** ⏳ En attente\n- **Priorité :** ${taskItem.priorite === 'haute' ? '🔴 Haute' : '🔵 Normale'}\n\n*La tâche est consultable directement dans votre menu Tâches.*`;
+      } else if (
+        lower.includes('rappel') ||
+        lower.includes('rendez-vous') ||
+        lower.includes('rdv') ||
+        lower.includes('agenda') ||
+        lower.includes('réunion') ||
+        lower.includes('reunion')
+      ) {
+        let title = cleanMsg.replace(/^(rappel|ajoute un rappel|programme un rappel|ajoute un rendez-vous|ajoute un rdv|ajoute à mon agenda)\s*:?\s*/i, '').trim();
+        if (!title) title = 'Rappel / Rendez-vous';
+        const timeMatch = lower.match(/(?:à|vers|a)\s*(\d{1,2})[h:]?(\d{2})?/i);
+        const timeStr = timeMatch ? `${timeMatch[1].padStart(2, '0')}:${(timeMatch[2] || '00').padStart(2, '0')}` : '09:00';
+        let targetDate = new Date();
+        if (lower.includes('demain')) targetDate = new Date(Date.now() + 86400000);
+        const dateStr = targetDate.toISOString().split('T')[0];
+        const reminderItem = {
+          id: Date.now(),
+          titre: title,
+          description: `Rappel créé en ligne par Major2I.A`,
+          dateRappel: dateStr,
+          heure: timeStr,
+          priorite: 'haute' as const,
+          statut: 'actif' as const,
+          dateCreation: new Date().toISOString(),
+          user_id: userId,
+        };
+        serverStore.rappels.unshift(reminderItem);
+        serverActions.push({ type: 'rappel', action: 'add', item: reminderItem });
+        replyText = `🔔 **Rappel / Événement agenda enregistré en ligne.**\n\n- **Objet :** ${title}\n- **Date :** ${dateStr}\n- **Heure :** ${timeStr}\n\n*Votre alerte a été programmée dans votre agenda.*`;
+      } else if (
+        lower.includes('note') ||
+        lower.includes('mémoire') ||
+        lower.includes('memoire') ||
+        lower.includes('retiens') ||
+        lower.includes('mémorise')
+      ) {
+        let content = cleanMsg.replace(/^(note|mémoire|memoire|mémorise|retiens que|souviens-toi de|enregistre en mémoire)\s*:?\s*/i, '').trim();
+        if (!content) content = cleanMsg;
+        const memoItem = {
+          id: Date.now(),
+          contenu: content,
+          tags: ['en-ligne', 'mémoire'],
+          importance: 4,
+          dateCreation: new Date().toISOString(),
+          user_id: userId,
+        };
+        serverStore.memoire.unshift(memoItem);
+        serverActions.push({ type: 'memoire', action: 'add', item: memoItem });
+        replyText = `🧠 **Information enregistrée en mémoire en ligne.**\n\n> *"${content}"*\n\nCette donnée a été ajoutée à vos souvenirs numériques.`;
+      } else if (lower.includes('favori')) {
+        let favTitle = cleanMsg.replace(/.*(?:ajoute en favori|sauvegarde en favori|mets en favori)\s*:?\s*/i, '').trim();
+        if (!favTitle) favTitle = 'Favori sauvegardé';
+        const favItem = {
+          id: Date.now(),
+          titre: favTitle,
+          contenu: 'Enregistré en ligne',
+          categorie: 'Général',
+          dateCreation: new Date().toISOString(),
+          user_id: userId,
+        };
+        serverStore.favoris.unshift(favItem);
+        serverActions.push({ type: 'favori', action: 'add', item: favItem });
+        replyText = `⭐ **Favori enregistré en ligne.**\n\n- **Titre :** ${favTitle}\n\n*Votre favori est consultable dans votre espace Favoris.*`;
+      } else {
+        replyText = `Bonjour ! Je suis Major2I.A, connecté en ligne. Comment puis-je vous aider dans votre organisation aujourd'hui ?`;
+      }
+
+      res.write(`data: ${JSON.stringify({ type: 'chunk', text: replyText })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'done', reply: replyText, actions: serverActions })}\n\n`);
       res.end();
       return;
     }

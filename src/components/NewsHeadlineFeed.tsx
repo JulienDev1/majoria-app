@@ -89,14 +89,30 @@ function extractImage(item: any): string | undefined {
 }
 
 export const NewsHeadlineFeed: React.FC<NewsHeadlineFeedProps> = ({ onSelectPrompt }) => {
-  const [articles, setArticles] = useState<NewsItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [articles, setArticles] = useState<NewsItem[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const cached = localStorage.getItem('neo-cached-news');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [loading, setLoading] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('neo-cached-news');
+        if (cached && JSON.parse(cached).length > 0) return false;
+      } catch {}
+    }
+    return true;
+  });
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [hasError, setHasError] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const fetchNews = async (showLoadingState = true) => {
-    if (showLoadingState) setLoading(true);
+    if (showLoadingState && articles.length === 0) setLoading(true);
     setIsRefreshing(true);
     setHasError(false);
 
@@ -160,13 +176,18 @@ export const NewsHeadlineFeed: React.FC<NewsHeadlineFeedProps> = ({ onSelectProm
 
       if (topHeadlines.length > 0) {
         setArticles(topHeadlines);
+        try {
+          localStorage.setItem('neo-cached-news', JSON.stringify(topHeadlines));
+        } catch {}
         setHasError(false);
-      } else {
+      } else if (articles.length === 0) {
         setHasError(true);
       }
     } catch (err) {
       console.warn('Erreur chargement flux RSS À la une:', err);
-      setHasError(true);
+      if (articles.length === 0) {
+        setHasError(true);
+      }
     } finally {
       setLoading(false);
       setIsRefreshing(false);

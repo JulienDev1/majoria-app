@@ -103,7 +103,7 @@ export function generateOfflineResponse(
     return { reply, actions, offline: true };
   }
 
-  // 2. Reminder Creation intent
+  // 2. Reminder & Agenda / Rendez-vous Creation intent
   if (
     lower.startsWith('rappel') ||
     lower.includes('rappelle-moi') ||
@@ -112,36 +112,52 @@ export function generateOfflineResponse(
     lower.includes('ajouter un rappel') ||
     lower.includes('crée un rappel') ||
     lower.includes('créer un rappel') ||
-    lower.includes('programme un rappel')
+    lower.includes('programme un rappel') ||
+    lower.includes('rendez-vous') ||
+    lower.includes('rendez vous') ||
+    lower.includes('rdv') ||
+    lower.includes('agenda') ||
+    lower.includes('planning') ||
+    lower.includes('réunion') ||
+    lower.includes('reunion') ||
+    lower.includes('calendrier')
   ) {
     let reminderTitle = cleanPrompt
-      .replace(/^(rappel|rappelle-moi|rappelle moi|ajoute un rappel|ajouter un rappel|crée un rappel|créer un rappel)\s*:?\s*/i, '')
+      .replace(/^(rappel|rappelle-moi|rappelle moi|ajoute un rappel|ajouter un rappel|crée un rappel|créer un rappel|ajoute un rendez-vous|ajoute un rdv|ajoute à mon agenda|ajoute dans mon agenda|programme un rappel|programme un rendez-vous)\s*:?\s*/i, '')
       .replace(/^(de|que|pour)\s+/i, '')
       .trim();
 
-    if (!reminderTitle) reminderTitle = 'Rappel programmé';
+    if (!reminderTitle) reminderTitle = 'Rappel / Rendez-vous programmé';
 
-    // Extract potential time (ex: à 14h, 15:30)
+    // Extract potential time (ex: à 14h, 15:30, 10h15)
     const timeMatch = lower.match(/(?:à|vers|a)\s*(\d{1,2})[h:]?(\d{2})?/i);
     const reminderHour = timeMatch ? `${timeMatch[1].padStart(2, '0')}:${(timeMatch[2] || '00').padStart(2, '0')}` : '09:00';
 
-    const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
+    // Extract potential date (demain, après-demain, ou aujourd'hui)
+    let targetDate = new Date();
+    if (lower.includes('après-demain') || lower.includes('apres-demain') || lower.includes('après demain')) {
+      targetDate = new Date(Date.now() + 2 * 86400000);
+    } else if (lower.includes('demain')) {
+      targetDate = new Date(Date.now() + 86400000);
+    }
+    const dateStr = targetDate.toISOString().split('T')[0];
+
+    const isAgendaEvent = lower.includes('rendez-vous') || lower.includes('rdv') || lower.includes('agenda') || lower.includes('réunion');
 
     actions.push({
       type: 'rappel',
       action: 'add',
       item: {
         titre: reminderTitle,
-        description: `Rappel généré en mode autonome par Major2I.A`,
-        dateRappel: todayStr,
+        description: isAgendaEvent ? `Événement agenda créé en mode hors-ligne pour ${userName}` : `Rappel généré en mode autonome par Major2I.A`,
+        dateRappel: dateStr,
         heure: reminderHour,
         priorite: 'haute',
         statut: 'actif',
       },
     });
 
-    reply = `⚡ **[Mode Hors-Ligne] Rappel configuré.**\n\n- **Objet :** ${reminderTitle}\n- **Date :** Aujourd'hui (${todayStr})\n- **Heure :** ${reminderHour}\n- **Statut :** 🔔 Actif\n\n*Votre alerte retentira automatiquement à l'heure indiquée.*`;
+    reply = `⚡ **[Mode Hors-Ligne] ${isAgendaEvent ? 'Rendez-vous / Agenda' : 'Rappel'} configuré avec succès.**\n\n- **Objet :** ${reminderTitle}\n- **Date :** ${dateStr} ${lower.includes('demain') ? '(Demain)' : ''}\n- **Heure :** ${reminderHour}\n- **Statut :** 🔔 Actif\n\n*L'événement est enregistré dans votre agenda local et une alerte retentira à l'heure indiquée.*`;
     return { reply, actions, offline: true };
   }
 

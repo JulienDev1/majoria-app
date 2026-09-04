@@ -785,27 +785,28 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         ) : (
           conversation.messages.map((msg, idx) => {
             const isUser = msg.role === 'user';
+            const isFirstWelcomeMessage = idx === 0 && !isUser;
             return (
-              <div
-                key={idx}
-                className={`flex gap-2.5 ${isUser ? 'justify-end' : 'justify-start'}`}
-              >
-                {!isUser && (
-                  <img 
-                    src="/maskable_icon.png" 
-                    alt="Major2I.A" 
-                    className="w-9 h-9 rounded-full object-cover shrink-0 shadow-sm mt-1 ring-1 ring-white/50" 
-                  />
-                )}
-
-                {/* Message Bubble: Transparent for both User and Assistant to clearly see the background */}
+              <div key={idx} className="space-y-3 w-full">
                 <div
-                  className={`relative transition-all break-words ${
-                    isUser
-                      ? 'bg-[var(--chat-bubble-user)] backdrop-blur-xs text-white border border-[var(--chat-bubble-border-user)] p-3.5 sm:p-4 rounded-2xl rounded-tr-xs max-w-[85%] sm:max-w-[75%] shadow-sm'
-                      : 'bg-[var(--chat-bubble-assistant)] backdrop-blur-xs text-[var(--fb-text-primary)] border border-[var(--chat-bubble-border-ai)] p-4 sm:p-5 rounded-2xl shadow-sm max-w-[95%] sm:max-w-[88%] w-full'
-                  }`}
+                  className={`flex gap-2.5 ${isUser ? 'justify-end' : 'justify-start'}`}
                 >
+                  {!isUser && (
+                    <img 
+                      src="/maskable_icon.png" 
+                      alt="Major2I.A" 
+                      className="w-9 h-9 rounded-full object-cover shrink-0 shadow-sm mt-1 ring-1 ring-white/50" 
+                    />
+                  )}
+
+                  {/* Message Bubble: Transparent for both User and Assistant to clearly see the background */}
+                  <div
+                    className={`relative transition-all break-words ${
+                      isUser
+                        ? 'bg-[var(--chat-bubble-user)] backdrop-blur-xs text-white border border-[var(--chat-bubble-border-user)] p-3.5 sm:p-4 rounded-2xl rounded-tr-xs max-w-[85%] sm:max-w-[75%] shadow-sm'
+                        : 'bg-[var(--chat-bubble-assistant)] backdrop-blur-xs text-[var(--fb-text-primary)] border border-[var(--chat-bubble-border-ai)] p-4 sm:p-5 rounded-2xl shadow-sm max-w-[95%] sm:max-w-[88%] w-full'
+                    }`}
+                  >
                   {/* AI Header */}
                   {!isUser && (
                     <div className="flex items-center justify-between pb-3 mb-3 border-b border-[var(--fb-border-light)]">
@@ -1024,6 +1025,14 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 {isUser && (
                   <div className="w-9 h-9 rounded-full bg-[var(--fb-blue)] text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-sm mt-1 ring-1 ring-white/50">
                     {userProfile?.prenom ? userProfile.prenom[0].toUpperCase() : <User className="w-4 h-4" />}
+                  </div>
+                )}
+                </div>
+
+                {/* Fil d'actualité présent à l'ouverture de l'application sous 'Bonjour et bienvenue ..' */}
+                {isFirstWelcomeMessage && (
+                  <div className="w-full pl-0 sm:pl-11 pt-1">
+                    <NewsHeadlineFeed onSelectPrompt={(prompt) => setInputText(prompt)} />
                   </div>
                 )}
               </div>
