@@ -1,4 +1,7 @@
+<<<<<<< HEAD
 import { telemetry } from './telemetry';
+=======
+>>>>>>> 5a8afd4da7d6431fee404d2d3483cde8f613de47
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { PanelLeftOpen, ChevronRight } from 'lucide-react';
 import { 
@@ -67,11 +70,14 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(false);
 
   useEffect(() => {
+<<<<<<< HEAD
     // Enregistrer le démarrage de la session
     telemetry.track('app_init', 'session', { //
       screen: window.innerWidth + 'x' + window.innerHeight,
       user_agent: navigator.userAgent
     }); //
+=======
+>>>>>>> 5a8afd4da7d6431fee404d2d3483cde8f613de47
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session?.user?.email) {
