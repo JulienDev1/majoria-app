@@ -1,0 +1,13 @@
+cat << 'EOF' > data/raw/sample_events.json
+[
+  {
+    "timestamp": "2026-09-08T20:30:00Z",
+    "type": "prompt",
+    "payload": {"prompt_length": 42, "model": "gemini-flash"}
+  },
+  {
+    "timestamp": "2026-09-08T20:30:05Z",
+    "type": "response",
+    "payload": {"latency_ms": 320, "tokens": 150}
+  }
+]

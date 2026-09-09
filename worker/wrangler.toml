@@ -1,0 +1,7 @@
+name = "majori-telemetry-worker"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[[r2_buckets]]
+binding = "TELEMETRY_BUCKET"
+bucket_name = "majori-telemetry-raw"
