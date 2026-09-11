@@ -34,12 +34,11 @@ const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABA
 
 // Client avec droits administrateur (contourne RLS si clé de service disponible)
 let supabaseAdmin: SupabaseClient | null = null;
-if (supabaseUrl && supabaseServiceKey) {
-  try {
-    supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-    console.log('Supabase Admin Client initialized successfully.');
-  } catch (err) {
-    console.warn('Failed to initialize Supabase Admin Client:', err);
+if (supabaseUrl) {
+  const keyToUse = supabaseServiceKey || supabaseAnonKey;
+  if (keyToUse) {
+    supabaseAdmin = createClient(supabaseUrl, keyToUse);
+    console.log('Supabase Client initialized successfully.');
   }
 }
 
