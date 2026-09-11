@@ -1,4 +1,5 @@
 import { UserProfile, Tache, Rappel, Memoire, Favori } from '../types';
+import { parseAgendaAiRequest } from './agendaAiEngine.ts';
 
 export interface OfflineContext {
   userProfile?: UserProfile;
@@ -126,6 +127,40 @@ export function generateOfflineResponse(
     lower.includes('reunion') ||
     lower.includes('calendrier')
   ) {
+    const isAgendaEvent = lower.includes('rendez-vous') || lower.includes('rendez vous') || lower.includes('rdv') || lower.includes('agenda') || lower.includes('réunion') || lower.includes('reunion');
+
+    if (isAgendaEvent) {
+      const agendaResult = parseAgendaAiRequest(cleanPrompt);
+      if (agendaResult.action === 'CREER' && agendaResult.evenement.dateDebut) {
+        const dateDebut = agendaResult.evenement.dateDebut;
+        const dateStr = dateDebut.split('T')[0];
+        const timeStr = dateDebut.split('T')[1].slice(0, 5);
+        const title = agendaResult.evenement.titre || 'Rendez-vous';
+        const dateFin = agendaResult.evenement.dateFin;
+        const endTimeStr = dateFin ? dateFin.split('T')[1].slice(0, 5) : '';
+
+        actions.push({
+          type: 'rappel',
+          action: 'add',
+          item: {
+            titre: title,
+            description: endTimeStr
+              ? `Rendez-vous planifié de ${timeStr} à ${endTimeStr}`
+              : isActuallyOffline
+              ? `Événement agenda créé en mode autonome pour ${userName}`
+              : `Événement agenda créé pour ${userName}`,
+            dateRappel: dateStr,
+            heure: timeStr,
+            priorite: 'haute',
+            statut: 'actif',
+          },
+        });
+
+        reply = `${prefix}**Rendez-vous / Agenda configuré avec succès.**\n\n- **Objet :** ${title}\n- **Date :** ${dateStr}\n- **Heure :** ${timeStr}${endTimeStr ? ` à ${endTimeStr}` : ''}\n- **Statut :** 🔔 Actif\n\n*${agendaResult.reponse}*`;
+        return { reply, actions, offline: isActuallyOffline };
+      }
+    }
+
     let reminderTitle = cleanPrompt
       .replace(/^(rappel|rappelle-moi|rappelle moi|ajoute un rappel|ajouter un rappel|crée un rappel|créer un rappel|ajoute un rendez-vous|ajoute un rdv|ajoute à mon agenda|ajoute dans mon agenda|programme un rappel|programme un rendez-vous)\s*:?\s*/i, '')
       .replace(/^(de|que|pour)\s+/i, '')
@@ -145,8 +180,6 @@ export function generateOfflineResponse(
       targetDate = new Date(Date.now() + 86400000);
     }
     const dateStr = targetDate.toISOString().split('T')[0];
-
-    const isAgendaEvent = lower.includes('rendez-vous') || lower.includes('rdv') || lower.includes('agenda') || lower.includes('réunion');
 
     actions.push({
       type: 'rappel',

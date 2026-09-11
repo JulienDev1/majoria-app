@@ -49,6 +49,18 @@ import { LanguageProvider } from './context/LanguageContext.tsx';
 import { NetworkProvider } from './context/NetworkContext.tsx';
 import './index.css';
 
+// Demande l'autorisation de notifier
+if (typeof window !== 'undefined' && 'Notification' in window) {
+  Notification.requestPermission().then(permission => {
+    if (permission === 'granted') {
+      new Notification('Rappel Majoria', {
+        body: 'Rendez-vous avec le médecin dans 15 minutes !',
+        icon: '/icon.png'
+      });
+    }
+  });
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <NetworkProvider>

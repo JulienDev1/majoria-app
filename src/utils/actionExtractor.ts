@@ -4,6 +4,8 @@
  * from explicit ACTION_JSON blocks as well as natural conversational French language.
  */
 
+import { parseAgendaAiRequest } from './agendaAiEngine.ts';
+
 export interface ExtractedAction {
   type: 'reminder' | 'rappel' | 'task' | 'tache' | 'project' | 'projet' | 'memory' | 'memoire' | 'favorite' | 'favori' | 'event' | 'agenda' | 'evenement';
   action?: 'add' | 'update' | 'delete';
@@ -343,6 +345,27 @@ export function extractActionsFromText(userPrompt: string, aiReply?: string): Ex
   );
 
   if (isAgenda) {
+    const agendaParsed = parseAgendaAiRequest(cleanPrompt);
+    if (agendaParsed.action === 'CREER' && agendaParsed.evenement.dateDebut) {
+      const startDate = agendaParsed.evenement.dateDebut.split('T')[0];
+      const startTime = agendaParsed.evenement.dateDebut.split('T')[1].slice(0, 5);
+      const endDate = agendaParsed.evenement.dateFin ? agendaParsed.evenement.dateFin.split('T')[0] : startDate;
+      const endTime = agendaParsed.evenement.dateFin ? agendaParsed.evenement.dateFin.split('T')[1].slice(0, 5) : '';
+
+      actions.push({
+        type: 'event',
+        titre: agendaParsed.evenement.titre || 'Événement Agenda',
+        description: endTime ? `Événement prévu de ${startTime} à ${endTime}` : `Événement prévu le ${startDate} à ${startTime}`,
+        dateRappel: startDate,
+        heure: startTime,
+        dateFinRappel: endDate,
+        heureFin: endTime,
+        priorite: 'normale',
+      });
+
+      return actions;
+    }
+
     let eventTitle = cleanPrompt
       .replace(/^(bonjour|salut|peux-tu|peux tu)?\s*(ajoute à l'agenda|ajoute à mon agenda|ajouter à mon agenda|ajoute dans mon agenda|ajoute au calendrier|sur mon agenda|sur mon calendrier|dans mon agenda|dans mon calendrier|crée un événement|créer un événement|planifie un événement|planifie un rendez-vous|planifie un rdv|planifie une réunion|programme sur l'agenda|rendez-vous|rendez vous|rdv|agenda)\s*:?\s*/i, '')
       .replace(/^(de|que|pour|à|a|chez le|chez la|chez)\s+/i, '')

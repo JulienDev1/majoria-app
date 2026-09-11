@@ -6,6 +6,11 @@ import dotenv from 'dotenv';
 import { GoogleGenAI, ThinkingLevel, FunctionDeclaration, Type } from '@google/genai';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
+import {
+  AGENDA_AI_SYSTEM_PROMPT,
+  parseAgendaAiRequest,
+  AgendaAiResult,
+} from './src/utils/agendaAiEngine.ts';
 
 dotenv.config();
 
@@ -178,7 +183,7 @@ function getGenAI(): GoogleGenAI {
 
 // Legacy rewrite fallback: if requested without /api, rewrite internally to /api
 app.use((req, res, next) => {
-  const legacyPrefixes = ['/taches', '/rappels', '/favoris', '/memoire', '/subscription', '/chat', '/credits'];
+  const legacyPrefixes = ['/taches', '/rappels', '/favoris', '/memoire', '/subscription', '/chat', '/credits', '/agenda'];
   for (const prefix of legacyPrefixes) {
     if (req.url === prefix || req.url.startsWith(prefix + '/') || req.url.startsWith(prefix + '?')) {
       req.url = '/api' + req.url;
@@ -1743,7 +1748,11 @@ DIRECTIVES DE RÉPONSE :
 [/ACTION_JSON]
 
 Règles impératives pour chaque type d'action :
-- Rendez-vous, rappels, alertes, planning, agenda :
+- Rendez-vous, rappels, alertes, planning, agenda (moteur IA de l'agenda Majoria) :
+  Référence : Aujourd'hui nous sommes le 10 Septembre 2026.
+  Si l'utilisateur demande d'ajouter un RDV, action = "CREER".
+  Si l'heure de fin n'est pas spécifiée, met la dateFin à 1h après dateDebut.
+  Calcule les dates ("demain", "lundi") à partir du 10 Septembre 2026.
   "type": "CREATE_REMINDER", "endpoint": "/api/rappels", "payload": { "title": "Titre du rendez-vous ou rappel", "date": "YYYY-MM-DD", "time": "HH:MM", "user_id": "CURRENT_USER" }
 - Tâches, to-do, projets, choses à faire :
   "type": "CREATE_TASK", "endpoint": "/api/taches", "payload": { "title": "Titre de la tâche", "date": "YYYY-MM-DD", "priority": "normale", "description": "Détails", "user_id": "CURRENT_USER" }
@@ -1985,17 +1994,18 @@ RÈGLE D'OR : Ne confirme JAMAIS à l'utilisateur qu'un rendez-vous, rappel, tâ
         lower.includes('réunion') ||
         lower.includes('reunion')
       ) {
-        let title = cleanMsg.replace(/^(rappel|ajoute un rappel|programme un rappel|ajoute un rendez-vous|ajoute un rdv|ajoute à mon agenda)\s*:?\s*/i, '').trim();
-        if (!title) title = 'Rappel / Rendez-vous';
-        const timeMatch = lower.match(/(?:à|vers|a)\s*(\d{1,2})[h:]?(\d{2})?/i);
-        const timeStr = timeMatch ? `${timeMatch[1].padStart(2, '0')}:${(timeMatch[2] || '00').padStart(2, '0')}` : '09:00';
-        let targetDate = new Date();
-        if (lower.includes('demain')) targetDate = new Date(Date.now() + 86400000);
-        const dateStr = targetDate.toISOString().split('T')[0];
+        const agendaResult = parseAgendaAiRequest(cleanMsg);
+        const title = agendaResult.evenement.titre || 'Rappel / Rendez-vous';
+        const dateDebut = agendaResult.evenement.dateDebut || '2026-09-10T09:00:00';
+        const dateStr = dateDebut.split('T')[0];
+        const timeStr = dateDebut.split('T')[1].slice(0, 5);
+        const dateFin = agendaResult.evenement.dateFin;
+        const endTimeStr = dateFin ? dateFin.split('T')[1].slice(0, 5) : '';
+
         const reminderItem = {
           id: Date.now(),
           titre: title,
-          description: `Rappel créé en ligne par Major2I.A`,
+          description: endTimeStr ? `Rendez-vous planifié de ${timeStr} à ${endTimeStr}` : `Rappel / Rendez-vous créé en ligne par Major2I.A`,
           dateRappel: dateStr,
           heure: timeStr,
           priorite: 'haute' as const,
@@ -2005,7 +2015,7 @@ RÈGLE D'OR : Ne confirme JAMAIS à l'utilisateur qu'un rendez-vous, rappel, tâ
         };
         serverStore.rappels.unshift(reminderItem);
         serverActions.push({ type: 'rappel', action: 'add', item: reminderItem });
-        replyText = `🔔 **Rappel / Événement agenda enregistré en ligne.**\n\n- **Objet :** ${title}\n- **Date :** ${dateStr}\n- **Heure :** ${timeStr}\n\n*Votre alerte a été programmée dans votre agenda.*`;
+        replyText = `🔔 **Rappel / Événement agenda enregistré en ligne.**\n\n- **Objet :** ${title}\n- **Date :** ${dateStr}\n- **Heure :** ${timeStr}${endTimeStr ? ` à ${endTimeStr}` : ''}\n\n*Votre alerte a été programmée dans votre agenda.*`;
       } else if (
         lower.includes('note') ||
         lower.includes('mémoire') ||
@@ -2348,37 +2358,18 @@ RÈGLE D'OR : Ne confirme JAMAIS à l'utilisateur qu'un rendez-vous, rappel, tâ
         norm.includes('planifie une reunion') ||
         norm.includes('prends rdv')
       ) {
-        let reminderTitle = cleanPrompt
-          .replace(/^(bonjour|salut|peux-tu|peux tu|pourrais-tu|pourrais tu|s il te plait|svp)?\s*(rappel|rappelle-moi|rappelle moi|me rappeler de|rappeler de|ajoute un rappel|ajouter un rappel|crée un rappel|créer un rappel|programme un rappel|programmer un rappel|mets une alerte pour|mets une alarme pour|n'oublie pas de me rappeler|ajoute à l'agenda|ajoute à mon agenda|dans mon agenda|sur mon agenda|rendez-vous|rendez vous|rdv|agenda)\s*:?\s*/i, '')
-          .replace(/^(de|que|pour|à|a)\s+/i, '')
-          .trim();
-
-        let reminderHour = '09:00';
-        const timeMatch = lower.match(/(?:à|vers|a|pour)\s*(\d{1,2})[h:]?(\d{2})?/i);
-        if (timeMatch) {
-          reminderHour = `${timeMatch[1].padStart(2, '0')}:${(timeMatch[2] || '00').padStart(2, '0')}`;
-        }
-
-        let reminderDate = todayStr;
-        if (norm.includes('demain')) {
-          const d = new Date(now);
-          d.setDate(d.getDate() + 1);
-          reminderDate = d.toISOString().split('T')[0];
-        } else if (norm.includes('apres demain') || norm.includes('apres-demain')) {
-          const d = new Date(now);
-          d.setDate(d.getDate() + 2);
-          reminderDate = d.toISOString().split('T')[0];
-        }
-
-        reminderTitle = reminderTitle.replace(/(?:demain|après-demain|apres-demain|aujourd'hui|(?:à|vers|pour|a)\s*\d{1,2}[h:]?\d{0,2})/gi, '').trim();
-        if (!reminderTitle) reminderTitle = norm.includes('rendez') || norm.includes('agenda') ? 'Rendez-vous programmé' : 'Rappel programmé';
+        const agendaResult = parseAgendaAiRequest(cleanPrompt);
+        let reminderTitle = agendaResult.evenement.titre || (norm.includes('rendez') || norm.includes('agenda') ? 'Rendez-vous programmé' : 'Rappel programmé');
+        let reminderDate = agendaResult.evenement.dateDebut ? agendaResult.evenement.dateDebut.split('T')[0] : todayStr;
+        let reminderHour = agendaResult.evenement.dateDebut ? agendaResult.evenement.dateDebut.split('T')[1].slice(0, 5) : '09:00';
+        let reminderEndHour = agendaResult.evenement.dateFin ? agendaResult.evenement.dateFin.split('T')[1].slice(0, 5) : '';
 
         actions.push({
           id: Date.now() + Math.floor(Math.random() * 10000000),
           type: 'reminder',
           endpoint: '/api/rappels',
           titre: reminderTitle,
-          description: `Rappel créé pour le ${reminderDate} à ${reminderHour}`,
+          description: reminderEndHour ? `Rendez-vous planifié de ${reminderHour} à ${reminderEndHour}` : `Rappel créé pour le ${reminderDate} à ${reminderHour}`,
           dateRappel: reminderDate,
           heure: reminderHour,
           priorite: norm.includes('urgent') || norm.includes('important') ? 'haute' : 'normale',
@@ -2983,6 +2974,115 @@ app.post('/api/transcribe', async (req: Request, res: Response) => {
     });
   }
 });
+
+// ==========================================
+// MOTEUR D'INTELLIGENCE ARTIFICIELLE AGENDA MAJORIA
+// ==========================================
+const handleAgendaAiRequest = async (req: Request, res: Response) => {
+  try {
+    const userPrompt = req.body?.prompt || req.body?.message || req.body?.demande || req.query?.q || '';
+    if (!userPrompt || typeof userPrompt !== 'string' || !userPrompt.trim()) {
+      return res.status(200).json({
+        action: 'INCONNU',
+        evenement: {
+          titre: null,
+          dateDebut: null,
+          dateFin: null,
+        },
+        reponse: "Je n'ai pas identifié d'action précise pour votre agenda Majoria. Vous pouvez me demander de planifier, consulter ou annuler un rendez-vous.",
+      });
+    }
+
+    const cleanPrompt = userPrompt.trim();
+    let geminiResult: AgendaAiResult | null = null;
+
+    // Tentative d'analyse avec Gemini
+    try {
+      const ai = getGenAI();
+      const candidateModels = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
+      for (const modelName of candidateModels) {
+        try {
+          const response = await withTimeout(
+            ai.models.generateContent({
+              model: modelName,
+              contents: [{ role: 'user', parts: [{ text: cleanPrompt }] }],
+              config: {
+                systemInstruction: AGENDA_AI_SYSTEM_PROMPT,
+                responseMimeType: 'application/json',
+                temperature: 0.1,
+              },
+            }),
+            5000,
+            `Timeout agenda AI ${modelName}`
+          );
+
+          const rawText = response?.text?.trim() || '';
+          if (rawText) {
+            const parsed = JSON.parse(rawText);
+            if (
+              parsed &&
+              (parsed.action === 'CREER' || parsed.action === 'LIRE' || parsed.action === 'SUPPRIMER' || parsed.action === 'INCONNU') &&
+              parsed.evenement &&
+              typeof parsed.reponse === 'string'
+            ) {
+              geminiResult = {
+                action: parsed.action,
+                evenement: {
+                  titre: parsed.evenement.titre ?? null,
+                  dateDebut: parsed.evenement.dateDebut ?? null,
+                  dateFin: parsed.evenement.dateFin ?? null,
+                },
+                reponse: parsed.reponse,
+              };
+              break;
+            }
+          }
+        } catch (modelErr) {
+          // Essai modèle suivant
+        }
+      }
+    } catch (aiErr) {
+      console.warn('Gemini agenda non disponible, bascule vers le moteur déterministe:', aiErr);
+    }
+
+    // Si Gemini n'a pas pu répondre ou a échoué, on utilise le moteur déterministe local
+    const result: AgendaAiResult = geminiResult || parseAgendaAiRequest(cleanPrompt);
+
+    // Persistance automatique dans les rappels/agenda si action = CREER
+    if (result.action === 'CREER' && result.evenement.dateDebut) {
+      const startTime = result.evenement.dateDebut.split('T')[1]?.slice(0, 5) || '09:00';
+      const startDate = result.evenement.dateDebut.split('T')[0] || '2026-09-10';
+      const eventTitle = result.evenement.titre || 'Rendez-vous';
+      const endTime = result.evenement.dateFin ? result.evenement.dateFin.split('T')[1]?.slice(0, 5) : '';
+      const userId = req.body?.userId || req.body?.user_id || 'CURRENT_USER';
+
+      const reminderItem = {
+        id: Date.now(),
+        titre: eventTitle,
+        description: endTime ? `Rendez-vous planifié de ${startTime} à ${endTime}` : `Rendez-vous agenda Majoria`,
+        dateRappel: startDate,
+        heure: startTime,
+        priorite: 'haute' as const,
+        statut: 'actif' as const,
+        dateCreation: new Date().toISOString(),
+        user_id: userId,
+      };
+      serverStore.rappels.unshift(reminderItem);
+    }
+
+    return res.status(200).json(result);
+  } catch (err: any) {
+    console.error('Erreur API Agenda AI:', err);
+    const fallback = parseAgendaAiRequest(req.body?.prompt || req.body?.message || '');
+    return res.status(200).json(fallback);
+  }
+};
+
+app.post('/api/agenda/ai', handleAgendaAiRequest);
+app.post('/api/agenda/parse', handleAgendaAiRequest);
+app.post('/api/agenda/analyser', handleAgendaAiRequest);
+app.get('/api/agenda/ai', handleAgendaAiRequest);
+app.get('/api/agenda/parse', handleAgendaAiRequest);
 
 // Setup Vite development server or serve production build
 async function startServer() {
